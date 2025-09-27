@@ -1,0 +1,121 @@
+# -------------------------
+# Environment Variables
+# -------------------------
+.env
+.env.*
+!.env.example
+
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# -------------------------
+# Distribution / Packaging
+# -------------------------
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# -------------------------
+# PyInstaller
+# -------------------------
+*.manifest
+*.spec
+
+# -------------------------
+# Installer Logs
+# -------------------------
+pip-log.txt
+pip-delete-this-directory.txt
+
+# -------------------------
+# Unit Test / Coverage
+# -------------------------
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# -------------------------
+# Databases / Local Files
+# -------------------------
+*.db
+*.sqlite3
+*.sqlite3-journal
+local_settings.py
+
+# -------------------------
+# Framework Specific (Django only)
+# -------------------------
+*.log
+
+# -------------------------
+# Sphinx Docs
+# -------------------------
+docs/_build/
+
+# -------------------------
+# Jupyter
+# -------------------------
+.ipynb_checkpoints
+
+# -------------------------
+# Virtual Environments
+# -------------------------
+.venv/
+venv/
+venv.bak/
+env/
+env.bak/
+
+# -------------------------
+# Type Checking
+# -------------------------
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# -------------------------
+# Editors / IDEs
+# -------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# -------------------------
+# OS Files
+# -------------------------
+.DS_Store
+Thumbs.db
