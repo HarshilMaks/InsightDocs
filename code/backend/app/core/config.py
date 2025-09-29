@@ -14,7 +14,7 @@ from pydantic import Field
 from pydantic import field_validator
 from dotenv import load_dotenv
 
-# Load environment variables from a .env file if present
+# Load environment variables from a .env file
 load_dotenv()
 
 # Factory helpers for nested settings to satisfy static type checker

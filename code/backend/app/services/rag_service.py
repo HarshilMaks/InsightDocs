@@ -7,15 +7,17 @@ import time
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
-import google.generativeai as genai
 from pymilvus import Collection
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.config import settings
-from ..core.milvus import get_milvus_collection
-from ..models.schemas import QueryRequest
-from ..utils.logger import get_logger, log_performance
-from .llm_service import LLMService
+from core.config import get_settings
+from core.milvus import get_collection
+from models.schemas import QueryRequest
+from utils.logger import get_logger, log_performance
+from services.llm_service import LLMService
+
+
+settings = get_settings()
 
 
 @dataclass
@@ -41,19 +43,18 @@ class RAGService:
     def __init__(self):
         self.logger = get_logger("rag")
         self.llm = LLMService()
-        genai.configure(api_key=settings.llm.google_api_key)
 
     async def query_documents(
         self, query: QueryRequest, session: Optional[AsyncSession] = None
     ) -> RAGResponse:
-        """Main RAG pipeline"""
+        """Main RAG pipeline: embed → retrieve → generate"""
         start = time.time()
 
         try:
-            # 1. Embed query
-            query_embedding = await self._generate_embedding(query.query)
+            # 1. Embed user query
+            query_embedding = await self.llm.embed_text(query.query)
 
-            # 2. Retrieve contexts
+            # 2. Retrieve contexts from Milvus
             contexts = await self._retrieve_contexts(query_embedding, query.max_results or 5)
             if not contexts:
                 return RAGResponse(
@@ -65,7 +66,7 @@ class RAGService:
                     confidence_score=0.0,
                 )
 
-            # 3. Generate response
+            # 3. Generate answer based on retrieved contexts
             response = await self.llm.generate_response(
                 prompt=self._build_prompt(query.query, contexts)
             )
@@ -76,53 +77,57 @@ class RAGService:
                 query=query.query,
                 response_time=time.time() - start,
                 tokens_used=response["usage"]["total_tokens"],
-                confidence_score=0.8,  # simple fixed score for now
+                confidence_score=0.8,  # TODO: compute confidence from similarity, etc.
             )
 
         except Exception as e:
-            self.logger.error(f"RAG failed: {e}")
+            self.logger.error(f"RAG failed: {e}", exc_info=True)
             log_performance("rag_query", time.time() - start, success=False)
             raise
 
-    async def _generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding via Gemini"""
-        result = genai.embed_content(model=settings.llm.embedding_model, content=text)
-        return result["embedding"]
-
     async def _retrieve_contexts(self, embedding: List[float], top_k: int) -> List[RetrievedContext]:
         """Retrieve top-k relevant contexts from Milvus"""
-        collection: Collection = await get_milvus_collection()
+        collection: Collection = await get_collection()
+
+        # Perform vector similarity search
         results = collection.search(
             data=[embedding],
             anns_field="embedding",
-            param={"metric_type": "IP"},
+            param={"metric_type": settings.milvus_metric},
             limit=top_k,
             output_fields=["content", "document_id", "document_name", "metadata"],
         )
 
-        return [
-            RetrievedContext(
-                content=hit.entity.get("content", ""),
-                document_id=hit.entity.get("document_id", ""),
-                document_name=hit.entity.get("document_name", "Unknown"),
-                similarity_score=float(hit.score),
-                metadata=hit.entity.get("metadata", {}),
-            )
-            for hit in results[0]
-        ]
+        # Flatten Milvus results
+        contexts: List[RetrievedContext] = []
+        for hits in results:  # results is a list of lists
+            for hit in hits:
+                contexts.append(
+                    RetrievedContext(
+                        content=hit.entity.get("content", ""),
+                        document_id=hit.entity.get("document_id", ""),
+                        document_name=hit.entity.get("document_name", "Unknown"),
+                        similarity_score=float(hit.score),
+                        metadata=hit.entity.get("metadata", {}),
+                    )
+                )
+        return contexts
 
     def _build_prompt(self, query: str, contexts: List[RetrievedContext]) -> str:
-        """Assemble RAG prompt"""
+        """Assemble final prompt for the LLM"""
         context_text = "\n\n".join(
             [f"[{c.document_name}] {c.content[:500]}" for c in contexts]
         )
         return f"""
-You are an AI assistant. Use the context to answer the question.
+You are an AI assistant. Use ONLY the provided context to answer the question.
 
 Context:
 {context_text}
 
 Question: {query}
 
-Answer clearly, with references to [document names] when relevant.
+Instructions:
+- Be clear and concise
+- Reference the relevant [document names]
+- If the answer cannot be found in the context, say so.
 """

@@ -109,7 +109,31 @@ class DocumentResponse(DocumentBase):
     metadata: Optional[Dict[str, Any]] = None
     tags: Optional[List[str]] = None
 
+# ---------------------------------------------------------
+# Document Upload & List Responses
+# ---------------------------------------------------------
 
+class DocumentUploadResponse(BaseSchema):
+    """
+    Response returned immediately after a user uploads a document.
+    Contains S3 storage info + initial metadata.
+    """
+    document: DocumentResponse
+    upload_url: Optional[str] = None  # Signed URL if using direct S3 uploads
+    message: str = "Document successfully uploaded and queued for processing."
+
+
+class DocumentListResponse(BaseSchema):
+    """
+    Response for fetching a paginated list of documents for a user.
+    """
+    documents: List[DocumentResponse]
+    total: int = Field(..., description="Total number of matching documents")
+    page: int = Field(..., ge=1, description="Current page number")
+    size: int = Field(..., ge=1, description="Number of documents per page")
+    has_next: bool = Field(..., description="Whether another page exists")
+    
+    
 # ---------------------------------------------------------
 # Query Schemas
 # ---------------------------------------------------------
@@ -165,10 +189,11 @@ class ErrorResponse(BaseSchema):
 # Export commonly used schemas
 # ---------------------------------------------------------
 
-__all__ = [
+all = [
     "UserCreate", "UserResponse",
     "LoginRequest", "LoginResponse",
-    "DocumentCreate", "DocumentResponse",
+    "DocumentCreate", "DocumentResponse", 
+    "DocumentUploadResponse", "DocumentListResponse",
     "QueryRequest", "QueryResponse", "SourceReference",
     "HealthCheckResponse", "ErrorResponse",
     "DocumentStatus", "FileType", "QueryType"

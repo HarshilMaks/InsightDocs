@@ -1,6 +1,6 @@
+from typing import List, Dict, Any
 from pymilvus import connections, Collection, CollectionSchema, FieldSchema, DataType, utility
-from app.core.config import settings
-
+from core.config import settings
 
 def connect_milvus():
     """Establish connection to Milvus/Zilliz Cloud."""
@@ -44,7 +44,6 @@ def create_collection_if_not_exists():
         max_length=256
     )
 
-    # Optional: store chunk text (can also use Postgres instead)
     chunk_field = FieldSchema(
         name="chunk_text",
         dtype=DataType.VARCHAR,
@@ -62,9 +61,9 @@ def create_collection_if_not_exists():
         using="default"
     )
 
-    # Create index for fast search
+    # Create index for fast ANN search
     index_params = {
-        "index_type": "AUTOINDEX",   # Serverless Milvus recommends AUTOINDEX
+        "index_type": "AUTOINDEX",   # recommended for serverless Milvus/Zilliz
         "metric_type": settings.MILVUS_METRIC,
         "params": {}
     }
@@ -77,3 +76,43 @@ def get_collection() -> Collection:
     """Get existing Milvus collection."""
     connect_milvus()
     return Collection(settings.MILVUS_COLLECTION)
+
+
+# ---------------------------------------------------------
+# NEW HELPERS
+# ---------------------------------------------------------
+
+def insert_embeddings(file_id: str, source: str, chunks: List[Dict[str, Any]]):
+    """
+    Insert multiple chunk embeddings for a document into Milvus.
+    
+    chunks = [
+        {"embedding": [...], "content": "text of chunk"},
+        ...
+    ]
+    """
+    collection = get_collection()
+
+    entities = {
+        "vector": [c["embedding"] for c in chunks],
+        "doc_id": [file_id] * len(chunks),
+        "source": [source] * len(chunks),
+        "chunk_text": [c["content"] for c in chunks],
+    }
+
+    insert_result = collection.insert(entities)
+    collection.flush()
+    return insert_result
+
+
+def search_embeddings(query_vector: List[float], top_k: int = 5):
+    """Search collection using a query embedding."""
+    collection = get_collection()
+    results = collection.search(
+        data=[query_vector],
+        anns_field="vector",
+        param={"metric_type": settings.MILVUS_METRIC},
+        limit=top_k,
+        output_fields=["doc_id", "source", "chunk_text"],
+    )
+    return results
