@@ -33,3 +33,4 @@ passlib[bcrypt]==1.7.4
 python-dotenv==1.0.0
 httpx==0.25.2
 tenacity==8.2.3
+click==8.1.7
