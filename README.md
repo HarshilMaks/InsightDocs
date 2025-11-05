@@ -316,8 +316,8 @@ OPENAI_API_KEY=sk-your-api-key-here
 
 # Storage (S3/MinIO)
 S3_ENDPOINT=http://localhost:9000
-S3_ACCESS_KEY=minioadmin
-S3_SECRET_KEY=minioadmin
+AWS_ACCESS_KEY_ID=minioadmin
+AWS_SECRET_ACCESS_KEY=minioadmin
 S3_BUCKET_NAME=insightdocs
 
 # Application

@@ -26,8 +26,8 @@ class Settings(BaseSettings):
     
     # Storage
     s3_endpoint: str
-    s3_access_key: str
-    s3_secret_key: str
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
     s3_bucket_name: str
     
     # Vector Database
