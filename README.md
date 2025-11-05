@@ -304,7 +304,7 @@ Environment variables (`.env` file):
 
 ```bash
 # Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/insightdocs
+DATABASE_URL=postgresql://insightdocs:insightdocs@localhost:5432/insightdocs
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
@@ -324,6 +324,9 @@ S3_BUCKET_NAME=insightdocs
 APP_ENV=development
 LOG_LEVEL=INFO
 SECRET_KEY=your-secret-key-here
+
+# Vector Database
+VECTOR_DIMENSION=384
 ```
 
 ## 🎯 Use Cases
