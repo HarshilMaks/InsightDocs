@@ -2,9 +2,9 @@
 from typing import Dict, Any, List
 import logging
 from pathlib import Path
-from insightdocs.core import BaseAgent, AgentMessage
-from insightdocs.utils.document_processor import DocumentProcessor
-from insightdocs.storage.file_storage import FileStorage
+from backend.core import BaseAgent, AgentMessage
+from backend.utils.document_processor import DocumentProcessor
+from backend.storage.file_storage import FileStorage
 
 logger = logging.getLogger(__name__)
 

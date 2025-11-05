@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 import boto3
 from botocore.exceptions import ClientError
-from insightdocs.config import settings
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 

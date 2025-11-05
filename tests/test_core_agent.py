@@ -1,6 +1,6 @@
 """Tests for core agent framework."""
 import pytest
-from insightdocs.core.agent import BaseAgent, AgentMessage
+from backend.core.agent import BaseAgent, AgentMessage
 
 
 class TestAgent(BaseAgent):

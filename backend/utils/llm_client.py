@@ -2,7 +2,7 @@
 from typing import List, Dict, Any
 import logging
 from openai import AsyncOpenAI
-from insightdocs.config import settings
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 

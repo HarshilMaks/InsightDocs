@@ -1,10 +1,10 @@
 """Orchestrator Agent for coordinating all sub-agents."""
 from typing import Dict, Any, List
 import logging
-from insightdocs.core import BaseAgent, AgentMessage, message_queue
-from insightdocs.agents.data_agent import DataAgent
-from insightdocs.agents.analysis_agent import AnalysisAgent
-from insightdocs.agents.planning_agent import PlanningAgent
+from backend.core import BaseAgent, AgentMessage, message_queue
+from backend.agents.data_agent import DataAgent
+from backend.agents.analysis_agent import AnalysisAgent
+from backend.agents.planning_agent import PlanningAgent
 
 logger = logging.getLogger(__name__)
 

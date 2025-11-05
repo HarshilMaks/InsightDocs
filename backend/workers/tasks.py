@@ -1,9 +1,9 @@
 """Celery tasks for async processing."""
 from typing import Dict, Any
 import logging
-from insightdocs.workers.celery_app import celery_app
-from insightdocs.agents import OrchestratorAgent
-from insightdocs.models import get_db, Task, TaskStatus
+from backend.workers.celery_app import celery_app
+from backend.agents import OrchestratorAgent
+from backend.models import get_db, Task, TaskStatus
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ def generate_embeddings_task(self, document_id: int, chunks: list):
     logger.info(f"Generating embeddings for document {document_id}")
     
     try:
-        from insightdocs.agents import AnalysisAgent
+        from backend.agents import AnalysisAgent
         
         # Update task status
         db = next(get_db())

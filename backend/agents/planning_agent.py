@@ -1,8 +1,8 @@
 """Planning Agent for workflow management and decision support."""
 from typing import Dict, Any, List
 import logging
-from insightdocs.core import BaseAgent
-from insightdocs.utils.llm_client import LLMClient
+from backend.core import BaseAgent
+from backend.utils.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
 

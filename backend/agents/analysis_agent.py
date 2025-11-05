@@ -1,9 +1,9 @@
 """Analysis Agent for content extraction, summarization, and embeddings."""
 from typing import Dict, Any, List
 import logging
-from insightdocs.core import BaseAgent
-from insightdocs.utils.embeddings import EmbeddingEngine
-from insightdocs.utils.llm_client import LLMClient
+from backend.core import BaseAgent
+from backend.utils.embeddings import EmbeddingEngine
+from backend.utils.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
 

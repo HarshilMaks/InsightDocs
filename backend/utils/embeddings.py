@@ -4,7 +4,7 @@ import logging
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import faiss
-from insightdocs.config import settings
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 

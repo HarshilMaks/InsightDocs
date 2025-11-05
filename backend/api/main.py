@@ -2,9 +2,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-from insightdocs.api import documents, query, tasks
-from insightdocs.api.schemas import HealthResponse
-from insightdocs.models import Base, engine
+from backend.api import documents, query, tasks
+from backend.api.schemas import HealthResponse
+from backend.models import Base, engine
 
 # Configure logging
 logging.basicConfig(

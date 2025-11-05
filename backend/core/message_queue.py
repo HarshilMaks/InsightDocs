@@ -2,8 +2,8 @@
 import redis
 import json
 from typing import Dict, Any, Optional
-from insightdocs.config import settings
-from insightdocs.core.agent import AgentMessage
+from backend.config import settings
+from backend.core.agent import AgentMessage
 import logging
 
 logger = logging.getLogger(__name__)

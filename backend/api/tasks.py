@@ -2,9 +2,9 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 import logging
-from insightdocs.api.schemas import TaskStatusResponse
-from insightdocs.models import get_db, Task
-from insightdocs.workers.celery_app import celery_app
+from backend.api.schemas import TaskStatusResponse
+from backend.models import get_db, Task
+from backend.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])

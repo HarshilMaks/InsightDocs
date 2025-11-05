@@ -1,6 +1,6 @@
 """Celery configuration and tasks."""
 from celery import Celery
-from insightdocs.config import settings
+from backend.config import settings
 
 # Initialize Celery app
 celery_app = Celery(

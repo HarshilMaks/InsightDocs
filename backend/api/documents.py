@@ -5,12 +5,12 @@ from typing import List
 import logging
 from pathlib import Path
 import tempfile
-from insightdocs.api.schemas import (
+from backend.api.schemas import (
     DocumentUploadResponse,
     DocumentListResponse
 )
-from insightdocs.models import get_db, Document, TaskStatus
-from insightdocs.workers.tasks import process_document_task
+from backend.models import get_db, Document, TaskStatus
+from backend.workers.tasks import process_document_task
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["documents"])

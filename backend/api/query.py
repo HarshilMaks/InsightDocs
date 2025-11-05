@@ -2,10 +2,10 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 import logging
-from insightdocs.api.schemas import QueryRequest, QueryResponse
-from insightdocs.models import get_db, Query as QueryModel
-from insightdocs.utils.embeddings import EmbeddingEngine
-from insightdocs.utils.llm_client import LLMClient
+from backend.api.schemas import QueryRequest, QueryResponse
+from backend.models import get_db, Query as QueryModel
+from backend.utils.embeddings import EmbeddingEngine
+from backend.utils.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/query", tags=["query"])

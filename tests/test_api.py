@@ -1,7 +1,7 @@
 """Tests for API endpoints."""
 import pytest
 from fastapi.testclient import TestClient
-from insightdocs.api.main import app
+from backend.api.main import app
 
 
 @pytest.fixture

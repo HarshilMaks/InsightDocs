@@ -1,6 +1,6 @@
 """Tests for document processing utilities."""
 import pytest
-from insightdocs.utils.document_processor import DocumentProcessor
+from backend.utils.document_processor import DocumentProcessor
 
 
 @pytest.fixture
