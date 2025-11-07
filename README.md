@@ -1,4 +1,4 @@
-# InsightOps
+# InsightDocs
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-green.svg)](https://fastapi.tiangolo.com/)
@@ -8,7 +8,7 @@
 
 ## 🎯 Overview
 
-InsightOps (formerly InsightDocs) is a production-ready platform that combines multi-agent AI architecture with RAG capabilities to process, analyze, and query documents intelligently. Built with modern microservices patterns, it demonstrates best practices for building scalable, maintainable AI applications.
+InsightDocs (formerly InsightDocs) is a production-ready platform that combines multi-agent AI architecture with RAG capabilities to process, analyze, and query documents intelligently. Built with modern microservices patterns, it demonstrates best practices for building scalable, maintainable AI applications.
 
 ### Key Capabilities
 
@@ -96,8 +96,8 @@ User → API → Document Record (PostgreSQL)
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/HarshilMaks/InsightOps.git
-cd InsightOps
+git clone https://github.com/HarshilMaks/InsightDocs.git
+cd InsightDocs
 ```
 
 2. **Configure environment**
@@ -212,7 +212,7 @@ print(f"Sources: {len(answer['sources'])} chunks retrieved")
 ## 📦 Project Structure
 
 ```
-InsightOps/
+InsightDocs/
 ├── insightdocs/           # Main application package
 │   ├── agents/            # Multi-agent system
 │   │   ├── orchestrator.py    # Central coordinator
@@ -292,7 +292,7 @@ make docker-logs    # View service logs
 
 ## 📚 Documentation
 
-- **[Quick Start Guide](docs/QUICKSTART.md)**: Getting started with InsightOps
+- **[Quick Start Guide](docs/QUICKSTART.md)**: Getting started with InsightDocs
 - **[Architecture Guide](docs/ARCHITECTURE.md)**: Deep dive into system design
 - **[API Reference](docs/API.md)**: Complete API endpoint documentation
 - **[Development Guide](docs/DEVELOPMENT.md)**: Contributing and development workflow
@@ -444,7 +444,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/HarshilMaks/InsightOps/issues)
+- **Issues**: [GitHub Issues](https://github.com/HarshilMaks/InsightDocs/issues)
 - **Documentation**: See the `docs/` directory
 - **Examples**: Check out `cli.py` for usage examples
 

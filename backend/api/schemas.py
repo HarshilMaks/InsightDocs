@@ -1,64 +1,144 @@
-"""Pydantic schemas for API requests and responses."""
-from pydantic import BaseModel, Field
+"""
+Pydantic schemas for API requests and responses
+(Merged from InsightDocs and Insight projects)
+"""
+
+from pydantic import BaseModel, Field, EmailStr, constr
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
+# --- Base Schema ---
 
-class TaskStatusEnum(str, Enum):
-    """Task status enumeration."""
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
+class BaseSchema(BaseModel):
+    """Base schema with shared config"""
+    class Config:
+        from_attributes = True
+        use_enum_values = True
+        validate_assignment = True
 
+# --- Enums (from Insight) ---
 
-class DocumentUploadRequest(BaseModel):
-    """Document upload request."""
-    filename: str = Field(..., description="Name of the file")
-    chunk_size: Optional[int] = Field(1000, description="Size of text chunks")
+class FileType(str, Enum):
+    PDF = "pdf"
+    DOCX = "docx"
+    TXT = "txt"
+    CSV = "csv"
 
+class QueryType(str, Enum):
+    GENERAL = "general"
+    SUMMARY = "summary"
+    FACTUAL = "factual"
 
-class DocumentUploadResponse(BaseModel):
-    """Document upload response."""
+# --- User & Auth Schemas (from Insight) ---
+
+class UserBase(BaseSchema):
+    email: EmailStr
+    name: str = Field(..., min_length=1, max_length=100)
+
+class UserCreate(UserBase):
+    password: constr(min_length=8, max_length=100)
+
+class UserResponse(UserBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+    is_active: bool = True
+
+class LoginRequest(BaseSchema):
+    email: EmailStr
+    password: str
+
+class Token(BaseSchema):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    
+class TokenData(BaseSchema):
+    user_id: Optional[str] = None
+
+class LoginResponse(BaseSchema):
+    token: Token
+    user: UserResponse
+
+# --- Document Schemas (Merged) ---
+
+class DocumentResponse(BaseSchema):
+    """Response model for a single document."""
+    id: str
+    user_id: str
+    filename: str
+    file_type: str
+    file_size: int
+    s3_bucket: str
+    s3_key: str
+    status: str
+    error_message: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class DocumentUploadResponse(BaseSchema):
+    """Response for a successful document upload."""
     success: bool
-    document_id: int
-    task_id: str
     message: str
+    document: DocumentResponse
+    task_id: str
 
+class DocumentListResponse(BaseSchema):
+    """Paginated list of documents."""
+    documents: List[DocumentResponse]
+    total: int
 
-class QueryRequest(BaseModel):
-    """Query request for RAG."""
-    query: str = Field(..., description="Query text")
-    top_k: Optional[int] = Field(5, description="Number of results to retrieve")
+# --- Query Schemas (Merged) ---
 
+class DocumentFilter(BaseSchema):
+    document_ids: Optional[List[str]] = None
+    file_types: Optional[List[FileType]] = None
 
-class QueryResponse(BaseModel):
-    """Query response."""
+class QueryRequest(BaseSchema):
+    """Request model for RAG query."""
+    query: str = Field(..., min_length=1, max_length=2000)
+    query_type: QueryType = QueryType.GENERAL
+    top_k: int = Field(5, ge=1, le=50)
+    filters: Optional[DocumentFilter] = None
+
+class SourceReference(BaseSchema):
+    """Reference to a source document chunk."""
+    document_id: str
+    filename: str
+    chunk_index: int
+    content: str
+    relevance_score: float
+    milvus_id: Optional[str] = None
+
+class QueryResponse(BaseSchema):
+    """Response model for document queries."""
     success: bool
     query: str
     answer: str
-    sources: List[Dict[str, Any]]
+    sources: List[SourceReference]
     metadata: Optional[Dict[str, Any]] = None
 
+# --- Task Schemas (from InsightDocs, updated) ---
 
 class TaskStatusResponse(BaseModel):
     """Task status response."""
     task_id: str
-    status: TaskStatusEnum
+    status: str # Uses the string value of the TaskStatus enum
     progress: float
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+    document_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
 
-
-class DocumentListResponse(BaseModel):
-    """Document list response."""
-    documents: List[Dict[str, Any]]
-    total: int
-
+# --- System Schemas ---
 
 class HealthResponse(BaseModel):
     """Health check response."""
     status: str
     version: str
     components: Dict[str, str]
+
+class ErrorResponse(BaseModel):
+    detail: str

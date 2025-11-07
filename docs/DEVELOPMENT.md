@@ -19,8 +19,8 @@ InsightDocs is a production-ready AI-driven agent architecture system that demon
 
 ```bash
 # Clone repository
-git clone https://github.com/HarshilMaks/InsightOps.git
-cd InsightOps
+git clone https://github.com/HarshilMaks/InsightDocs.git
+cd InsightDocs
 
 # Create virtual environment
 python -m venv venv
@@ -317,7 +317,7 @@ stats.print_stats()
 **Import errors**
 ```bash
 # Ensure PYTHONPATH includes project root
-export PYTHONPATH=/path/to/InsightOps:$PYTHONPATH
+export PYTHONPATH=/path/to/InsightDocs:$PYTHONPATH
 ```
 
 **Database connection errors**

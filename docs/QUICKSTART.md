@@ -12,8 +12,8 @@ Ensure you have the following installed:
 ### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/HarshilMaks/InsightOps.git
-cd InsightOps
+git clone https://github.com/HarshilMaks/InsightDocs.git
+cd InsightDocs
 ```
 
 ### 3. Environment Setup

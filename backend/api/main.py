@@ -2,44 +2,54 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-from backend.api import documents, query, tasks
-from backend.api.schemas import HealthResponse
-from backend.models import Base, engine
 
-# Configure logging
+# --- Updated Imports ---
+from backend.api import documents, query, tasks, auth  # Import the new auth router
+from backend.api.schemas import HealthResponse
+from backend.models.schemas import Base  # Import Base from your merged models file
+from backend.models.database import engine
+from backend.config import settings  # Import your new settings
+
+# --- Use settings for logging ---
 logging.basicConfig(
-    level=logging.INFO,
+    level=settings.app.log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
 logger = logging.getLogger(__name__)
 
-# Create database tables
+# Create database tables (this will now include your User table)
 Base.metadata.create_all(bind=engine)
 
-# Initialize FastAPI app
+# --- Use settings for FastAPI app initialization ---
 app = FastAPI(
-    title="InsightDocs API",
+    title=settings.app.app_name,
     description="AI-Driven Agent Architecture System for Document Intelligence",
-    version="1.0.0"
+    version="1.0.0",
+    # Add API prefix to docs URLs
+    openapi_url=f"{settings.app.api_prefix}/openapi.json",
+    docs_url=f"{settings.app.api_prefix}/docs",
+    redoc_url=f"{settings.app.api_prefix}/redoc" # Also add redoc
 )
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# --- Use settings for CORS ---
+if settings.security.allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.security.allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-# Include routers
-app.include_router(documents.router)
-app.include_router(query.router)
-app.include_router(tasks.router)
+# --- Include all routers with the API prefix ---
+app.include_router(auth.router, prefix=settings.app.api_prefix)
+app.include_router(documents.router, prefix=settings.app.api_prefix)
+app.include_router(query.router, prefix=settings.app.api_prefix)
+app.include_router(tasks.router, prefix=settings.app.api_prefix)
 
 
-@app.get("/", response_model=HealthResponse)
+@app.get("/", response_model=HealthResponse, tags=["System"])
 async def root():
     """Root endpoint."""
     return {
@@ -53,7 +63,7 @@ async def root():
     }
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get(f"{settings.app.api_prefix}/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
     """Health check endpoint."""
     return {
@@ -66,8 +76,3 @@ async def health_check():
             "redis": "healthy"
         }
     }
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)

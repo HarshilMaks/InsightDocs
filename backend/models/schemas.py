@@ -1,6 +1,6 @@
 """
-SQLAlchemy Database Models for InsightOps
-(Merged from InsightOps and Insight projects)
+SQLAlchemy Database Models for InsightDocs
+(Merged from InsightDocs and Insight projects)
 """
 
 import uuid
@@ -14,7 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from .database import Base  # Use the Base from your project's database.py
 
-# --- Helper Functions (from Insight) ---
+# --- Helper Functions ---
 
 def _generate_uuid():
     """Generate string UUIDs for primary keys"""
@@ -24,14 +24,14 @@ def utc_now():
     """UTC timestamp generator"""
     return datetime.now(timezone.utc)
 
-# --- Mixin (from Insight) ---
+# --- Mixin ---
 
 class TimestampMixin:
     """Adds created_at and updated_at timestamp columns to a model."""
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
-# --- TaskStatus Enum (from InsightOps) ---
+# --- TaskStatus Enum ---
 
 class TaskStatus(str, PyEnum):
     """Task status enumeration."""
@@ -40,11 +40,11 @@ class TaskStatus(str, PyEnum):
     COMPLETED = "completed"
     FAILED = "failed"
 
-# --- Main Models (Merged) ---
+# --- Main Models ---
 
 class User(Base, TimestampMixin):
     """
-    System user (from Insight)
+    System user
     """
     __tablename__ = "users"
 
@@ -65,7 +65,7 @@ class User(Base, TimestampMixin):
 
 class Document(Base, TimestampMixin):
     """
-    Metadata for uploaded documents (Merged Model)
+    Metadata for uploaded documents
     """
     __tablename__ = "documents"
 
@@ -79,7 +79,7 @@ class Document(Base, TimestampMixin):
     s3_bucket = Column(String(100), nullable=False)
     s3_key = Column(String(500), nullable=False)
 
-    # Status fields (from InsightOps)
+    # Status fields (from InsightDocs)
     status = Column(SQLEnum(TaskStatus), default=TaskStatus.PENDING, nullable=False)
     error_message = Column(Text, nullable=True) # Renamed from metadata
     
@@ -109,7 +109,7 @@ class DocumentChunk(Base, TimestampMixin):
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     
-    # Embedding info (from Insight)
+    # Embedding info
     embedding_model = Column(String(100), nullable=True)
     embedding_dimension = Column(Integer, nullable=True)
     milvus_id = Column(String(100), nullable=True) # Renamed from embedding_id
@@ -128,7 +128,7 @@ class DocumentChunk(Base, TimestampMixin):
 
 class Task(Base, TimestampMixin):
     """
-    Task tracking model for Celery (from InsightOps, with User link added)
+    Task tracking model for Celery (from InsightDocs, with User link added)
     """
     __tablename__ = "tasks"
     

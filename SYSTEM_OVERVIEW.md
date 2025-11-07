@@ -92,8 +92,8 @@ S3/MinIO (Files) ← → Local Storage (Temp)
 ### Using Docker Compose (Recommended)
 ```bash
 # Clone and setup
-git clone https://github.com/HarshilMaks/InsightOps.git
-cd InsightOps
+git clone https://github.com/HarshilMaks/InsightDocs.git
+cd InsightDocs
 cp .env.example .env
 # Add your OPENAI_API_KEY to .env
 
