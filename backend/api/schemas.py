@@ -30,7 +30,7 @@ class QueryType(str, Enum):
     SUMMARY = "summary"
     FACTUAL = "factual"
 
-# --- User & Auth Schemas (from Insight) ---
+# --- User & Auth Schemas ---
 
 class UserBase(BaseSchema):
     email: EmailStr
@@ -129,8 +129,6 @@ class TaskStatusResponse(BaseModel):
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     document_id: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
 
 # --- System Schemas ---
 

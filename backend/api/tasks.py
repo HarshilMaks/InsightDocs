@@ -37,8 +37,7 @@ async def get_task_status(
                 status=task.status,
                 progress=task.progress,
                 result=task.result,
-                error=task.error
-            )
+                error=task.error            )
         else:
             # Use Celery state if not in database
             return TaskStatusResponse(
