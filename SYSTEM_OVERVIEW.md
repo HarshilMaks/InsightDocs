@@ -1,10 +1,10 @@
 # InsightDocs System Overview
 
-## 🎯 What is InsightDocs?
+## What is InsightDocs?
 
 InsightDocs is a production-ready AI-driven agent architecture system that transforms unstructured documents into operational intelligence through multi-agent collaboration. Built on modern microservices patterns, it demonstrates best practices for building scalable, maintainable AI applications.
 
-## 🌟 Key Features
+## Key Features
 
 ### Multi-Agent Architecture
 - **Orchestrator Agent**: Coordinates workflows across all agents
@@ -30,7 +30,7 @@ InsightDocs is a production-ready AI-driven agent architecture system that trans
 - S3/MinIO for scalable file storage
 - Docker Compose for easy deployment
 
-## 📊 System Statistics
+## System Statistics
 
 - **35 Python modules** implementing the complete system
 - **5 documentation files** covering all aspects
@@ -38,7 +38,7 @@ InsightDocs is a production-ready AI-driven agent architecture system that trans
 - **3 API routers** (documents, query, tasks)
 - **Full test coverage** with pytest
 
-## 🏗️ Architecture Layers
+## Architecture Layers
 
 ### 1. Presentation Layer
 ```
@@ -60,7 +60,7 @@ PostgreSQL (Metadata) ← → FAISS (Vectors) ← → Redis (Queue)
 S3/MinIO (Files) ← → Local Storage (Temp)
 ```
 
-## 🔄 Data Flow Example
+## Data Flow Example
 
 ### Document Processing Flow
 ```
@@ -87,7 +87,7 @@ S3/MinIO (Files) ← → Local Storage (Temp)
 7. Query saved to history
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Using Docker Compose (Recommended)
 ```bash
@@ -121,7 +121,7 @@ python cli.py query "What is the main topic?"
 python cli.py status <task-id>
 ```
 
-## 📚 Component Details
+## Component Details
 
 ### Agents (`insightdocs/agents/`)
 - `orchestrator.py`: Central workflow coordinator
@@ -168,7 +168,7 @@ AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 ```
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run all tests
@@ -181,7 +181,7 @@ pytest --cov=insightdocs --cov-report=html
 pytest tests/test_core_agent.py -v
 ```
 
-## 📖 Documentation
+## Documentation
 
 - `README.md`: Project overview and features
 - `docs/QUICKSTART.md`: Getting started guide
@@ -189,7 +189,7 @@ pytest tests/test_core_agent.py -v
 - `docs/API.md`: API endpoint reference
 - `docs/DEVELOPMENT.md`: Development guide
 
-## 🛠️ Development Tools
+## Development Tools
 
 - `Makefile`: Common development tasks
 - `cli.py`: Command-line interface
@@ -205,7 +205,7 @@ pytest tests/test_core_agent.py -v
 4. **Workflow Automation**: Coordinate multi-step AI workflows
 5. **Research Assistant**: Query across multiple documents
 
-## 🔐 Security Features
+## Security Features
 
 - Environment-based configuration
 - Secrets management via environment variables
@@ -213,7 +213,7 @@ pytest tests/test_core_agent.py -v
 - SQL injection prevention via ORM
 - File upload validation
 
-## 📈 Scalability
+## Scalability
 
 - Horizontal scaling of API servers
 - Independent worker scaling
@@ -221,7 +221,7 @@ pytest tests/test_core_agent.py -v
 - Redis clustering support
 - S3 for unlimited storage
 
-## 🚦 Performance
+## Performance
 
 - Async I/O throughout
 - Batch embedding generation
@@ -229,7 +229,7 @@ pytest tests/test_core_agent.py -v
 - Caching strategies
 - Optimized vector search
 
-## 🔄 Integration Points
+## Integration Points
 
 - **REST API**: JSON-based HTTP API
 - **Message Queue**: Redis pub/sub and queues
@@ -237,7 +237,7 @@ pytest tests/test_core_agent.py -v
 - **Database**: PostgreSQL with SQLAlchemy
 - **LLM**: OpenAI API (extensible to other providers)
 
-## 🎓 Learning Resources
+## Learning Resources
 
 The codebase demonstrates:
 - Async Python programming
@@ -249,7 +249,7 @@ The codebase demonstrates:
 - Docker containerization
 - Test-driven development
 
-## 🤝 Contributing
+## Contributing
 
 See `docs/DEVELOPMENT.md` for:
 - Development workflow
@@ -257,7 +257,7 @@ See `docs/DEVELOPMENT.md` for:
 - Testing guidelines
 - Best practices
 
-## 📞 Support
+## Support
 
 - GitHub Issues: Bug reports and feature requests
 - Documentation: Comprehensive guides in `docs/`

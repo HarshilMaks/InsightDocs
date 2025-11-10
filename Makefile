@@ -15,11 +15,11 @@ help:
 	@echo "docker-logs      - View Docker logs"
 
 install:
-	pip install -r requirements.txt
+	 uv pip install -r requirements.txt
 
 install-dev:
-	pip install -r requirements.txt
-	pip install -r requirements-dev.txt
+	uv pip install -r requirements.txt
+	uv pip install -r requirements-dev.txt
 
 test:
 	pytest tests/ -v
@@ -38,8 +38,8 @@ clean:
 	rm -rf htmlcov
 	rm -rf .coverage
 
-run-api:
-	uvicorn insightdocs.api.main:app --reload --host 0.0.0.0 --port 8000
+backend:
+	uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
 
 run-worker:
 	celery -A insightdocs.workers.celery_app worker --loglevel=info
