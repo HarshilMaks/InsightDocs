@@ -1,14 +1,17 @@
 """
-Pydantic schemas for API requests and responses
-(Merged from InsightDocs and Insight projects)
+Pydantic schemas for API requests and responses.
+(Merged from InsightOps and Insight projects)
 """
-
 from pydantic import BaseModel, Field, EmailStr, constr
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from enum import Enum
 
-# --- Base Schema ---
+# Import the Enum from your single source of truth: the database models
+from backend.models.schemas import TaskStatus
+
+# ---------------------------------------------------------
+# Base Schema
+# ---------------------------------------------------------
 
 class BaseSchema(BaseModel):
     """Base schema with shared config"""
@@ -17,20 +20,9 @@ class BaseSchema(BaseModel):
         use_enum_values = True
         validate_assignment = True
 
-# --- Enums (from Insight) ---
-
-class FileType(str, Enum):
-    PDF = "pdf"
-    DOCX = "docx"
-    TXT = "txt"
-    CSV = "csv"
-
-class QueryType(str, Enum):
-    GENERAL = "general"
-    SUMMARY = "summary"
-    FACTUAL = "factual"
-
-# --- User & Auth Schemas ---
+# ---------------------------------------------------------
+# User & Auth Schemas (from Insight)
+# ---------------------------------------------------------
 
 class UserBase(BaseSchema):
     email: EmailStr
@@ -45,98 +37,88 @@ class UserResponse(UserBase):
     updated_at: datetime
     is_active: bool = True
 
-class LoginRequest(BaseSchema):
-    email: EmailStr
-    password: str
-
 class Token(BaseSchema):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    
+
 class TokenData(BaseSchema):
     user_id: Optional[str] = None
+
+class LoginRequest(BaseSchema):
+    email: EmailStr
+    password: str
 
 class LoginResponse(BaseSchema):
     token: Token
     user: UserResponse
 
-# --- Document Schemas (Merged) ---
+# ---------------------------------------------------------
+# Document Schemas (Updated)
+# ---------------------------------------------------------
 
 class DocumentResponse(BaseSchema):
-    """Response model for a single document."""
     id: str
     user_id: str
     filename: str
     file_type: str
     file_size: int
-    s3_bucket: str
-    s3_key: str
-    status: str
-    error_message: Optional[str] = None
+    status: TaskStatus
     created_at: datetime
     updated_at: datetime
-
-class DocumentUploadResponse(BaseSchema):
-    """Response for a successful document upload."""
-    success: bool
-    message: str
-    document: DocumentResponse
-    task_id: str
+    error_message: Optional[str] = None
 
 class DocumentListResponse(BaseSchema):
-    """Paginated list of documents."""
     documents: List[DocumentResponse]
     total: int
 
-# --- Query Schemas (Merged) ---
+class DocumentUploadResponse(BaseSchema):
+    success: bool
+    document: DocumentResponse
+    task_id: str
+    message: str
 
-class DocumentFilter(BaseSchema):
-    document_ids: Optional[List[str]] = None
-    file_types: Optional[List[FileType]] = None
-
-class QueryRequest(BaseSchema):
-    """Request model for RAG query."""
-    query: str = Field(..., min_length=1, max_length=2000)
-    query_type: QueryType = QueryType.GENERAL
-    top_k: int = Field(5, ge=1, le=50)
-    filters: Optional[DocumentFilter] = None
+# ---------------------------------------------------------
+# Query Schemas (Updated)
+# ---------------------------------------------------------
 
 class SourceReference(BaseSchema):
-    """Reference to a source document chunk."""
     document_id: str
-    filename: str
-    chunk_index: int
-    content: str
-    relevance_score: float
-    milvus_id: Optional[str] = None
+    document_name: str
+    content_preview: str
+    similarity_score: float
+
+class QueryRequest(BaseSchema):
+    query: str = Field(..., description="Query text")
+    top_k: Optional[int] = Field(5, description="Number of results to retrieve")
+    # You can add more filters here later, e.g.:
+    # document_ids: Optional[List[str]] = None
 
 class QueryResponse(BaseSchema):
-    """Response model for document queries."""
-    success: bool
-    query: str
     answer: str
     sources: List[SourceReference]
-    metadata: Optional[Dict[str, Any]] = None
+    query_id: str
+    query: str
+    response_time: float
+    confidence_score: Optional[float]
+    tokens_used: Optional[int] = None
 
-# --- Task Schemas (from InsightDocs, updated) ---
+# ---------------------------------------------------------
+# Task Schemas (Updated)
+# ---------------------------------------------------------
 
-class TaskStatusResponse(BaseModel):
-    """Task status response."""
+class TaskStatusResponse(BaseSchema):
     task_id: str
-    status: str # Uses the string value of the TaskStatus enum
+    status: TaskStatus
     progress: float
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
-    document_id: Optional[str] = None
 
-# --- System Schemas ---
+# ---------------------------------------------------------
+# System Schemas
+# ---------------------------------------------------------
 
-class HealthResponse(BaseModel):
-    """Health check response."""
+class HealthResponse(BaseSchema):
     status: str
     version: str
     components: Dict[str, str]
-
-class ErrorResponse(BaseModel):
-    detail: str
