@@ -118,7 +118,7 @@ S3/MinIO for:
    ↓
 4. LLM Client constructs context
    ↓
-5. OpenAI generates response with citations
+5. Gemini generates response with citations
    ↓
 6. Response saved to query history
    ↓

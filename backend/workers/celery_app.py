@@ -22,4 +22,4 @@ celery_app.conf.update(
 )
 
 # Auto-discover tasks
-celery_app.autodiscover_tasks(['insightdocs.workers'])
+celery_app.autodiscover_tasks(['backend.workers'])

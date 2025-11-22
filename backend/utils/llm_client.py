@@ -1,7 +1,7 @@
-"""LLM client for interacting with OpenAI and other LLM providers."""
+"""LLM client for interacting with Gemini and other LLM providers."""
 from typing import List, Dict, Any
 import logging
-from openai import AsyncOpenAI
+import google.generativeai as genai
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -11,8 +11,8 @@ class LLMClient:
     """Client for interacting with LLM services."""
     
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
-        self.model = "gpt-3.5-turbo"
+        genai.configure(api_key=settings.gemini_api_key)
+        self.model = genai.GenerativeModel(settings.gemini_model)
     
     async def summarize(self, text: str) -> str:
         """Generate a summary of the given text.
@@ -24,23 +24,10 @@ class LLMClient:
             Summary text
         """
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that summarizes documents concisely."
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Please summarize the following text:\n\n{text}"
-                    }
-                ],
-                max_tokens=500,
-                temperature=0.7
-            )
+            prompt = f"Please summarize the following text concisely:\n\n{text}"
+            response = self.model.generate_content(prompt)
             
-            summary = response.choices[0].message.content
+            summary = response.text
             logger.info("Generated summary")
             return summary
         except Exception as e:
@@ -48,7 +35,7 @@ class LLMClient:
             return f"Error generating summary: {str(e)}"
     
     async def extract_entities(self, text: str) -> List[Dict[str, Any]]:
-        """Extract entities from text.
+        """Extract named entities from text.
         
         Args:
             text: Text to extract entities from
@@ -57,27 +44,23 @@ class LLMClient:
             List of extracted entities
         """
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that extracts key entities (people, organizations, locations, dates) from text. Return results as a JSON list."
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Extract entities from:\n\n{text}"
-                    }
-                ],
-                max_tokens=500,
-                temperature=0.3
-            )
+            prompt = f"""Extract named entities (people, organizations, locations, dates) from the following text.
+Return them as a JSON list of objects with 'type' and 'value' fields.
+
+Text:
+{text}"""
+            response = self.model.generate_content(prompt)
             
-            entities_text = response.choices[0].message.content
+            entities_text = response.text
             logger.info("Extracted entities")
             
-            # Simple parsing - in production, parse JSON properly
-            return [{"entity": entities_text}]
+            # Try to parse JSON, fallback to simple list
+            import json
+            try:
+                entities = json.loads(entities_text)
+                return entities if isinstance(entities, list) else []
+            except:
+                return []
         except Exception as e:
             logger.error(f"Error extracting entities: {e}")
             return []
@@ -87,36 +70,38 @@ class LLMClient:
         current_state: str,
         context: Dict[str, Any]
     ) -> List[str]:
-        """Generate next step suggestions.
+        """Generate next step suggestions based on current state.
         
         Args:
-            current_state: Current state description
+            current_state: Current workflow state
             context: Additional context
             
         Returns:
             List of suggested next steps
         """
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that suggests next steps in a workflow."
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Current state: {current_state}\nContext: {context}\n\nSuggest 3-5 next steps."
-                    }
-                ],
-                max_tokens=300,
-                temperature=0.7
-            )
+            prompt = f"""Based on the current state and context, suggest 3-5 logical next steps.
+
+Current State: {current_state}
+Context: {context}
+
+Return suggestions as a numbered list."""
+            response = self.model.generate_content(prompt)
             
-            suggestions_text = response.choices[0].message.content
-            suggestions = [s.strip() for s in suggestions_text.split('\n') if s.strip()]
-            logger.info(f"Generated {len(suggestions)} suggestions")
-            return suggestions
+            suggestions_text = response.text
+            logger.info("Generated suggestions")
+            
+            # Parse suggestions from numbered list
+            suggestions = []
+            for line in suggestions_text.split('\n'):
+                line = line.strip()
+                if line and (line[0].isdigit() or line.startswith('-') or line.startswith('•')):
+                    # Remove numbering/bullets
+                    suggestion = line.lstrip('0123456789.-•) ').strip()
+                    if suggestion:
+                        suggestions.append(suggestion)
+            
+            return suggestions[:5]  # Limit to 5 suggestions
         except Exception as e:
             logger.error(f"Error generating suggestions: {e}")
             return []
@@ -126,7 +111,7 @@ class LLMClient:
         context: Dict[str, Any],
         options: List[str]
     ) -> Dict[str, Any]:
-        """Recommend an option based on context.
+        """Provide recommendation for decision making.
         
         Args:
             context: Decision context
@@ -137,67 +122,62 @@ class LLMClient:
         """
         try:
             options_text = "\n".join([f"{i+1}. {opt}" for i, opt in enumerate(options)])
+            prompt = f"""Analyze the following options and provide a recommendation.
+
+Context: {context}
+
+Options:
+{options_text}
+
+Provide your recommendation with reasoning."""
+            response = self.model.generate_content(prompt)
             
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that provides decision support."
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Context: {context}\n\nOptions:\n{options_text}\n\nWhich option is best and why?"
-                    }
-                ],
-                max_tokens=300,
-                temperature=0.5
-            )
-            
-            recommendation = response.choices[0].message.content
+            recommendation_text = response.text
             logger.info("Generated recommendation")
+            
             return {
-                "recommendation": recommendation,
-                "options_considered": len(options)
+                "recommendation": recommendation_text,
+                "options_analyzed": len(options)
             }
         except Exception as e:
             logger.error(f"Error generating recommendation: {e}")
-            return {"error": str(e)}
+            return {
+                "recommendation": "Unable to generate recommendation",
+                "error": str(e)
+            }
     
     async def generate_rag_response(
         self,
         query: str,
-        context_chunks: List[str]
+        context_chunks: List[str],
+        max_tokens: int = 1000
     ) -> str:
-        """Generate a RAG response using retrieved context.
+        """Generate response using RAG (Retrieval-Augmented Generation).
         
         Args:
             query: User query
             context_chunks: Retrieved context chunks
+            max_tokens: Maximum tokens in response
             
         Returns:
             Generated response
         """
         try:
-            context = "\n\n".join([f"[{i+1}] {chunk}" for i, chunk in enumerate(context_chunks)])
+            context_text = "\n\n".join([f"Context {i+1}:\n{chunk}" for i, chunk in enumerate(context_chunks)])
             
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant that answers questions based on provided context. Always cite your sources using [number] notation."
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Context:\n{context}\n\nQuestion: {query}\n\nAnswer:"
-                    }
-                ],
-                max_tokens=500,
-                temperature=0.7
-            )
+            prompt = f"""Answer the following question based on the provided context. 
+If the answer cannot be found in the context, say so.
+
+Context:
+{context_text}
+
+Question: {query}
+
+Answer:"""
             
-            answer = response.choices[0].message.content
+            response = self.model.generate_content(prompt)
+            
+            answer = response.text
             logger.info("Generated RAG response")
             return answer
         except Exception as e:

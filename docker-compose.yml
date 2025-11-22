@@ -4,15 +4,15 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: insightdocs
-      POSTGRES_PASSWORD: insightdocs
-      POSTGRES_DB: insightdocs
+      POSTGRES_USER: ${POSTGRES_USER:-insightdocs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-insightdocs}
+      POSTGRES_DB: ${POSTGRES_DB:-insightdocs}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U insightdocs"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-insightdocs}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,7 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -31,11 +31,11 @@ services:
     image: minio/minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -48,20 +48,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: uvicorn insightdocs.api.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://insightdocs:insightdocs@postgres:5432/insightdocs
+      # Override for Docker internal networking
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-insightdocs}:${POSTGRES_PASSWORD:-insightdocs}@postgres:5432/${POSTGRES_DB:-insightdocs}
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - S3_ENDPOINT=http://minio:9000
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - S3_BUCKET_NAME=insightdocs
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - SECRET_KEY=dev-secret-key-change-in-production
     volumes:
       - .:/app
     depends_on:
@@ -76,18 +74,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A insightdocs.workers.celery_app worker --loglevel=info
+    command: celery -A backend.workers.celery_app worker --loglevel=info
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://insightdocs:insightdocs@postgres:5432/insightdocs
+      # Override for Docker internal networking
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-insightdocs}:${POSTGRES_PASSWORD:-insightdocs}@postgres:5432/${POSTGRES_DB:-insightdocs}
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - S3_ENDPOINT=http://minio:9000
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - S3_BUCKET_NAME=insightdocs
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - SECRET_KEY=dev-secret-key-change-in-production
     volumes:
       - .:/app
     depends_on:

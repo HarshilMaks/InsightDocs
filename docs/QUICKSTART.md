@@ -22,8 +22,8 @@ cd InsightDocs
 # Copy environment template
 cp .env.example .env
 
-# Edit .env and add your OpenAI API key
-# OPENAI_API_KEY=your-key-here
+# Edit .env and add your Gemini API key
+# GEMINI_API_KEY=your-key-here
 ```
 
 ### 4. Start with Docker Compose (Recommended)
@@ -47,21 +47,22 @@ Services will be available at:
 ### 5. Alternative: Manual Setup
 
 ```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Activate virtual environment
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # Start PostgreSQL, Redis, and MinIO separately
 # Configure .env with correct connection strings
 
 # Initialize database
-python -c "from insightdocs.models import Base, engine; Base.metadata.create_all(bind=engine)"
+source .venv/bin/activate
+python -c "from backend.models import Base, engine; Base.metadata.create_all(bind=engine)"
 
 # Terminal 1: Start API
-uvicorn insightdocs.api.main:app --reload
+source .venv/bin/activate
+uvicorn backend.api.main:app --reload
 
 # Terminal 2: Start Celery worker
 celery -A insightdocs.workers.celery_app worker --loglevel=info
@@ -198,11 +199,11 @@ docker-compose ps redis
 docker-compose logs redis
 ```
 
-### OpenAI API errors
+### Gemini API errors
 
-Ensure your `.env` file has a valid OpenAI API key:
+Ensure your `.env` file has a valid Gemini API key:
 ```
-OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=sk-...
 ```
 
 ## Next Steps

@@ -2,7 +2,7 @@
 Pydantic schemas for API requests and responses.
 (Merged from InsightOps and Insight projects)
 """
-from pydantic import BaseModel, Field, EmailStr, constr
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -29,7 +29,7 @@ class UserBase(BaseSchema):
     name: str = Field(..., min_length=1, max_length=100)
 
 class UserCreate(UserBase):
-    password: constr(min_length=8, max_length=100)
+    password: str = Field(..., min_length=8, max_length=100)
 
 class UserResponse(UserBase):
     id: str
@@ -74,7 +74,7 @@ class DocumentListResponse(BaseSchema):
 
 class DocumentUploadResponse(BaseSchema):
     success: bool
-    document: DocumentResponse
+    document_id: str
     task_id: str
     message: str
 

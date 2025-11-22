@@ -15,11 +15,11 @@ help:
 	@echo "docker-logs      - View Docker logs"
 
 install:
-	 uv pip install -r requirements.txt
+	source .venv/bin/activate && uv pip install -r requirements.txt
 
 install-dev:
-	uv pip install -r requirements.txt
-	uv pip install -r requirements-dev.txt
+	source .venv/bin/activate && uv pip install -r requirements.txt
+	source .venv/bin/activate && uv pip install -r requirements-dev.txt
 
 test:
 	pytest tests/ -v
@@ -38,11 +38,11 @@ clean:
 	rm -rf htmlcov
 	rm -rf .coverage
 
-backend:
-	uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
+run-backend:
+	source .venv/bin/activate && uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
 
 run-worker:
-	celery -A insightdocs.workers.celery_app worker --loglevel=info
+	source .venv/bin/activate && celery -A backend.workers.celery_app worker --loglevel=info
 
 docker-up:
 	docker-compose up -d

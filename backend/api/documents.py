@@ -41,10 +41,12 @@ async def upload_document(
         # Create document record
         document = Document(
             filename=file.filename,
-            file_path=temp_path,
             file_type=suffix,
             file_size=len(content),
-            status=TaskStatus.PENDING
+            s3_bucket="temp",  # Will be updated after S3 upload
+            s3_key=temp_path,
+            status=TaskStatus.PENDING,
+            user_id="system"  # TODO: Replace with actual user_id from auth
         )
         db.add(document)
         db.commit()

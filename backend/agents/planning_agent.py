@@ -1,5 +1,5 @@
 """Planning Agent for workflow management and decision support."""
-from typing import Dict, Any, List
+from typing import Dict, Any
 import logging
 from backend.core import BaseAgent
 from backend.utils.llm_client import LLMClient

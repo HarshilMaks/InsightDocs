@@ -35,7 +35,7 @@ The system employs four specialized agents coordinated by an orchestrator:
 - Document chunking and intelligent segmentation
 - Vector embedding generation with sentence transformers
 - FAISS-powered similarity search
-- Context-aware response generation using OpenAI
+- Context-aware response generation using Gemini
 - Source citation and attribution
 
 ### Production Infrastructure
@@ -89,7 +89,7 @@ User → API → Document Record (PostgreSQL)
 
 - Python 3.11 or higher
 - Docker and Docker Compose
-- OpenAI API key
+- Gemini API key
 
 ### Installation
 
@@ -104,7 +104,7 @@ cd InsightDocs
 
 ```bash
 cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
+# Edit .env and add your GEMINI_API_KEY
 ```
 
 3. **Start with Docker Compose (Recommended)**
@@ -121,17 +121,17 @@ Services will be available at:
 ### Alternative: Manual Setup
 
 ```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Create virtual environment (if not exists)
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # Start services (PostgreSQL, Redis, MinIO separately)
 
 # Initialize database
-python -c "from insightdocs.models import Base, engine; Base.metadata.create_all(bind=engine)"
+python -c "from backend.models import Base, engine; Base.metadata.create_all(bind=engine)"
 
 # Terminal 1: Start API
 uvicorn insightdocs.api.main:app --reload
@@ -234,7 +234,7 @@ InsightDocs/
 │   ├── utils/             # Utilities
 │   │   ├── document_processor.py  # Document parsing
 │   │   ├── embeddings.py          # Vector operations
-│   │   └── llm_client.py          # OpenAI integration
+│   │   └── llm_client.py          # Gemini integration
 │   ├── workers/           # Celery workers
 │   │   ├── celery_app.py      # Celery config
 │   │   └── tasks.py           # Background tasks
@@ -311,8 +311,8 @@ REDIS_URL=redis://localhost:6379/0
 CELERY_BROKER_URL=redis://localhost:6379/0
 CELERY_RESULT_BACKEND=redis://localhost:6379/1
 
-# OpenAI
-OPENAI_API_KEY=sk-your-api-key-here
+# Gemini
+GEMINI_API_KEY=sk-your-api-key-here
 
 # Storage (S3/MinIO)
 S3_ENDPOINT=http://localhost:9000
@@ -365,7 +365,7 @@ VECTOR_DIMENSION=384
 | **Cache/Queue** | Redis |
 | **Vector DB** | FAISS |
 | **Storage** | S3/MinIO |
-| **LLM** | OpenAI GPT |
+| **LLM** | Gemini GPT |
 | **Embeddings** | Sentence Transformers |
 | **Containerization** | Docker, Docker Compose |
 
@@ -450,4 +450,4 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ---
 
-**Built with ❤️ using Python, FastAPI, Celery, PostgreSQL, Redis, FAISS, and OpenAI**
+**Built with ❤️ using Python, FastAPI, Celery, PostgreSQL, Redis, FAISS, and Gemini**

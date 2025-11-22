@@ -9,7 +9,6 @@ from backend.models.database import get_db
 from backend.models.schemas import User
 from backend.api.schemas import UserCreate, UserResponse, LoginResponse, Token
 from backend.core.security import get_password_hash, verify_password, create_access_token, create_refresh_token
-from backend.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

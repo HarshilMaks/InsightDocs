@@ -22,13 +22,12 @@ InsightDocs is a production-ready AI-driven agent architecture system that demon
 git clone https://github.com/HarshilMaks/InsightDocs.git
 cd InsightDocs
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# Activate virtual environment
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
 # Install dependencies
 make install-dev
-# or: pip install -r requirements.txt && pip install -r requirements-dev.txt
+# or: uv pip install -r requirements.txt && uv pip install -r requirements-dev.txt
 
 # Set up environment
 cp .env.example .env
@@ -56,16 +55,21 @@ make docker-down
 #### Option 2: Local Development
 
 ```bash
-# Terminal 1: API Server
-make run-api
-# or: uvicorn insightdocs.api.main:app --reload
+# Activate virtual environment first
+source .venv/bin/activate
 
-# Terminal 2: Celery Worker
+# Terminal 1: API Server
+make run-backend
+# or: uvicorn backend.api.main:app --reload
+
+# Terminal 2: Celery Worker (new terminal, activate .venv again)
+source .venv/bin/activate
 make run-worker
-# or: celery -A insightdocs.workers.celery_app worker --loglevel=info
+# or: celery -A backend.workers.celery_app worker --loglevel=info
 
 # Terminal 3: (Optional) Celery Flower for monitoring
-celery -A insightdocs.workers.celery_app flower
+source .venv/bin/activate
+celery -A backend.workers.celery_app flower
 ```
 
 ## Development Workflow
@@ -205,8 +209,8 @@ from typing import Dict, Any
 from fastapi import FastAPI
 from sqlalchemy import Column
 
-from insightdocs.core import BaseAgent
-from insightdocs.models import Document
+from backend.core import BaseAgent
+from backend.models import Document
 ```
 
 ## Testing Guidelines
@@ -339,7 +343,7 @@ docker-compose logs redis
 docker-compose restart worker
 ```
 
-**OpenAI API errors**
+**Gemini API errors**
 - Verify API key in `.env`
 - Check API quota/limits
 - Ensure network connectivity

@@ -3,7 +3,7 @@ Security utilities for password hashing, token creation,
 and user dependency injection.
 """
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -29,33 +29,33 @@ def get_password_hash(password: str) -> str:
 
 # --- JWT Token Creation ---
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.app.api_prefix}/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/auth/login")
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     """Creates a new access token."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.security.access_token_expire_minutes)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
     
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
         to_encode, 
-        settings.security.secret_key, 
-        algorithm=settings.security.algorithm
+        settings.secret_key, 
+        algorithm=settings.algorithm
     )
     return encoded_jwt
 
-def create_refresh_token(data: dict) -> str:
+def create_refresh_token(data: Dict[str, Any]) -> str:
     """Creates a new refresh token."""
-    expires = datetime.now(timezone.utc) + timedelta(days=settings.security.refresh_token_expire_days)
+    expires = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
     to_encode = data.copy()
     to_encode.update({"exp": expires})
     encoded_jwt = jwt.encode(
         to_encode, 
-        settings.security.secret_key, 
-        algorithm=settings.security.algorithm
+        settings.secret_key, 
+        algorithm=settings.algorithm
     )
     return encoded_jwt
 
@@ -66,8 +66,8 @@ def decode_token(token: str) -> Optional[TokenData]:
     try:
         payload = jwt.decode(
             token, 
-            settings.security.secret_key, 
-            algorithms=[settings.security.algorithm]
+            settings.secret_key, 
+            algorithms=[settings.algorithm]
         )
         user_id: Optional[str] = payload.get("user_id")
         if user_id is None:

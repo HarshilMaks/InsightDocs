@@ -16,8 +16,8 @@ class FileStorage:
         self.s3_client = boto3.client(
             's3',
             endpoint_url=settings.s3_endpoint,
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+            aws_access_key_id=settings.aws_access_key_id,
+            aws_secret_access_key=settings.aws_secret_access_key
         )
         self.bucket_name = settings.s3_bucket_name
         self._ensure_bucket_exists()

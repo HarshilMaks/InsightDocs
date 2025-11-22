@@ -15,7 +15,7 @@ InsightDocs is a production-ready AI-driven agent architecture system that trans
 ### RAG (Retrieval-Augmented Generation)
 - Document chunking and embedding generation
 - Vector similarity search with FAISS
-- Context-aware response generation with OpenAI
+- Context-aware response generation with Gemini
 - Source citation and attribution
 
 ### Async Task Processing
@@ -82,7 +82,7 @@ S3/MinIO (Files) ← → Local Storage (Temp)
 2. Analysis Agent generates query embedding
 3. FAISS retrieves top-k similar chunks
 4. LLM Client constructs context from chunks
-5. OpenAI generates contextual answer
+5. Gemini generates contextual answer
 6. Response includes answer + sources with citations
 7. Query saved to history
 ```
@@ -95,7 +95,7 @@ S3/MinIO (Files) ← → Local Storage (Temp)
 git clone https://github.com/HarshilMaks/InsightDocs.git
 cd InsightDocs
 cp .env.example .env
-# Add your OPENAI_API_KEY to .env
+# Add your GEMINI_API_KEY to .env
 
 # Start all services
 docker compose up -d
@@ -147,7 +147,7 @@ python cli.py status <task-id>
 ### Utils (`insightdocs/utils/`)
 - `document_processor.py`: Document parsing and chunking
 - `embeddings.py`: Embedding generation and vector search
-- `llm_client.py`: OpenAI integration
+- `llm_client.py`: Gemini integration
 
 ### Workers (`insightdocs/workers/`)
 - `celery_app.py`: Celery configuration
@@ -162,7 +162,7 @@ Environment variables (`.env`):
 ```bash
 DATABASE_URL=postgresql://...
 REDIS_URL=redis://...
-OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=sk-...
 S3_ENDPOINT=http://...
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
@@ -235,7 +235,7 @@ pytest tests/test_core_agent.py -v
 - **Message Queue**: Redis pub/sub and queues
 - **Storage**: S3-compatible object storage
 - **Database**: PostgreSQL with SQLAlchemy
-- **LLM**: OpenAI API (extensible to other providers)
+- **LLM**: Gemini API (extensible to other providers)
 
 ## Learning Resources
 
@@ -265,4 +265,4 @@ See `docs/DEVELOPMENT.md` for:
 
 ---
 
-**Built with**: Python 3.11, FastAPI, Celery, PostgreSQL, Redis, FAISS, OpenAI, Docker
+**Built with**: Python 3.11, FastAPI, Celery, PostgreSQL, Redis, FAISS, Gemini, Docker
