@@ -1,5 +1,7 @@
 .PHONY: help install install-dev test lint clean run-api run-worker docker-up docker-down
 
+SHELL := /bin/bash
+
 help:
 	@echo "InsightDocs Development Commands"
 	@echo "================================"
@@ -15,11 +17,10 @@ help:
 	@echo "docker-logs      - View Docker logs"
 
 install:
-	source .venv/bin/activate && uv pip install -r requirements.txt
+	. .venv/bin/activate && uv pip install -r requirements.txt
 
 install-dev:
-	source .venv/bin/activate && uv pip install -r requirements.txt
-	source .venv/bin/activate && uv pip install -r requirements-dev.txt
+	. .venv/bin/activate && uv pip install -r requirements.txt && uv pip install -r requirements-dev.txt
 
 test:
 	pytest tests/ -v
@@ -39,10 +40,10 @@ clean:
 	rm -rf .coverage
 
 run-backend:
-	source .venv/bin/activate && uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
+	. .venv/bin/activate && uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
 
 run-worker:
-	source .venv/bin/activate && celery -A backend.workers.celery_app worker --loglevel=info
+	. .venv/bin/activate && celery -A backend.workers.celery_app worker --loglevel=info
 
 docker-up:
 	docker-compose up -d

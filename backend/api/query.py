@@ -8,7 +8,7 @@ from backend.utils.embeddings import EmbeddingEngine
 from backend.utils.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/query", tags=["query"])
+router = APIRouter(prefix="/query", tags=["Query Parameters"])
 
 
 @router.post("/", response_model=QueryResponse)

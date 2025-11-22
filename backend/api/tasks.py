@@ -7,7 +7,7 @@ from backend.models import get_db, Task
 from backend.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 
 @router.get("/{task_id}", response_model=TaskStatusResponse)

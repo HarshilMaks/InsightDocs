@@ -13,7 +13,7 @@ from backend.models import get_db, Document, TaskStatus
 from backend.workers.tasks import process_document_task
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/documents", tags=["documents"])
+router = APIRouter(prefix="/documents", tags=["Documents"])
 
 
 @router.post("/upload", response_model=DocumentUploadResponse)
