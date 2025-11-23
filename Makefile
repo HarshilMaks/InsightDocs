@@ -1,32 +1,58 @@
-.PHONY: help install install-dev test lint clean run-api run-worker docker-up docker-down
+.PHONY: help install install-dev test test-cov lint clean run-backend run-worker docker-up docker-down docker-logs docker-rebuild venv
 
 SHELL := /bin/bash
+VENV := .venv
+PYTHON := $(VENV)/bin/python
+PIP := $(VENV)/bin/uv pip
+ACTIVATE := . $(VENV)/bin/activate
 
 help:
 	@echo "InsightDocs Development Commands"
 	@echo "================================"
+	@echo "venv             - Create virtual environment"
 	@echo "install          - Install production dependencies"
 	@echo "install-dev      - Install development dependencies"
 	@echo "test             - Run tests"
+	@echo "test-cov         - Run tests with coverage"
 	@echo "lint             - Run code linters"
 	@echo "clean            - Clean up cache and temporary files"
-	@echo "run-api          - Run the API server"
+	@echo "run-backend      - Run the API server"
 	@echo "run-worker       - Run Celery worker"
 	@echo "docker-up        - Start all services with Docker Compose"
 	@echo "docker-down      - Stop all services"
 	@echo "docker-logs      - View Docker logs"
+	@echo "docker-rebuild   - Rebuild and restart Docker services"
+
+venv:
+	@if [ ! -d "$(VENV)" ]; then \
+		echo "Creating virtual environment..."; \
+		python3 -m venv $(VENV); \
+		$(PIP) install --upgrade pip; \
+		echo "Virtual environment created at $(VENV)"; \
+	else \
+		echo "Virtual environment already exists at $(VENV)"; \
+	fi
 
 install:
-	. .venv/bin/activate && uv pip install -r requirements.txt
+	@if [ ! -d "$(VENV)" ]; then echo "Error: Virtual environment not found. Run 'make venv' first."; exit 1; fi
+	$(ACTIVATE) && uv pip install -r requirements.txt
 
 install-dev:
-	. .venv/bin/activate && uv pip install -r requirements.txt && uv pip install -r requirements-dev.txt
+	@if [ ! -d "$(VENV)" ]; then echo "Error: Virtual environment not found. Run 'make venv' first."; exit 1; fi
+	$(ACTIVATE) && uv pip install -r requirements.txt
+	@if [ -f requirements-dev.txt ]; then \
+		$(ACTIVATE) && uv pip install -r requirements-dev.txt; \
+	else \
+		echo "Note: requirements-dev.txt not found, skipping dev dependencies"; \
+	fi
 
 test:
-	pytest tests/ -v
+	@if [ ! -d "$(VENV)" ]; then echo "Error: Virtual environment not found. Run 'make venv' first."; exit 1; fi
+	$(ACTIVATE) && pytest tests/ -v
 
 test-cov:
-	pytest tests/ --cov=insightdocs --cov-report=html --cov-report=term
+	@if [ ! -d "$(VENV)" ]; then echo "Error: Virtual environment not found. Run 'make venv' first."; exit 1; fi
+	$(ACTIVATE) && pytest tests/ --cov=backend --cov-report=html --cov-report=term
 
 lint:
 	@echo "Linting would go here (flake8, black, mypy, etc.)"
@@ -40,10 +66,12 @@ clean:
 	rm -rf .coverage
 
 run-backend:
-	. .venv/bin/activate && uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
+	@if [ ! -d "$(VENV)" ]; then echo "Error: Virtual environment not found. Run 'make venv' first."; exit 1; fi
+	$(ACTIVATE) && uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
 
 run-worker:
-	. .venv/bin/activate && celery -A backend.workers.celery_app worker --loglevel=info
+	@if [ ! -d "$(VENV)" ]; then echo "Error: Virtual environment not found. Run 'make venv' first."; exit 1; fi
+	$(ACTIVATE) && celery -A backend.workers.celery_app worker --loglevel=info
 
 docker-up:
 	docker-compose up -d

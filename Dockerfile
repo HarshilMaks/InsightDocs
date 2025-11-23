@@ -6,13 +6,17 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install uv for faster package installation
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy requirements
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies using uv
+RUN uv pip install --system --no-cache -r requirements.txt
 
 # Copy application code
 COPY . .
@@ -21,7 +25,7 @@ COPY . .
 ENV PYTHONPATH=/app
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8080
 
 # Default command
 CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
