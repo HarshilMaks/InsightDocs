@@ -40,10 +40,15 @@ class EmbeddingEngine:
             logger.info("Connected to Milvus successfully")
         except Exception as e:
             logger.error(f"Failed to connect to Milvus: {e}")
-            raise
+            logger.warning("App will continue but vector search will be unavailable")
+            self.collection = None  # Mark as unavailable
     
     def _init_collection(self):
         """Initialize or get existing Milvus collection."""
+        if self.collection is None:
+            logger.warning("Skipping collection init - Milvus connection failed")
+            return
+            
         try:
             # Check if collection exists
             if utility.has_collection(settings.milvus_collection):
@@ -80,7 +85,8 @@ class EmbeddingEngine:
             
         except Exception as e:
             logger.error(f"Failed to initialize collection: {e}")
-            raise
+            logger.warning("Vector search will be unavailable")
+            self.collection = None
     
     
     async def embed_texts(self, texts: List[str]) -> List[List[float]]:
@@ -119,6 +125,10 @@ class EmbeddingEngine:
         Returns:
             List of vector IDs
         """
+        if self.collection is None:
+            logger.error("Cannot store embeddings - Milvus not connected")
+            raise RuntimeError("Milvus connection not available")
+            
         try:
             # Generate unique IDs for each vector
             import uuid
@@ -158,6 +168,10 @@ class EmbeddingEngine:
         Returns:
             List of search results with text, score, and metadata
         """
+        if self.collection is None:
+            logger.error("Cannot search - Milvus not connected")
+            raise RuntimeError("Milvus connection not available")
+            
         try:
             # Generate query embedding
             query_embeddings = await self.embed_texts([query_text])

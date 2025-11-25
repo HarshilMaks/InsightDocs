@@ -25,7 +25,7 @@ COPY . .
 ENV PYTHONPATH=/app
 
 # Expose port
-EXPOSE 8080
+EXPOSE 8000
 
 # Default command
-CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
