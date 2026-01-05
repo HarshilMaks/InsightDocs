@@ -140,7 +140,7 @@ make run-backend
 # or
 . .venv/bin/activate && uvicorn backend.api.main:app --reload --port 8000
 ```
-
+y
 ### 3. Test Endpoints
 ```bash
 # Health check
@@ -177,20 +177,20 @@ curl -X POST http://localhost:8000/api/v1/query/ \
 
 ```bash
 # LLM
-GEMINI_API_KEY=REDACTED_GEMINI_API_KEY
-GEMINI_MODEL=gemini-1.5-pro
+GEMINI_API_KEY=
+GEMINI_MODEL=
 
 # Vector Database
-MILVUS_URI=REDACTED_MILVUS_URI
-MILVUS_TOKEN=REDACTED_MILVUS_TOKEN
-MILVUS_COLLECTION=insightopscollection
-VECTOR_DIMENSION=384
+MILVUS_URI=
+MILVUS_TOKEN=
+MILVUS_COLLECTION=
+VECTOR_DIMENSION=
 
 # Database
-DATABASE_URL=postgresql://insightdocs:insightdocs@localhost:5432/insightdocs
+DATABASE_URL=
 
 # Security
-SECRET_KEY=REDACTED_SECRET_KEY
+SECRET_KEY=
 ```
 
 ---
