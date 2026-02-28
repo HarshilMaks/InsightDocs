@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = "http://localhost:8000/api/v1"
 
 
 @click.group()

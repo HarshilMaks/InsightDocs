@@ -1,234 +1,282 @@
-# Architecture Guide
+# InsightDocs Architecture Guide
 
 ## System Overview
 
-InsightDocs is built on a microservices-inspired architecture with multiple specialized agents coordinated by a central orchestrator.
+InsightDocs is a multi-agent RAG system built with 5 distinct layers that work together to transform documents into queryable intelligence.
 
-## Components
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    PRESENTATION LAYER                       │
+│  FastAPI REST API  │  CLI Tool  │  Swagger UI Documentation │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                     AGENT SYSTEM LAYER                      │
+│  Orchestrator ──→ DataAgent ──→ AnalysisAgent ──→ Planning │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                   ASYNC WORKERS LAYER                       │
+│  Celery Workers: process_document, generate_embeddings     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                   DATA STORAGE LAYER                        │
+│  PostgreSQL │ Milvus Vector DB │ Redis │ S3/MinIO Storage  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                  LLM INTEGRATION LAYER                      │
+│  Gemini API Client  │  SentenceTransformers Embeddings    │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### 1. Agent Layer
+## Code Structure
 
-#### Base Agent Framework
-All agents inherit from `BaseAgent` class providing:
-- Standard message processing interface
-- Error handling
-- Event logging
-- Message serialization
+All application code lives in the `backend/` directory:
 
-#### Orchestrator Agent
-- Central coordinator for all workflows
-- Routes tasks to appropriate agents
-- Manages multi-step workflows
-- Handles workflow failures and retries
+```
+backend/
+├── agents/           # Multi-agent system
+├── api/             # FastAPI endpoints  
+├── core/            # Base classes and utilities
+├── models/          # Database schemas
+├── utils/           # LLM, embeddings, document processing
+├── workers/         # Celery background tasks
+└── storage/         # File storage integration
+```
 
-#### Data Agent
-Responsibilities:
-- Document ingestion from various sources
-- File storage management
-- Data transformation and chunking
-- Metadata extraction
+## Layer Details
 
-#### Analysis Agent
-Responsibilities:
-- Embedding generation
-- Content summarization
+### 1. Presentation Layer
+
+**FastAPI REST API**
+- Document upload/management endpoints
+- RAG query interface
+- Task status monitoring
+- JWT authentication (not enforced yet)
+
+**CLI Tool**
+- Direct system interaction
+- Development and testing utilities
+
+**Swagger UI**
+- Auto-generated API documentation
+- Interactive endpoint testing
+
+### 2. Agent System Layer
+
+All agents inherit from `BaseAgent` with async `process(message)` interface:
+
+```
+BaseAgent
+├── async process(message) → AgentResponse
+├── logger: Logger
+└── agent_id: str
+
+┌─────────────────────────────────────────────────────────────┐
+│                    AGENT WORKFLOW                           │
+│                                                             │
+│  Orchestrator ──┐                                          │
+│                 │                                          │
+│                 ├──→ DataAgent                             │
+│                 │    ├── ingest_document()                 │
+│                 │    ├── transform_content()               │
+│                 │    └── store_chunks()                    │
+│                 │                                          │
+│                 ├──→ AnalysisAgent                         │
+│                 │    ├── generate_embeddings()             │
+│                 │    ├── summarize_document()              │
+│                 │    └── extract_entities()                │
+│                 │                                          │
+│                 └──→ PlanningAgent                         │
+│                      ├── suggest_actions()                 │
+│                      ├── track_progress()                  │
+│                      └── make_decisions()                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Orchestrator Agent**
+- Coordinates all other agents
+- Manages workflow execution
+- Direct agent invocation (not via MessageQueue)
+
+**DataAgent**
+- Document ingestion and parsing
+- Content transformation and chunking
+- Database storage operations
+
+**AnalysisAgent** 
+- Vector embedding generation
+- Document summarization
 - Entity extraction
-- Semantic analysis
 
-#### Planning Agent
-Responsibilities:
-- Workflow planning
+**PlanningAgent**
+- Workflow planning and suggestions
 - Progress tracking
 - Decision support
-- Next-step suggestions
 
-### 2. API Layer
+### 3. Async Workers Layer
 
-FastAPI-based REST API providing:
-- Document management endpoints
-- Query/RAG endpoints
-- Task monitoring endpoints
-- Health checks
+**Celery Configuration**
+- Redis as message broker
+- Background task processing
+- Uses `asyncio.run()` wrapper for async operations
 
-### 3. Worker Layer
+**Core Tasks**
+- `process_document`: Full document processing pipeline
+- `generate_embeddings`: Vector generation for chunks
+- `cleanup_old_tasks`: Maintenance operations
 
-Celery-based async task processing:
-- Document processing pipeline
-- Embedding generation
-- Background cleanup tasks
-- Scheduled periodic tasks
+### 4. Data Storage Layer
 
-### 4. Data Layer
+**PostgreSQL Schema**
+```sql
+-- All tables use UUID primary keys with TimestampMixin
+users: id, email, hashed_password, is_active, created_at, updated_at
+documents: id, user_id, filename, file_path, status, summary, created_at, updated_at
+document_chunks: id, document_id, content, chunk_index, created_at, updated_at
+tasks: id, task_type, status, result, created_at, updated_at
+queries: id, user_id, query_text, response, created_at, updated_at
+```
 
-**PostgreSQL Database:**
-- Documents metadata
-- Task tracking
-- Query history
-- User data
+**Milvus Vector Database**
+```python
+# Collection Schema
+collection_name: "document_chunks"
+fields:
+  - id: INT64 (primary key)
+  - document_id: VARCHAR
+  - text: VARCHAR  
+  - vector: FLOAT_VECTOR (384 dimensions)
 
-**FAISS Vector Store:**
-- Document embeddings
-- Similarity search
-- Metadata indexing
+# Index Configuration
+index_type: IVF_FLAT
+metric_type: COSINE
+nlist: 1024
+```
 
-**Redis:**
-- Message queue
-- Task broker
-- Result backend
-- Caching
+**Redis**
+- Celery message broker
+- Task result backend
+- MessageQueue pub/sub (available but unused)
 
-### 5. Storage Layer
+**S3/MinIO**
+- Original document storage
+- Scalable file management
 
-S3/MinIO for:
-- Raw document files
-- Processed outputs
-- Model artifacts
-- Logs and reports
+### 5. LLM Integration Layer
+
+**Gemini API Client**
+```python
+class LLMClient:
+    def summarize(text) -> str
+    def extract_entities(text) -> List[str]
+    def generate_rag_response(query, context) -> str
+    def generate_quiz(content) -> List[dict]
+    def generate_mindmap(content) -> dict
+    def generate_suggestions(content) -> List[str]
+    def recommend_option(options, criteria) -> str
+```
+
+**SentenceTransformers Embeddings**
+```python
+# Model: all-MiniLM-L6-v2 (384 dimensions)
+class EmbeddingEngine:
+    @staticmethod
+    def get_embedding_engine() -> EmbeddingEngine  # Singleton
+    def generate_embeddings(texts) -> List[List[float]]
+    def generate_single_embedding(text) -> List[float]
+```
 
 ## Data Flow
 
-### Document Ingestion Flow
+### Document Upload Pipeline
 
 ```
-1. User uploads document via API
-   ↓
-2. API creates Document record in DB
-   ↓
-3. Celery task starts async processing
-   ↓
-4. Orchestrator Agent coordinates:
-   a. Data Agent: Ingest & store file
-   b. Data Agent: Parse & chunk document
-   c. Analysis Agent: Generate embeddings
-   d. Data Agent: Store in vector DB
-   ↓
-5. Task status updated to "completed"
-   ↓
-6. Document ready for querying
+1. Upload Request
+   │
+   ├── FastAPI endpoint receives file
+   │
+2. Document Record Creation
+   │
+   ├── Store metadata in PostgreSQL
+   ├── Save file to S3/MinIO
+   │
+3. Celery Task: process_document
+   │
+   ├── Orchestrator coordinates workflow
+   │
+4. DataAgent Processing
+   │
+   ├── Parse document content
+   ├── Chunk text into segments
+   ├── Store chunks in PostgreSQL
+   │
+5. AnalysisAgent Processing
+   │
+   ├── Generate 384-dim embeddings
+   ├── Store vectors in Milvus
+   ├── Auto-generate document summary
+   │
+6. Complete
+   │
+   └── Document ready for querying
 ```
 
-### Query Flow (RAG)
+### RAG Query Pipeline
 
 ```
-1. User submits query via API
-   ↓
-2. Analysis Agent generates query embedding
-   ↓
-3. Vector search retrieves top-k similar chunks
-   ↓
-4. LLM Client constructs context
-   ↓
-5. Gemini generates response with citations
-   ↓
-6. Response saved to query history
-   ↓
-7. Return to user
+1. Query Request
+   │
+   ├── User submits natural language query
+   │
+2. Query Embedding
+   │
+   ├── Generate 384-dim vector using all-MiniLM-L6-v2
+   │
+3. Vector Search
+   │
+   ├── Milvus COSINE similarity search
+   ├── Retrieve top-k relevant chunks
+   │
+4. Context Assembly
+   │
+   ├── Combine retrieved chunks
+   ├── Include source metadata
+   │
+5. LLM Generation
+   │
+   ├── Gemini generates grounded response
+   ├── Cite sources and chunks
+   │
+6. Response
+   │
+   └── Return answer with source attribution
 ```
 
-## Message Queue Architecture
+## Authentication System
 
-Agents communicate via Redis-based message queues:
+**JWT Implementation**
+- Access tokens (short-lived)
+- Refresh tokens (long-lived)
+- bcrypt password hashing
+- `get_current_user` dependency available
+- **Note**: Authentication not enforced on endpoints yet
 
-**Queue Types:**
-- Task queues: For Celery worker distribution
-- Event streams: For real-time updates
-- Result channels: For synchronous responses
+## Performance Characteristics
 
-**Message Format:**
-```json
-{
-  "message_type": "task_request",
-  "payload": { "task_specific_data": "..." },
-  "sender_id": "agent_id",
-  "recipient_id": "target_agent_id",
-  "correlation_id": "request_tracking_id",
-  "timestamp": "2024-01-01T00:00:00"
-}
-```
+**Vector Search**
+- Milvus IVF_FLAT index for fast similarity search
+- COSINE metric optimized for semantic similarity
+- 384-dimensional vectors balance accuracy and speed
 
-## Scalability Considerations
+**Async Processing**
+- Non-blocking document processing
+- Celery workers handle compute-intensive tasks
+- FastAPI async endpoints for high concurrency
 
-### Horizontal Scaling
-- API: Multiple FastAPI instances behind load balancer
-- Workers: Scale Celery workers independently
-- Database: PostgreSQL replication for read scaling
-- Redis: Redis Cluster for high availability
-
-### Vertical Scaling
-- Increase embedding model capacity
-- Larger vector index for more documents
-- More worker processes per machine
-
-### Performance Optimization
-- Connection pooling for database
-- Embedding caching
-- Batch processing for large documents
-- Async I/O throughout
-
-## Security Architecture
-
-### Network Security
-- API behind reverse proxy (nginx)
-- Internal services on private network
-- TLS/SSL for external communications
-
-### Data Security
-- Encrypted storage for sensitive documents
-- Secrets management via environment variables
-- PostgreSQL connection encryption
-- S3 bucket policies and IAM roles
-
-### Application Security
-- Input validation on all endpoints
-- SQL injection prevention via ORM
-- Rate limiting on API endpoints
-- Authentication/authorization (to be implemented)
-
-## Monitoring & Observability
-
-### Logging
-- Structured JSON logging
-- Agent-level event tracking
-- Centralized log aggregation (future)
-
-### Metrics
-- Task completion rates
-- Processing times
-- Error rates
-- Resource utilization
-
-### Tracing
-- Correlation IDs for request tracing
-- Workflow execution tracking
-- Performance profiling
-
-## Deployment
-
-### Development
-- Docker Compose for local development
-- Hot-reload for code changes
-- Debug logging enabled
-
-### Production
-- Kubernetes deployment (future)
-- Managed services (RDS, ElastiCache, S3)
-- Auto-scaling policies
-- Health checks and liveness probes
-
-## Future Enhancements
-
-1. **Agent Enhancements:**
-   - More specialized agents (Validation, Compliance, etc.)
-   - Agent-to-agent direct communication
-   - Autonomous agent decision-making
-
-2. **Infrastructure:**
-   - Kubernetes orchestration
-   - Service mesh (Istio)
-   - GraphQL API option
-
-3. **Features:**
-   - Multi-tenancy support
-   - Real-time collaboration
-   - Advanced workflow builder
-   - Custom agent plugins
+**Scalability**
+- Horizontal scaling via additional Celery workers
+- Milvus supports distributed vector search
+- S3/MinIO provides unlimited storage capacity

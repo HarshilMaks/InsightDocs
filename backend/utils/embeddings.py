@@ -19,14 +19,10 @@ class EmbeddingEngine:
     """Handles embedding generation and vector storage with Milvus."""
     
     def __init__(self):
-        # Initialize sentence transformer model
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.dimension = settings.vector_dimension
-        
-        # Connect to Milvus
+        self.collection = None  # Initialize before connect attempt
         self._connect_milvus()
-        
-        # Initialize or get collection
         self._init_collection()
     
     def _connect_milvus(self):
@@ -37,15 +33,16 @@ class EmbeddingEngine:
                 uri=settings.milvus_uri,
                 token=settings.milvus_token
             )
+            self._milvus_connected = True
             logger.info("Connected to Milvus successfully")
         except Exception as e:
             logger.error(f"Failed to connect to Milvus: {e}")
             logger.warning("App will continue but vector search will be unavailable")
-            self.collection = None  # Mark as unavailable
+            self._milvus_connected = False
     
     def _init_collection(self):
         """Initialize or get existing Milvus collection."""
-        if self.collection is None:
+        if not self._milvus_connected:
             logger.warning("Skipping collection init - Milvus connection failed")
             return
             
@@ -218,3 +215,15 @@ class EmbeddingEngine:
             logger.info("Disconnected from Milvus")
         except Exception as e:
             logger.error(f"Error disconnecting from Milvus: {e}")
+
+
+# Singleton instance — avoids reloading the model on every request
+_engine_instance: Optional[EmbeddingEngine] = None
+
+
+def get_embedding_engine() -> EmbeddingEngine:
+    """Get or create the singleton EmbeddingEngine instance."""
+    global _engine_instance
+    if _engine_instance is None:
+        _engine_instance = EmbeddingEngine()
+    return _engine_instance

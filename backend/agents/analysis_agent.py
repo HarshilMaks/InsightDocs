@@ -2,7 +2,7 @@
 from typing import Dict, Any, List
 import logging
 from backend.core import BaseAgent
-from backend.utils.embeddings import EmbeddingEngine
+from backend.utils.embeddings import get_embedding_engine
 from backend.utils.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ class AnalysisAgent(BaseAgent):
     
     def __init__(self, agent_id: str = "analysis_agent"):
         super().__init__(agent_id, "AnalysisAgent")
-        self.embedding_engine = EmbeddingEngine()
+        self.embedding_engine = get_embedding_engine()
         self.llm_client = LLMClient()
     
     async def process(self, message: Dict[str, Any]) -> Dict[str, Any]:

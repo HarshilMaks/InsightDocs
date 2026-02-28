@@ -7,7 +7,7 @@ import logging
 from backend.api import documents, query, tasks, auth  # Import the new auth router
 from backend.api.schemas import HealthResponse
 from backend.models.schemas import Base  # Import Base from your merged models file
-from backend.models.database import engine
+from backend.models.database import engine, get_db
 from backend.config import settings  # Import your new settings
 
 # --- Use settings for logging ---
@@ -66,14 +66,26 @@ async def root():
 
 @app.get(f"{settings.api_prefix}/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "version": "1.0.0",
-        "components": {
-            "api": "healthy",
-            "database": "healthy",
-            "workers": "healthy",
-            "redis": "healthy"
-        }
-    }
+    """Health check endpoint — pings actual services."""
+    components = {"api": "healthy"}
+
+    # Check PostgreSQL
+    try:
+        from sqlalchemy import text
+        db = next(get_db())
+        db.execute(text("SELECT 1"))
+        components["database"] = "healthy"
+    except Exception:
+        components["database"] = "unhealthy"
+
+    # Check Redis
+    try:
+        import redis as _redis
+        r = _redis.from_url(settings.redis_url, socket_connect_timeout=2)
+        r.ping()
+        components["redis"] = "healthy"
+    except Exception:
+        components["redis"] = "unhealthy"
+
+    overall = "healthy" if all(v == "healthy" for v in components.values()) else "degraded"
+    return {"status": overall, "version": "1.0.0", "components": components}

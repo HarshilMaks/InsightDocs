@@ -1,221 +1,139 @@
 # Quick Start Guide
 
+## Prerequisites
+
+- Python 3.11+
+- Docker and Docker Compose
+- Gemini API key
+
 ## Installation
 
-### 1. Prerequisites
-
-Ensure you have the following installed:
-- Python 3.11 or higher
-- Docker and Docker Compose
-- Git
-
-### 2. Clone the Repository
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/HarshilMaks/InsightDocs.git
 cd InsightDocs
 ```
 
-### 3. Environment Setup
+### 2. Configure Environment
 
 ```bash
-# Copy environment template
 cp .env.example .env
-
-# Edit .env and add your Gemini API key
-# GEMINI_API_KEY=your-key-here
+# Edit .env and add your GEMINI_API_KEY
 ```
 
-### 4. Start with Docker Compose (Recommended)
+### 3. Start with Docker (Recommended)
 
 ```bash
-# Start all services
 docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Check service status
-docker-compose ps
 ```
 
-Services will be available at:
-- **API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
-- **MinIO Console**: http://localhost:9001 (admin/minioadmin)
+This starts:
+- PostgreSQL database
+- Redis message broker
+- MinIO object storage
+- FastAPI application (port 8000)
+- Celery worker
 
-### 5. Alternative: Manual Setup
+## Access Points
+
+- **API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/api/v1/docs
+- **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
+
+## Manual Setup (Alternative)
 
 ```bash
-# Activate virtual environment
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
 # Install dependencies
 uv pip install -r requirements.txt
 
-# Start PostgreSQL, Redis, and MinIO separately
-# Configure .env with correct connection strings
-
-# Initialize database
-source .venv/bin/activate
-python -c "from backend.models import Base, engine; Base.metadata.create_all(bind=engine)"
-
 # Terminal 1: Start API
-source .venv/bin/activate
 uvicorn backend.api.main:app --reload
 
-# Terminal 2: Start Celery worker
-celery -A insightdocs.workers.celery_app worker --loglevel=info
+# Terminal 2: Start worker
+celery -A backend.workers.celery_app worker --loglevel=info
 ```
 
-## Usage Examples
+## Usage
 
-### Using the CLI
+### CLI Commands
 
 ```bash
-# Install CLI dependencies
-pip install click requests
-
 # Check system health
 python cli.py health
 
-# Upload a document
+# Upload document
 python cli.py upload document.pdf
 
 # Query documents
-python cli.py query "What is the main topic?"
+python cli.py query "What is this about?"
 
-# List all documents
+# List documents
 python cli.py list-documents
 
 # Check task status
 python cli.py status <task-id>
 ```
 
-### Using curl
+### REST API Examples
 
+**Upload Document:**
 ```bash
-# Upload document
-curl -X POST "http://localhost:8000/documents/upload" \
+curl -X POST "http://localhost:8000/api/v1/documents/upload" \
   -F "file=@document.pdf"
+```
 
-# Query
-curl -X POST "http://localhost:8000/query/" \
+**Query Documents:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/query/" \
   -H "Content-Type: application/json" \
   -d '{"query": "What is this about?", "top_k": 5}'
-
-# List documents
-curl "http://localhost:8000/documents/"
 ```
 
-### Using Python
-
-```python
-import requests
-
-# Upload document
-with open('document.pdf', 'rb') as f:
-    response = requests.post(
-        'http://localhost:8000/documents/upload',
-        files={'file': f}
-    )
-    print(response.json())
-
-# Query
-response = requests.post(
-    'http://localhost:8000/query/',
-    json={
-        'query': 'What is the main topic?',
-        'top_k': 5
-    }
-)
-print(response.json())
+**Summarize Document:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/summarize"
 ```
 
-## Workflow Example
+**Generate Quiz:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/quiz" \
+  -H "Content-Type: application/json" \
+  -d '{"num_questions": 5}'
+```
 
-### Complete Document Processing Workflow
+**Create Mind Map:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/mindmap"
+```
 
-1. **Upload a document**:
-   ```bash
-   python cli.py upload my_document.pdf
-   # Returns: document_id and task_id
-   ```
+## Supported Formats
 
-2. **Monitor processing**:
-   ```bash
-   python cli.py status <task_id>
-   # Check until status is "completed"
-   ```
-
-3. **Query the document**:
-   ```bash
-   python cli.py query "What are the key findings?"
-   ```
-
-4. **View all documents**:
-   ```bash
-   python cli.py list-documents
-   ```
+- Text files (.txt)
+- PDF documents (.pdf)
+- Word documents (.docx)
+- PowerPoint presentations (.pptx)
+- Maximum file size: 50MB
 
 ## Troubleshooting
 
-### Services won't start
+### Common Issues
+
+1. **Port conflicts**: Ensure ports 8000, 5432, 6379, 9000 are available
+2. **Service startup**: Check logs with `docker-compose logs`
+3. **Environment**: Verify `.env` file contains valid `GEMINI_API_KEY`
+
+### Check Service Status
 
 ```bash
-# Check if ports are already in use
-lsof -i :8000  # API
-lsof -i :5432  # PostgreSQL
-lsof -i :6379  # Redis
-lsof -i :9000  # MinIO
+# View all service logs
+docker-compose logs
 
-# Restart services
-docker-compose down
-docker-compose up -d
-```
-
-### Database connection errors
-
-```bash
-# Check PostgreSQL is running
-docker-compose ps postgres
-
-# View logs
-docker-compose logs postgres
-
-# Recreate database
-docker-compose down -v
-docker-compose up -d
-```
-
-### Worker not processing tasks
-
-```bash
-# Check Celery worker logs
+# Check specific service
+docker-compose logs api
 docker-compose logs worker
-
-# Check Redis connection
-docker-compose ps redis
-docker-compose logs redis
 ```
-
-### Gemini API errors
-
-Ensure your `.env` file has a valid Gemini API key:
-```
-GEMINI_API_KEY=sk-...
-```
-
-## Next Steps
-
-- Read the [API Documentation](docs/API.md)
-- Understand the [Architecture](docs/ARCHITECTURE.md)
-- Explore the API at http://localhost:8000/docs
-
-## Support
-
-If you encounter issues:
-1. Check the logs: `docker-compose logs -f`
-2. Verify environment variables in `.env`
-3. Ensure all services are running: `docker-compose ps`
-4. Open an issue on GitHub

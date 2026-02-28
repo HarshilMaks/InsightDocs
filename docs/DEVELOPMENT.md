@@ -1,396 +1,214 @@
-# InsightDocs Development Guide
+# Development Guide
 
-## Project Overview
-
-InsightDocs is a production-ready AI-driven agent architecture system that demonstrates modern best practices for building scalable, maintainable AI applications.
-
-## Development Environment Setup
-
-### Prerequisites
+## Prerequisites
 
 - Python 3.11+
-- Docker & Docker Compose
+- Docker and Docker Compose
 - Git
-- PostgreSQL 15 (if running locally)
-- Redis 7 (if running locally)
-- MinIO or S3 (if running locally)
+- uv package manager
 
-### Initial Setup
+## Setup
 
 ```bash
-# Clone repository
 git clone https://github.com/HarshilMaks/InsightDocs.git
 cd InsightDocs
-
-# Activate virtual environment
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# Install dependencies
-make install-dev
-# or: uv pip install -r requirements.txt && uv pip install -r requirements-dev.txt
-
-# Set up environment
-cp .env.example .env
-# Edit .env with your configuration
+source .venv/bin/activate
+uv pip install -r requirements.txt
 ```
 
-### Running Services
+## Running the Application
 
-#### Option 1: Docker Compose (Recommended)
+### Docker (Recommended)
 
 ```bash
-# Start all services
 make docker-up
-# or: docker-compose up -d
-
-# View logs
-make docker-logs
-# or: docker-compose logs -f
-
-# Stop services
-make docker-down
-# or: docker-compose down
+# or
+docker-compose up -d
 ```
 
-#### Option 2: Local Development
+### Local Development
 
 ```bash
-# Activate virtual environment first
-source .venv/bin/activate
-
-# Terminal 1: API Server
+# Terminal 1: Backend API
 make run-backend
-# or: uvicorn backend.api.main:app --reload
+# or
+uvicorn backend.api.main:app --reload
 
-# Terminal 2: Celery Worker (new terminal, activate .venv again)
-source .venv/bin/activate
+# Terminal 2: Celery Worker
 make run-worker
-# or: celery -A backend.workers.celery_app worker --loglevel=info
-
-# Terminal 3: (Optional) Celery Flower for monitoring
-source .venv/bin/activate
-celery -A backend.workers.celery_app flower
 ```
 
-## Development Workflow
+## Project Structure
 
-### Making Changes
+```
+backend/
+├── agents/          # Multi-agent system
+├── api/             # FastAPI endpoints
+├── core/            # Core framework
+├── config/          # Configuration
+├── models/          # Database models
+├── utils/           # Utilities
+├── workers/         # Celery workers
+└── storage/         # Storage layer
+```
 
-1. **Create a feature branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-2. **Make your changes**
-   - Follow existing code patterns
-   - Add docstrings to all functions/classes
-   - Update type hints
-
-3. **Write tests**
-   ```bash
-   # Run tests
-   make test
-   
-   # Run with coverage
-   make test-cov
-   ```
-
-4. **Check code quality**
-   ```bash
-   make lint
-   ```
-
-5. **Commit and push**
-   ```bash
-   git add .
-   git commit -m "Description of changes"
-   git push origin feature/your-feature-name
-   ```
+## Development Patterns
 
 ### Adding New Agents
 
-1. Create agent class in `insightdocs/agents/`
-2. Inherit from `BaseAgent`
-3. Implement `async def process(self, message)` method
-4. Add agent to `__init__.py`
-5. Register with orchestrator if needed
-6. Write tests in `tests/`
+1. Create agent in `backend/agents/`:
 
-Example:
 ```python
-from insightdocs.core import BaseAgent
+from backend.core.agent import BaseAgent
 
 class MyAgent(BaseAgent):
-    def __init__(self, agent_id: str = "my_agent"):
-        super().__init__(agent_id, "MyAgent")
-    
-    async def process(self, message: Dict[str, Any]) -> Dict[str, Any]:
+    async def process(self, message: dict) -> dict:
         # Implementation
-        return {"success": True, "agent_id": self.agent_id}
+        return {"status": "completed"}
 ```
 
-### Adding New API Endpoints
+2. Register in `backend/agents/__init__.py`:
 
-1. Create or modify router in `insightdocs/api/`
-2. Define Pydantic schemas in `schemas.py`
-3. Add dependency injection if needed
-4. Document with docstrings
-5. Add to main app in `main.py`
-6. Write tests
+```python
+from .my_agent import MyAgent
+```
 
-Example:
+### Adding New Endpoints
+
+1. Create/modify router in `backend/api/`:
+
 ```python
 from fastapi import APIRouter
+from backend.api.schemas import MyRequest, MyResponse
 
-router = APIRouter(prefix="/myroute", tags=["myroute"])
+router = APIRouter()
 
-@router.get("/")
-async def my_endpoint():
-    return {"message": "Hello"}
+@router.post("/my-endpoint", response_model=MyResponse)
+async def my_endpoint(request: MyRequest):
+    return MyResponse(result="success")
 ```
 
-### Database Migrations
-
-When changing models:
-
-```bash
-# Create migration
-alembic revision --autogenerate -m "Description"
-
-# Apply migration
-alembic upgrade head
-
-# Rollback
-alembic downgrade -1
-```
-
-## Code Style Guide
-
-### Python Style
-
-- Follow PEP 8
-- Use type hints for all function parameters and returns
-- Write docstrings in Google style
-- Maximum line length: 100 characters
-- Use `async/await` for I/O operations
-
-### Docstring Example
+2. Define schemas in `backend/api/schemas.py`:
 
 ```python
-def my_function(param1: str, param2: int) -> Dict[str, Any]:
-    """Brief description.
-    
-    Longer description if needed.
-    
-    Args:
-        param1: Description of param1
-        param2: Description of param2
-        
-    Returns:
-        Dictionary containing result
-        
-    Raises:
-        ValueError: When param2 is negative
-    """
-    pass
+from pydantic import BaseModel
+
+class MyRequest(BaseModel):
+    data: str
+
+class MyResponse(BaseModel):
+    result: str
 ```
+
+3. Include in `backend/api/main.py`:
+
+```python
+from backend.api.my_router import router as my_router
+app.include_router(my_router, prefix="/api")
+```
+
+### Adding LLM Features
+
+Add method to `backend/utils/llm_client.py`:
+
+```python
+async def my_llm_feature(self, prompt: str) -> str:
+    response = await self.client.generate_content_async(prompt)
+    return response.text
+```
+
+## Testing
+
+```bash
+# Run all tests (13 tests currently)
+pytest tests/ -v
+
+# Run with coverage
+pytest --cov=backend
+
+# Run specific test
+pytest tests/test_agents.py -v
+```
+
+## Code Style
+
+- Follow PEP 8
+- Use type hints
+- Google-style docstrings
+- async/await for I/O operations
 
 ### Import Order
 
-1. Standard library imports
-2. Third-party imports
-3. Local application imports
-
-Example:
 ```python
+# Standard library
 import os
-from typing import Dict, Any
+from typing import Dict
 
+# Third-party
 from fastapi import FastAPI
-from sqlalchemy import Column
-
-from backend.core import BaseAgent
-from backend.models import Document
-```
-
-## Testing Guidelines
-
-### Test Structure
-
-```
-tests/
-├── test_agents/          # Agent tests
-├── test_api/             # API endpoint tests
-├── test_utils/           # Utility function tests
-└── test_integration/     # Integration tests
-```
-
-### Writing Tests
-
-```python
 import pytest
 
-@pytest.mark.asyncio
-async def test_my_feature():
-    """Test description."""
-    # Arrange
-    agent = MyAgent()
-    
-    # Act
-    result = await agent.process({"task": "test"})
-    
-    # Assert
-    assert result["success"] is True
+# Local
+from backend.core.agent import BaseAgent
+from backend.utils.llm_client import LLMClient
 ```
 
-### Running Tests
+## Make Commands
 
 ```bash
-# All tests
-pytest
-
-# Specific file
-pytest tests/test_core_agent.py
-
-# With coverage
-pytest --cov=insightdocs --cov-report=html
-
-# Verbose
-pytest -v
+make help           # Show available commands
+make install        # Install production dependencies
+make install-dev    # Install development dependencies
+make test           # Run test suite
+make test-cov       # Run tests with coverage
+make clean          # Clean cache and temp files
+make run-backend    # Start backend API
+make run-worker     # Start Celery worker
+make docker-up      # Start with Docker
+make docker-down    # Stop Docker services
+make docker-logs    # View Docker logs
 ```
 
 ## Debugging
 
-### API Debugging
+### Enable Debug Logging
 
 ```bash
-# Enable debug logging
-export LOG_LEVEL=DEBUG
-
-# Run with debugger
-python -m debugpy --listen 5678 --wait-for-client -m uvicorn insightdocs.api.main:app
+LOG_LEVEL=DEBUG make run-backend
 ```
 
-### Worker Debugging
+### Debug Celery Worker
 
 ```bash
-# Single threaded for debugging
-celery -A insightdocs.workers.celery_app worker --loglevel=debug --pool=solo
+celery -A backend.workers.celery_app worker --pool=solo --loglevel=debug
 ```
 
-### Database Debugging
+### Database Access
 
 ```bash
-# Connect to PostgreSQL
 docker-compose exec postgres psql -U insightdocs -d insightdocs
-
-# View tables
-\dt
-
-# Query
-SELECT * FROM documents;
 ```
 
-## Performance Optimization
+## Common Tasks
 
-### Profiling
+### View Logs
 
-```python
-import cProfile
-import pstats
-
-profiler = cProfile.Profile()
-profiler.enable()
-# Your code here
-profiler.disable()
-stats = pstats.Stats(profiler)
-stats.sort_stats('cumulative')
-stats.print_stats()
-```
-
-### Monitoring
-
-- Use Celery Flower: `http://localhost:5555`
-- Check API metrics: `http://localhost:8000/metrics` (if implemented)
-- Monitor logs: `docker-compose logs -f`
-
-## Troubleshooting
-
-### Common Issues
-
-**Import errors**
 ```bash
-# Ensure PYTHONPATH includes project root
-export PYTHONPATH=/path/to/InsightDocs:$PYTHONPATH
+make docker-logs
+# or
+docker-compose logs -f api worker
 ```
 
-**Database connection errors**
+### Reset Database
+
 ```bash
-# Check PostgreSQL is running
-docker-compose ps postgres
-
-# Reset database
-docker-compose down -v
-docker-compose up -d
+make docker-down
+docker volume rm insightdocs_postgres_data
+make docker-up
 ```
 
-**Worker not picking up tasks**
+### Check Service Health
+
 ```bash
-# Check Redis connection
-docker-compose logs redis
-
-# Restart worker
-docker-compose restart worker
+curl http://localhost:8000/health
 ```
-
-**Gemini API errors**
-- Verify API key in `.env`
-- Check API quota/limits
-- Ensure network connectivity
-
-## Best Practices
-
-### Security
-
-- Never commit `.env` files
-- Use environment variables for secrets
-- Validate all user inputs
-- Implement rate limiting in production
-- Use HTTPS in production
-
-### Performance
-
-- Use async/await for I/O operations
-- Batch database operations
-- Cache frequently accessed data
-- Use connection pooling
-- Index database queries
-
-### Code Quality
-
-- Write self-documenting code
-- Keep functions small and focused
-- Use meaningful variable names
-- Add comments for complex logic
-- Write comprehensive tests
-
-## Resources
-
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Celery Documentation](https://docs.celeryq.dev/)
-- [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
-- [Pydantic Documentation](https://docs.pydantic.dev/)
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
-- Code review process
-- Branch naming conventions
-- Commit message format
-- Pull request template
-
-## Support
-
-- GitHub Issues: Report bugs and request features
-- Discussions: Ask questions and share ideas
-- Email: support@insightdocs.example.com
