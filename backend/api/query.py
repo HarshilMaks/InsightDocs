@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 import logging
 from backend.api.schemas import QueryRequest, QueryResponse, SourceReference
 from backend.models import get_db, Query as QueryModel, DocumentChunk, Document
+from backend.models.schemas import User
+from backend.core.security import get_current_user
 from backend.utils.embeddings import get_embedding_engine
 from backend.utils.llm_client import LLMClient
 
@@ -15,12 +17,13 @@ router = APIRouter(prefix="/query", tags=["Query"])
 @router.post("/", response_model=QueryResponse)
 async def query_documents(
     request: QueryRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Query documents using RAG."""
+    """Query documents using RAG (authenticated users only, searches their documents)."""
     start = time.time()
     try:
-        logger.info(f"Processing query: {request.query}")
+        logger.info(f"Query by user {current_user.id}: {request.query}")
 
         embedding_engine = get_embedding_engine()
         llm_client = LLMClient()
@@ -34,17 +37,21 @@ async def query_documents(
 
         elapsed = round(time.time() - start, 3)
 
-        # Build source references
+        # Build source references - filter by current user's documents
         sources = []
         for r in search_results:
             doc_id = r.get("metadata", {}).get("document_id", "")
-            doc = db.query(Document).filter(Document.id == doc_id).first()
-            sources.append(SourceReference(
-                document_id=doc_id,
-                document_name=doc.filename if doc else "unknown",
-                content_preview=r["text"][:200],
-                similarity_score=r.get("score", 0.0),
-            ))
+            doc = db.query(Document).filter(
+                Document.id == doc_id,
+                Document.user_id == current_user.id  # Only include user's docs
+            ).first()
+            if doc:  # Only add sources the user owns
+                sources.append(SourceReference(
+                    document_id=doc_id,
+                    document_name=doc.filename if doc else "unknown",
+                    content_preview=r["text"][:200],
+                    similarity_score=r.get("score", 0.0),
+                ))
 
         # Persist query record
         query_record = QueryModel(
@@ -52,6 +59,7 @@ async def query_documents(
             response_text=answer,
             response_time=elapsed,
             sources=[r.get("metadata", {}) for r in search_results],
+            user_id=current_user.id,  # Associate with current user
         )
         db.add(query_record)
         db.commit()

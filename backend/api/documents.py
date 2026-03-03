@@ -10,6 +10,8 @@ from backend.api.schemas import (
     DocumentListResponse,
 )
 from backend.models import get_db, Document, DocumentChunk, Task, TaskStatus
+from backend.models.schemas import User
+from backend.core.security import get_current_user
 from backend.workers.tasks import process_document_task, generate_podcast_task
 from backend.utils.document_processor import SUPPORTED_EXTENSIONS, MAX_FILE_SIZE
 from backend.utils.llm_client import LLMClient
@@ -36,9 +38,10 @@ def _validate_upload(filename: str, content: bytes):
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Upload a document for processing."""
+    """Upload a document for processing (authenticated)."""
     try:
         content = await file.read()
         _validate_upload(file.filename, content)
@@ -55,7 +58,7 @@ async def upload_document(
             s3_bucket="temp",
             s3_key=temp_path,
             status=TaskStatus.PENDING,
-            user_id="system"  # TODO: Replace with actual user_id from auth
+            user_id=current_user.id  # Set to authenticated user
         )
         db.add(document)
         db.commit()
@@ -71,7 +74,7 @@ async def upload_document(
             task_type="document_processing",
             status=TaskStatus.PENDING,
             progress=0.0,
-            user_id="system",  # TODO: Replace with actual user_id from auth
+            user_id=current_user.id,  # Set to authenticated user
             document_id=document.id,
         )
         db.add(task_record)
@@ -97,12 +100,18 @@ async def upload_document(
 async def list_documents(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """List all documents."""
+    """List documents for authenticated user."""
     try:
-        documents = db.query(Document).offset(skip).limit(limit).all()
-        total = db.query(Document).count()
+        # Filter by current user
+        documents = db.query(Document).filter(
+            Document.user_id == current_user.id
+        ).offset(skip).limit(limit).all()
+        total = db.query(Document).filter(
+            Document.user_id == current_user.id
+        ).count()
         return DocumentListResponse(documents=documents, total=total)
     except Exception as e:
         logger.error(f"Error listing documents: {e}")
@@ -110,18 +119,32 @@ async def list_documents(
 
 
 @router.get("/{document_id}")
-async def get_document(document_id: str, db: Session = Depends(get_db)):
-    """Get document details."""
-    document = db.query(Document).filter(Document.id == document_id).first()
+async def get_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get document details (user must own it)."""
+    document = db.query(Document).filter(
+        Document.id == document_id,
+        Document.user_id == current_user.id
+    ).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     return document
 
 
 @router.delete("/{document_id}")
-async def delete_document(document_id: str, db: Session = Depends(get_db)):
-    """Delete a document."""
-    document = db.query(Document).filter(Document.id == document_id).first()
+async def delete_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a document (user must own it)."""
+    document = db.query(Document).filter(
+        Document.id == document_id,
+        Document.user_id == current_user.id
+    ).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     db.delete(document)
@@ -133,9 +156,12 @@ async def delete_document(document_id: str, db: Session = Depends(get_db)):
 # Feature endpoints: Summarize, Quiz, Mind Map
 # ------------------------------------------------------------------
 
-def _get_document_text(document_id: str, db: Session) -> str:
-    """Fetch all chunk content for a document, joined as full text."""
-    doc = db.query(Document).filter(Document.id == document_id).first()
+def _get_document_text(document_id: str, db: Session, current_user: User) -> str:
+    """Fetch all chunk content for a document, joined as full text. User must own document."""
+    doc = db.query(Document).filter(
+        Document.id == document_id,
+        Document.user_id == current_user.id
+    ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     if doc.status != TaskStatus.COMPLETED:
@@ -153,36 +179,55 @@ def _get_document_text(document_id: str, db: Session) -> str:
 
 
 @router.post("/{document_id}/summarize")
-async def summarize_document(document_id: str, db: Session = Depends(get_db)):
-    """Generate an LLM summary of a processed document."""
-    text = _get_document_text(document_id, db)
+async def summarize_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate an LLM summary of a processed document (user must own it)."""
+    text = _get_document_text(document_id, db, current_user)
     llm = LLMClient()
     summary = await llm.summarize(text)
     return {"document_id": document_id, "summary": summary}
 
 
 @router.post("/{document_id}/quiz")
-async def generate_quiz(document_id: str, db: Session = Depends(get_db)):
-    """Generate quiz questions from a processed document."""
-    text = _get_document_text(document_id, db)
+async def generate_quiz(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate quiz questions from a processed document (user must own it)."""
+    text = _get_document_text(document_id, db, current_user)
     llm = LLMClient()
     quiz = await llm.generate_quiz(text)
     return {"document_id": document_id, "quiz": quiz}
 
 
 @router.post("/{document_id}/mindmap")
-async def generate_mindmap(document_id: str, db: Session = Depends(get_db)):
-    """Generate a mind map (concepts + relationships) from a processed document."""
-    text = _get_document_text(document_id, db)
+async def generate_mindmap(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate a mind map (concepts + relationships) from a processed document (user must own it)."""
+    text = _get_document_text(document_id, db, current_user)
     llm = LLMClient()
     mindmap = await llm.generate_mindmap(text)
     return {"document_id": document_id, "mindmap": mindmap}
 
 
 @router.post("/{document_id}/generate-podcast")
-async def generate_podcast(document_id: str, db: Session = Depends(get_db)):
-    """Trigger async podcast generation for a document."""
-    doc = db.query(Document).filter(Document.id == document_id).first()
+async def generate_podcast(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Trigger async podcast generation for a document (user must own it)."""
+    doc = db.query(Document).filter(
+        Document.id == document_id,
+        Document.user_id == current_user.id
+    ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     if doc.status != TaskStatus.COMPLETED:
@@ -196,7 +241,7 @@ async def generate_podcast(document_id: str, db: Session = Depends(get_db)):
         task_type="podcast_generation",
         status=TaskStatus.PENDING,
         progress=0.0,
-        user_id=doc.user_id,
+        user_id=current_user.id,
         document_id=document_id,
     )
     db.add(task_record)
@@ -210,9 +255,16 @@ async def generate_podcast(document_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{document_id}/podcast")
-async def get_podcast(document_id: str, db: Session = Depends(get_db)):
-    """Get podcast audio for a document."""
-    doc = db.query(Document).filter(Document.id == document_id).first()
+async def get_podcast(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get podcast audio for a document (user must own it)."""
+    doc = db.query(Document).filter(
+        Document.id == document_id,
+        Document.user_id == current_user.id
+    ).first()
     if not doc or not doc.has_podcast:
         raise HTTPException(status_code=404, detail="Podcast not found")
 

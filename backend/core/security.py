@@ -110,3 +110,31 @@ async def get_current_active_user(
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
+
+# --- Auth Decorators ---
+
+def require_auth(func):
+    """
+    Decorator to require authentication on FastAPI routes.
+    Wraps the endpoint with get_current_user dependency.
+    
+    Usage:
+        @router.post("/documents")
+        @require_auth
+        async def upload_document(current_user: User, ...):
+            # current_user is automatically injected
+            ...
+    """
+    async def wrapper(*args, current_user: User = Depends(get_current_user), **kwargs):
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required"
+            )
+        return await func(*args, current_user=current_user, **kwargs)
+    
+    # Preserve function metadata for FastAPI
+    wrapper.__name__ = func.__name__
+    wrapper.__doc__ = func.__doc__
+    return wrapper
