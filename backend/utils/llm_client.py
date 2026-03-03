@@ -134,6 +134,27 @@ class LLMClient:
             logger.error(f"Error generating mindmap: {e}")
             return {"central_topic": "Error", "nodes": [], "edges": []}
 
+    async def generate_podcast_script(self, text: str, doc_title: str = "Document") -> str:
+        """Generate a high-quality podcast script from document content using Gemini."""
+        try:
+            prompt = (
+                f"Convert the following document content into an engaging, professional "
+                f"podcast script for a solo host. The podcast title is '{doc_title}'.\n\n"
+                "The script should include:\n"
+                "1. An engaging introduction that sets the context.\n"
+                "2. A structured breakdown of the key findings and insights.\n"
+                "3. Real-world applications or takeaways for listeners.\n"
+                "4. A clear conclusion and wrap-up.\n\n"
+                "Make it sound natural for audio, with conversational transitions. "
+                "The target length is about 3-5 minutes of speech.\n\n"
+                f"Document Content:\n{text[:15000]}"
+            )
+            response = self.model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            logger.error(f"Error generating podcast script: {e}")
+            return f"Error generating podcast script: {str(e)}"
+
     # ------------------------------------------------------------------
     # Planning agent support
     # ------------------------------------------------------------------

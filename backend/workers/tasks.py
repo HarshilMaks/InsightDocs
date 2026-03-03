@@ -105,6 +105,80 @@ def generate_embeddings_task(self, document_id: str, chunks: list):
         raise
 
 
+@celery_app.task(bind=True, name="insightdocs.generate_podcast")
+def generate_podcast_task(self, document_id: str):
+    """Async task to generate a podcast audio for a document."""
+    logger.info(f"Generating podcast for document {document_id}")
+
+    db = next(get_db())
+    try:
+        _update_task(db, self.request.id, status=TaskStatus.PROCESSING)
+
+        # 1. Get document content
+        from backend.models import DocumentChunk
+        chunks = (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.document_id == document_id)
+            .order_by(DocumentChunk.chunk_index)
+            .all()
+        )
+        if not chunks:
+            raise ValueError("No content found for this document")
+
+        text = "\n\n".join(c.content for c in chunks)
+        doc = db.query(Document).filter(Document.id == document_id).first()
+
+        # 2. Generate podcast script via LLM
+        from backend.utils.llm_client import LLMClient
+        llm = LLMClient()
+        script = _run_async(llm.generate_podcast_script(text, doc.filename))
+
+        # 3. Generate audio using PodcastGenerator
+        from backend.utils.podcast_generator import PodcastGenerator
+        import tempfile
+        from backend.storage.file_storage import FileStorage
+
+        storage = FileStorage()
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        audio_bytes, duration = PodcastGenerator.generate_podcast_from_text(
+            script, output_path=tmp_path
+        )
+
+        if audio_bytes:
+            # 4. Store audio in S3
+            podcast_filename = f"podcast_{document_id}.mp3"
+            # Note: store_file is async in FileStorage? Let's check.
+            # Looking at backend/storage/file_storage.py...
+            # The current DataAgent calls it: await self.file_storage.store_file(file_path, filename)
+            # So it is async.
+            s3_key = _run_async(storage.store_file(tmp_path, podcast_filename))
+
+            # 5. Update Document record
+            doc.has_podcast = True
+            doc.podcast_s3_key = s3_key
+            doc.podcast_duration = duration
+            db.commit()
+
+            _update_task(db, self.request.id,
+                         status=TaskStatus.COMPLETED,
+                         result={"s3_key": s3_key, "duration": duration},
+                         progress=100.0)
+            logger.info(f"Podcast generated for document {document_id}: {s3_key}")
+        else:
+            _update_task(db, self.request.id,
+                         status=TaskStatus.FAILED,
+                         error="Audio generation failed")
+
+        return {"success": True}
+
+    except Exception as e:
+        logger.error(f"Error generating podcast: {e}")
+        _update_task(db, self.request.id, status=TaskStatus.FAILED, error=str(e))
+        raise
+
+
 @celery_app.task(name="insightdocs.cleanup_old_tasks")
 def cleanup_old_tasks():
     """Periodic task to clean up old completed tasks."""

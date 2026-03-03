@@ -101,8 +101,6 @@ curl -X POST "http://localhost:8000/api/v1/documents/upload" \
   "task_id": "task_uuid",
   "message": "Document uploaded successfully"
 }
-```
-
 ### GET /api/v1/documents/
 List documents with pagination
 
@@ -118,6 +116,10 @@ List documents with pagination
       "file_type": "pdf",
       "file_size": 1024000,
       "status": "completed",
+      "is_scanned": false,
+      "ocr_confidence": null,
+      "has_podcast": true,
+      "podcast_duration": 185.5,
       "created_at": "2024-01-15T10:30:00Z",
       "processed_at": "2024-01-15T10:35:00Z"
     }
@@ -137,6 +139,10 @@ Get full document details
   "file_type": "pdf",
   "file_size": 1024000,
   "status": "completed",
+  "is_scanned": true,
+  "ocr_confidence": 0.92,
+  "has_podcast": true,
+  "podcast_duration": 185.5,
   "content_preview": "Document content preview...",
   "chunk_count": 25,
   "created_at": "2024-01-15T10:30:00Z",
@@ -145,15 +151,46 @@ Get full document details
 ```
 
 ### DELETE /api/v1/documents/{document_id}
-Delete document
+...
+      {
+        "source": "1",
+        "target": "2",
+        "label": "relates to"
+      }
+    ]
+  }
+}
+```
+
+### POST /api/v1/documents/{document_id}/generate-podcast
+Trigger async podcast generation for a document (requires document status=completed)
+
+**Example:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/documents/uuid/generate-podcast"
+```
 
 **Response:**
 ```json
 {
   "success": true,
-  "message": "Document deleted successfully"
+  "task_id": "task_uuid",
+  "message": "Podcast generation started"
 }
 ```
+
+### GET /api/v1/documents/{document_id}/podcast
+Get podcast audio metadata and URL
+
+**Response:**
+```json
+{
+  "url": "https://s3.amazonaws.com/bucket/podcast.mp3?signature=...",
+  "duration": 185.5
+}
+```
+
+## Query (RAG)
 
 ### POST /api/v1/documents/{document_id}/summarize
 Generate document summary (requires document status=completed)

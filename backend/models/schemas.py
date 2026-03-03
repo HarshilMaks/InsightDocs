@@ -83,6 +83,13 @@ class Document(Base, TimestampMixin):
     status = Column(SQLEnum(TaskStatus), default=TaskStatus.PENDING, nullable=False)
     error_message = Column(Text, nullable=True) # Renamed from metadata
     
+    # OCR & TTS Fields
+    is_scanned = Column(Boolean, default=False)
+    ocr_confidence = Column(Float, nullable=True)
+    has_podcast = Column(Boolean, default=False)
+    podcast_s3_key = Column(String(500), nullable=True)
+    podcast_duration = Column(Float, nullable=True)
+    
     # Relationships
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     user = relationship("User", back_populates="documents")

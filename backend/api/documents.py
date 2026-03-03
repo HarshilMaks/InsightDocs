@@ -10,7 +10,7 @@ from backend.api.schemas import (
     DocumentListResponse,
 )
 from backend.models import get_db, Document, DocumentChunk, Task, TaskStatus
-from backend.workers.tasks import process_document_task
+from backend.workers.tasks import process_document_task, generate_podcast_task
 from backend.utils.document_processor import SUPPORTED_EXTENSIONS, MAX_FILE_SIZE
 from backend.utils.llm_client import LLMClient
 
@@ -177,3 +177,46 @@ async def generate_mindmap(document_id: str, db: Session = Depends(get_db)):
     llm = LLMClient()
     mindmap = await llm.generate_mindmap(text)
     return {"document_id": document_id, "mindmap": mindmap}
+
+
+@router.post("/{document_id}/generate-podcast")
+async def generate_podcast(document_id: str, db: Session = Depends(get_db)):
+    """Trigger async podcast generation for a document."""
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if doc.status != TaskStatus.COMPLETED:
+        raise HTTPException(status_code=400, detail="Document processing not complete")
+
+    task = generate_podcast_task.apply_async(args=[document_id])
+
+    # Create Task record
+    task_record = Task(
+        id=task.id,
+        task_type="podcast_generation",
+        status=TaskStatus.PENDING,
+        progress=0.0,
+        user_id=doc.user_id,
+        document_id=document_id,
+    )
+    db.add(task_record)
+    db.commit()
+
+    return {
+        "success": True,
+        "task_id": task.id,
+        "message": "Podcast generation started"
+    }
+
+
+@router.get("/{document_id}/podcast")
+async def get_podcast(document_id: str, db: Session = Depends(get_db)):
+    """Get podcast audio for a document."""
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc or not doc.has_podcast:
+        raise HTTPException(status_code=404, detail="Podcast not found")
+
+    from backend.storage.file_storage import FileStorage
+    storage = FileStorage()
+    url = storage.get_file_url(doc.podcast_s3_key)
+    return {"url": url, "duration": doc.podcast_duration}

@@ -5,6 +5,10 @@
 - Python 3.11+
 - Docker and Docker Compose
 - Gemini API key
+- **Tesseract OCR**: (Optional, for OCR support)
+  - Ubuntu: `sudo apt-get install tesseract-ocr`
+  - macOS: `brew install tesseract`
+  - Windows: [Installation Guide](https://github.com/UB-Mannheim/tesseract/wiki)
 
 ## Installation
 

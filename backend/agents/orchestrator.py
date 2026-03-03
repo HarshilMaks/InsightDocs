@@ -49,6 +49,12 @@ class OrchestratorAgent(BaseAgent):
             return ingest_result
 
         raw_text = ingest_result["content"].get("text", "")
+        metadata = ingest_result["content"].get("metadata", {})
+        
+        # Update Document with OCR info if available
+        is_scanned = metadata.get("is_scanned", False)
+        ocr_confidence = metadata.get("ocr_confidence")
+        await self._update_document_ocr_info(document_id, is_scanned, ocr_confidence)
 
         # Step 2: Chunk text
         transform_result = await self.data_agent.process({
@@ -136,6 +142,21 @@ class OrchestratorAgent(BaseAgent):
             logger.info(f"Stored {len(chunks)} chunks for document {document_id}")
         except Exception as e:
             logger.error(f"Failed to store chunks to DB: {e}")
+
+    async def _update_document_ocr_info(self, document_id: str, is_scanned: bool, ocr_confidence: float):
+        """Update the Document record with OCR information."""
+        try:
+            from backend.models import get_db, Document
+            
+            db = next(get_db())
+            doc = db.query(Document).filter(Document.id == document_id).first()
+            if doc:
+                doc.is_scanned = is_scanned
+                doc.ocr_confidence = ocr_confidence
+                db.commit()
+                logger.info(f"Updated document {document_id} OCR info: is_scanned={is_scanned}, conf={ocr_confidence}")
+        except Exception as e:
+            logger.error(f"Failed to update document OCR info: {e}")
 
     async def _query_workflow(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Execute RAG query workflow."""

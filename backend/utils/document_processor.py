@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 import re
 
+from backend.utils.ocr_processor import OcrProcessor
+
 logger = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".pptx"}
@@ -47,8 +49,25 @@ class DocumentProcessor:
             return {"text": "", "metadata": {"error": str(e)}}
 
     async def _parse_pdf_file(self, file_path: str) -> Dict[str, Any]:
-        """Parse a PDF file using PyPDF2."""
+        """Parse a PDF file, detecting if it's scanned and using OCR if needed."""
         try:
+            # First, check if it's a scanned PDF
+            is_scanned, confidence = OcrProcessor.detect_scanned_pdf(file_path)
+            
+            if is_scanned:
+                logger.info(f"Scanned PDF detected ({confidence:.2f}). Running OCR...")
+                text, ocr_conf = OcrProcessor.process_scanned_pdf(file_path)
+                return {
+                    "text": text,
+                    "metadata": {
+                        "type": "pdf",
+                        "is_scanned": True,
+                        "ocr_confidence": ocr_conf,
+                        "char_count": len(text)
+                    }
+                }
+
+            # Normal text extraction
             from PyPDF2 import PdfReader
 
             reader = PdfReader(file_path)
@@ -59,10 +78,27 @@ class DocumentProcessor:
                     pages.append(page_text)
 
             text = "\n\n".join(pages)
+            
+            # If extracted text is very short but page count is high, 
+            # it might still be scanned (PdfReader failed)
+            if len(text.strip()) < 50 and len(reader.pages) > 0:
+                logger.warning("Native PDF extraction yielded very little text. Retrying with OCR...")
+                text, ocr_conf = OcrProcessor.process_scanned_pdf(file_path)
+                return {
+                    "text": text,
+                    "metadata": {
+                        "type": "pdf",
+                        "is_scanned": True,
+                        "ocr_confidence": ocr_conf,
+                        "char_count": len(text)
+                    }
+                }
+
             return {
                 "text": text,
                 "metadata": {
                     "type": "pdf",
+                    "is_scanned": False,
                     "page_count": len(reader.pages),
                     "char_count": len(text),
                 }
