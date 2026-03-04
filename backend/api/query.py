@@ -83,11 +83,14 @@ async def query_documents(
 async def get_query_history(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Get query history."""
+    """Get query history for authenticated user."""
     try:
-        queries = db.query(QueryModel).order_by(
+        queries = db.query(QueryModel).filter(
+            QueryModel.user_id == current_user.id
+        ).order_by(
             QueryModel.created_at.desc()
         ).offset(skip).limit(limit).all()
 
@@ -102,7 +105,7 @@ async def get_query_history(
                 }
                 for q in queries
             ],
-            "total": db.query(QueryModel).count(),
+            "total": db.query(QueryModel).filter(QueryModel.user_id == current_user.id).count(),
         }
     except Exception as e:
         logger.error(f"Error getting query history: {e}")
