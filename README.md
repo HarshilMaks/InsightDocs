@@ -8,7 +8,7 @@
 
 ## 🎯 Overview
 
-InsightDocs (formerly InsightDocs) is a production-ready platform that combines multi-agent AI architecture with RAG capabilities to process, analyze, and query documents intelligently. Built with modern microservices patterns, it demonstrates best practices for building scalable, maintainable AI applications.
+InsightDocs is a production-ready platform that combines multi-agent AI architecture with RAG capabilities to process, analyze, and query documents intelligently. Built with modern microservices patterns, it demonstrates best practices for building scalable, maintainable AI applications.
 
 ### Key Capabilities
 
