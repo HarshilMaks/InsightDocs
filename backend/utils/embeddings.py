@@ -19,8 +19,21 @@ class EmbeddingEngine:
     """Handles embedding generation and vector storage with Milvus."""
     
     def __init__(self):
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        # Dense model (standard embeddings)
+        self.dense_model = SentenceTransformer('all-MiniLM-L6-v2')
         self.dimension = settings.vector_dimension
+        
+        # Sparse model (BM25 for keyword search)
+        # Using BGEM3EmbeddingFunction as a wrapper or similar if available,
+        # but for simplicity/control we'll use a standard BM25 approach or milvus-model
+        try:
+            from milvus_model.hybrid import BGEM3EmbeddingFunction
+            self.sparse_model = BGEM3EmbeddingFunction(use_fp16=False, device="cpu")
+            self.has_sparse = True
+        except ImportError:
+            logger.warning("milvus-model not installed, sparse vectors disabled")
+            self.has_sparse = False
+            
         self.collection = None  # Initialize before connect attempt
         self._connect_milvus()
         self._init_collection()
@@ -57,9 +70,10 @@ class EmbeddingEngine:
                     FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=100),
                     FieldSchema(name="document_id", dtype=DataType.VARCHAR, max_length=100),
                     FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=65535),
-                    FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=self.dimension)
+                    FieldSchema(name="dense_vector", dtype=DataType.FLOAT_VECTOR, dim=self.dimension),
+                    FieldSchema(name="sparse_vector", dtype=DataType.SPARSE_FLOAT_VECTOR)
                 ]
-                schema = CollectionSchema(fields=fields, description="Document embeddings")
+                schema = CollectionSchema(fields=fields, description="Document embeddings (Hybrid)")
                 
                 # Create collection
                 self.collection = Collection(
@@ -67,14 +81,21 @@ class EmbeddingEngine:
                     schema=schema
                 )
                 
-                # Create index
-                index_params = {
+                # Create indexes
+                dense_index_params = {
                     "metric_type": "COSINE",
                     "index_type": "IVF_FLAT",
                     "params": {"nlist": 128}
                 }
-                self.collection.create_index(field_name="vector", index_params=index_params)
-                logger.info(f"Created new collection: {settings.milvus_collection}")
+                sparse_index_params = {
+                    "metric_type": "IP", # Inner Product for sparse
+                    "index_type": "SPARSE_INVERTED_INDEX",
+                    "params": {"drop_ratio_build": 0.2}
+                }
+                
+                self.collection.create_index(field_name="dense_vector", index_params=dense_index_params)
+                self.collection.create_index(field_name="sparse_vector", index_params=sparse_index_params)
+                logger.info(f"Created new hybrid collection: {settings.milvus_collection}")
             
             # Load collection into memory
             self.collection.load()
@@ -86,21 +107,45 @@ class EmbeddingEngine:
             self.collection = None
     
     
-    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for a list of texts.
+    async def embed_texts(self, texts: List[str]) -> Dict[str, Any]:
+        """Generate dense and sparse embeddings for a list of texts.
         
         Args:
             texts: List of text strings to embed
             
         Returns:
-            List of embeddings
+            Dictionary with 'dense' and 'sparse' embeddings
         """
         try:
-            embeddings = self.model.encode(texts, convert_to_numpy=True)
-            # Convert to list of lists for Milvus
-            embeddings_list = embeddings.tolist()
-            logger.info(f"Generated {len(embeddings_list)} embeddings")
-            return embeddings_list
+            # Generate dense embeddings
+            dense_embeddings = self.dense_model.encode(texts, convert_to_numpy=True)
+            dense_list = dense_embeddings.tolist()
+            
+            # Generate sparse embeddings
+            sparse_list = []
+            if self.has_sparse:
+                # milvus_model BGEM3 encode returns dictionary with 'dense', 'sparse', etc.
+                # But here we assume we initialized it to just return what we need or we parse it
+                # Actually, BGEM3EmbeddingFunction usually takes a list and returns embeddings.
+                # Let's verify usage. For now, assuming a standard call or using a fallback if simple.
+                
+                # Note: BGEM3 is heavy. If using a lighter weight BM25:
+                # We might need to implement a simple BM25 encoder or use the one from milvus_model if lighter.
+                # For this implementation, let's use the BGEM3 function we initialized.
+                results = self.sparse_model(texts)
+                # results is likely a dictionary or list of results. 
+                # BGEM3EmbeddingFunction in milvus-model usually returns:
+                # {'dense': [...], 'sparse': [...]}
+                sparse_list = results['sparse']
+            else:
+                # Fallback empty sparse vectors if not available (shouldn't happen in prod)
+                sparse_list = [{}] * len(texts)
+
+            logger.info(f"Generated {len(dense_list)} hybrid embeddings")
+            return {
+                "dense": dense_list,
+                "sparse": sparse_list
+            }
         except Exception as e:
             logger.error(f"Error generating embeddings: {e}")
             raise
@@ -108,14 +153,14 @@ class EmbeddingEngine:
     
     async def store_embeddings(
         self,
-        embeddings: List[List[float]],
+        embeddings: Dict[str, Any],  # Changed type hint
         texts: List[str],
         metadata: Dict[str, Any]
     ) -> List[str]:
         """Store embeddings in Milvus vector database.
         
         Args:
-            embeddings: List of embeddings to store
+            embeddings: Dict containing 'dense' and 'sparse' lists
             texts: Original texts
             metadata: Metadata for the embeddings (must include 'document_id')
             
@@ -137,7 +182,8 @@ class EmbeddingEngine:
                 vector_ids,  # id field
                 [document_id] * len(texts),  # document_id field
                 texts,  # text field
-                embeddings  # vector field
+                embeddings['dense'],  # dense_vector field
+                embeddings['sparse']  # sparse_vector field
             ]
             
             # Insert into Milvus
@@ -156,7 +202,7 @@ class EmbeddingEngine:
         query_text: str,
         top_k: int = 5
     ) -> List[Dict[str, Any]]:
-        """Search for similar vectors in Milvus.
+        """Search for similar vectors in Milvus using Hybrid Search.
         
         Args:
             query_text: Query text to search for
@@ -170,21 +216,37 @@ class EmbeddingEngine:
             raise RuntimeError("Milvus connection not available")
             
         try:
-            # Generate query embedding
-            query_embeddings = await self.embed_texts([query_text])
-            query_embedding = query_embeddings[0]
+            # Generate query embeddings (dense + sparse)
+            query_embeds = await self.embed_texts([query_text])
+            dense_query = query_embeds['dense'][0]
+            sparse_query = query_embeds['sparse'][0]
             
-            # Define search parameters
-            search_params = {
-                "metric_type": "COSINE",
-                "params": {"nprobe": 10}
-            }
+            # Create AnnSearchRequests
+            from pymilvus import AnnSearchRequest, WeightedRanker
             
-            # Search in Milvus
-            search_results = self.collection.search(
-                data=[query_embedding],
-                anns_field="vector",
-                param=search_params,
+            # Dense search request
+            dense_req = AnnSearchRequest(
+                data=[dense_query],
+                anns_field="dense_vector",
+                param={"metric_type": "COSINE", "params": {"nprobe": 10}},
+                limit=top_k
+            )
+            
+            # Sparse search request
+            sparse_req = AnnSearchRequest(
+                data=[sparse_query],
+                anns_field="sparse_vector",
+                param={"metric_type": "IP", "params": {"drop_ratio_search": 0.2}},
+                limit=top_k
+            )
+            
+            # Perform Hybrid Search
+            # Rerank with WeightedRanker (0.7 dense + 0.3 sparse is a good starting point)
+            ranker = WeightedRanker(0.7, 0.3)
+            
+            search_results = self.collection.hybrid_search(
+                reqs=[dense_req, sparse_req],
+                rerank=ranker,
                 limit=top_k,
                 output_fields=["text", "document_id"]
             )

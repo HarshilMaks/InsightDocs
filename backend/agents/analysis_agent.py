@@ -60,7 +60,7 @@ class AnalysisAgent(BaseAgent):
         
         self.log_event("embed_start", {"chunk_count": len(chunks)})
         
-        # Generate embeddings
+        # Generate embeddings (returns dict with 'dense' and 'sparse')
         embeddings = await self.embedding_engine.embed_texts(chunks)
         
         # Store in vector database
@@ -78,7 +78,7 @@ class AnalysisAgent(BaseAgent):
         return {
             "success": True,
             "vector_ids": vector_ids,
-            "embedding_count": len(embeddings),
+            "embedding_count": len(chunks), # Corrected count logic
             "agent_id": self.agent_id
         }
     

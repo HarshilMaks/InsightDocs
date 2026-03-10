@@ -212,3 +212,36 @@ make docker-up
 ```bash
 curl http://localhost:8000/health
 ```
+## Database Migrations
+
+This project uses Alembic for database migrations.
+
+### Commands
+
+- **Generate a new migration:**
+  ```bash
+  uv run alembic revision --autogenerate -m "Description of changes"
+  ```
+
+- **Apply migrations:**
+  ```bash
+  uv run alembic upgrade head
+  ```
+
+- **Rollback one revision:**
+  ```bash
+  uv run alembic downgrade -1
+  ```
+
+- **Check current status:**
+  ```bash
+  uv run alembic current
+  ```
+
+### Workflow
+
+1. Modify SQLAlchemy models in `backend/models/schemas.py`.
+2. Generate a migration script.
+3. Review the generated script in `alembic/versions/`.
+4. Apply the migration locally to verify.
+5. Commit the migration script.
