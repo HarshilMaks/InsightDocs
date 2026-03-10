@@ -9,6 +9,8 @@ from backend.models.schemas import User
 from backend.core.security import get_current_user
 from backend.utils.embeddings import get_embedding_engine
 from backend.utils.llm_client import LLMClient
+from backend.utils.reranker import get_reranker
+from backend.middleware.guardrails import check_output
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/query", tags=["Query"])
@@ -27,13 +29,21 @@ async def query_documents(
 
         embedding_engine = get_embedding_engine()
         llm_client = LLMClient()
+        reranker = get_reranker()
 
-        # Vector search
-        search_results = await embedding_engine.search(request.query, top_k=request.top_k)
+        # Hybrid vector search (dense + sparse) — returns top-20 candidates
+        search_results = await embedding_engine.search(request.query, top_k=20)
+
+        # Rerank to find the best 5 chunks
+        search_results = reranker.rerank(request.query, search_results, top_n=request.top_k)
+
         context_chunks = [r["text"] for r in search_results]
 
         # Generate answer
         answer = await llm_client.generate_rag_response(request.query, context_chunks)
+
+        # Output guardrail: check for hallucinations
+        answer, was_flagged = check_output(answer, context_chunks)
 
         elapsed = round(time.time() - start, 3)
 

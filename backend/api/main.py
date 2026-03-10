@@ -9,6 +9,7 @@ from backend.api.schemas import HealthResponse
 from backend.models.schemas import Base  # Import Base from your merged models file
 from backend.models.database import engine, get_db
 from backend.config import settings  # Import your new settings
+from backend.middleware.guardrails import InputGuardrailMiddleware
 
 # --- Use settings for logging ---
 logging.basicConfig(
@@ -42,6 +43,9 @@ if settings.allowed_origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+# --- Safety guardrail: screen query inputs with Gemini ---
+app.add_middleware(InputGuardrailMiddleware)
 
 # --- Include all routers with the API prefix ---
 app.include_router(auth.router, prefix=settings.api_prefix)
