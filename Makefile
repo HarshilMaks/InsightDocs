@@ -99,3 +99,6 @@ uv run alembic revision --autogenerate -m "$$message"
 
 migrate-check:
 uv run alembic current
+
+migrate-milvus:
+uv run python scripts/migrate_milvus_schema.py
