@@ -86,3 +86,16 @@ docker-rebuild:
 	docker-compose down
 	docker-compose build --no-cache
 	docker-compose up -d
+
+migrate-up:
+uv run alembic upgrade head
+
+migrate-down:
+uv run alembic downgrade -1
+
+migrate-generate:
+@read -p "Enter migration message: " message; \
+uv run alembic revision --autogenerate -m "$$message"
+
+migrate-check:
+uv run alembic current
