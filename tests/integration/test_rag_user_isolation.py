@@ -17,35 +17,53 @@ from backend.core.security import create_access_token
 from backend.models.database import engine, Base
 
 
-@pytest.fixture(scope="session")
-def test_db():
-    """Create test database tables."""
+@pytest.fixture(scope="function")
+def test_db_engine():
+    """Create in-memory SQLite engine."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+    
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
     Base.metadata.create_all(bind=engine)
+    return engine
+
+@pytest.fixture(scope="function")
+def test_db(test_db_engine):
+    """Ensure tables exist."""
+    # Base.metadata.create_all(bind=test_db_engine) # Already done in engine fixture
     yield
 
+@pytest.fixture
+def db_session(test_db_engine):
+    """Database session."""
+    from sqlalchemy.orm import sessionmaker
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 @pytest.fixture
-def client(test_db):
+def client(test_db_engine):
     """FastAPI test client."""
+    from sqlalchemy.orm import sessionmaker
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)
+    
     def override_get_db():
-        db = next(get_db())
+        db = TestingSessionLocal()
         try:
             yield db
         finally:
             db.close()
     
     app.dependency_overrides[get_db] = override_get_db
-    return TestClient(app)
-
-
-@pytest.fixture
-def db_session(test_db):
-    """Database session."""
-    db = next(get_db())
-    try:
-        yield db
-    finally:
-        db.close()
+    yield TestClient(app)
+    app.dependency_overrides = {}
 
 
 @pytest.fixture
@@ -54,7 +72,8 @@ def user_a(db_session):
     user = User(
         id="user-a",
         email="usera@example.com",
-        password_hash="hash",
+        name="User A",
+        hashed_password="hash",
         is_active=True
     )
     db_session.add(user)
@@ -68,7 +87,8 @@ def user_b(db_session):
     user = User(
         id="user-b",
         email="userb@example.com",
-        password_hash="hash",
+        name="User B",
+        hashed_password="hash",
         is_active=True
     )
     db_session.add(user)
@@ -97,7 +117,9 @@ def user_a_docs(db_session, user_a):
         user_id=user_a.id,
         status=TaskStatus.COMPLETED,
         file_size=5000,
-        chunks_count=10
+        file_type="application/pdf",
+        s3_bucket="test-bucket",
+        s3_key="uploads/financial_report.pdf",
     )
     db_session.add(doc)
     
@@ -123,7 +145,9 @@ def user_b_docs(db_session, user_b):
         user_id=user_b.id,
         status=TaskStatus.COMPLETED,
         file_size=3000,
-        chunks_count=6
+        file_type="application/pdf",
+        s3_bucket="test-bucket",
+        s3_key="uploads/marketing_strategy.pdf",
     )
     db_session.add(doc)
     
@@ -297,7 +321,9 @@ class TestRAGWithOCRContent:
             user_id="user-a",
             status=TaskStatus.COMPLETED,
             file_size=2000,
-            chunks_count=4,
+            file_type="application/pdf",
+            s3_bucket="test-bucket",
+            s3_key="uploads/scanned.pdf",
             is_scanned=True,
             ocr_confidence=0.92
         )
