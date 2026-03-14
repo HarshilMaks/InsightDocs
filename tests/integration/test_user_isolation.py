@@ -22,12 +22,21 @@ def test_user_isolation(client): # client from conftest
     
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
     from backend.models.database import Base, get_db
     
-    # Create in-memory SQLite
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    # Create in-memory SQLite with StaticPool to share connection
+    engine = create_engine(
+        "sqlite:///:memory:", 
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    
+    # Ensure all models are registered
+    print(f"Registered tables before create: {Base.metadata.tables.keys()}")
     Base.metadata.create_all(bind=engine)
+    print(f"Registered tables after create: {Base.metadata.tables.keys()}")
     
     # Create test data
     db = TestingSessionLocal()
@@ -78,8 +87,9 @@ def test_user_isolation(client): # client from conftest
     response = client.get("/api/v1/documents/")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 1
-    assert data[0]["id"] == "doc_a_1"
+    print(f"DEBUG: User A saw documents: {[d['id'] for d in data['documents']]}")
+    assert len(data['documents']) == 1, f"Expected 1 document, got {len(data['documents'])}"
+    assert data['documents'][0]["id"] == "doc_a_1"
     
     # Get document A -> OK
     response = client.get("/api/v1/documents/doc_a_1")
@@ -97,8 +107,9 @@ def test_user_isolation(client): # client from conftest
     response = client.get("/api/v1/documents/")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 1
-    assert data[0]["id"] == "doc_b_1"
+    print(f"DEBUG: User B saw documents: {[d['id'] for d in data['documents']]}")
+    assert len(data['documents']) == 1, f"Expected 1 document, got {len(data['documents'])}"
+    assert data['documents'][0]["id"] == "doc_b_1"
     
     # Get document B -> OK
     response = client.get("/api/v1/documents/doc_b_1")
