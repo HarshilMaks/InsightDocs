@@ -1,5 +1,5 @@
 """API endpoints for document management."""
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from typing import List
 import logging
@@ -15,6 +15,7 @@ from backend.core.security import get_current_user
 from backend.workers.tasks import process_document_task, generate_podcast_task
 from backend.utils.document_processor import SUPPORTED_EXTENSIONS, MAX_FILE_SIZE
 from backend.utils.llm_client import LLMClient
+from backend.core.limiter import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -36,7 +37,9 @@ def _validate_upload(filename: str, content: bytes):
 
 
 @router.post("/upload", response_model=DocumentUploadResponse)
+@limiter.limit("5/minute")
 async def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -97,7 +100,9 @@ async def upload_document(
 
 
 @router.get("/", response_model=DocumentListResponse)
+@limiter.limit("60/minute")
 async def list_documents(
+    request: Request,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -119,7 +124,9 @@ async def list_documents(
 
 
 @router.get("/{document_id}")
+@limiter.limit("60/minute")
 async def get_document(
+    request: Request,
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -135,7 +142,9 @@ async def get_document(
 
 
 @router.delete("/{document_id}")
+@limiter.limit("10/minute")
 async def delete_document(
+    request: Request,
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -179,7 +188,9 @@ def _get_document_text(document_id: str, db: Session, current_user: User) -> str
 
 
 @router.post("/{document_id}/summarize")
+@limiter.limit("10/minute")
 async def summarize_document(
+    request: Request,
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -192,7 +203,9 @@ async def summarize_document(
 
 
 @router.post("/{document_id}/quiz")
+@limiter.limit("10/minute")
 async def generate_quiz(
+    request: Request,
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -205,7 +218,9 @@ async def generate_quiz(
 
 
 @router.post("/{document_id}/mindmap")
+@limiter.limit("10/minute")
 async def generate_mindmap(
+    request: Request,
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -218,7 +233,9 @@ async def generate_mindmap(
 
 
 @router.post("/{document_id}/generate-podcast")
+@limiter.limit("5/minute")
 async def generate_podcast(
+    request: Request,
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -255,7 +272,9 @@ async def generate_podcast(
 
 
 @router.get("/{document_id}/podcast")
+@limiter.limit("60/minute")
 async def get_podcast(
+    request: Request,
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

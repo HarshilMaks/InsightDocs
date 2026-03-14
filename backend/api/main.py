@@ -10,6 +10,9 @@ from backend.models.schemas import Base  # Import Base from your merged models f
 from backend.models.database import engine, get_db
 from backend.config import settings  # Import your new settings
 from backend.middleware.guardrails import InputGuardrailMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from backend.core.limiter import limiter
 
 # --- Use settings for logging ---
 logging.basicConfig(
@@ -33,6 +36,10 @@ app = FastAPI(
     docs_url=f"{settings.api_prefix}/docs",
     redoc_url=f"{settings.api_prefix}/redoc" # Also add redoc
 )
+
+# --- Rate Limiter ---
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # --- Use settings for CORS ---
 if settings.allowed_origins:
