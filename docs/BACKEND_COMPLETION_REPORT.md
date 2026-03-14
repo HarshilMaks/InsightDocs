@@ -216,3 +216,15 @@ Result: 13 passed, 0 failed
 ---
 
 *Backend is code-complete. Ready for integration testing with `docker-compose up -d`.*
+
+## 9. Phase 3: RAG Pipeline Upgrade (Verified)
+
+| Component | Status | Details |
+|---|---|---|
+| **Hybrid Search** | ✅ Verified | Dense (SentenceTransformer) + Sparse (BGEM3) embedding generation and search combination. |
+| **Reranker** | ✅ Verified | Cross-Encoder reranking of top-K results. |
+| **Guardrails** | ✅ Verified | Input guardrail (injection/toxicity) and Output guardrail (hallucination) using Gemini. |
+| **Tests** | ✅ Passed | New integration test suite `tests/integration/test_rag_upgrade.py` passed with mocks. |
+| **Milvus** | ⚠️ Pending | Code is ready, but live Milvus collection needs recreation (server currently stopped). |
+
+*Verified via mock integration tests.*
