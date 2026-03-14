@@ -176,7 +176,7 @@ All external service connections verified:
 **Vector Database (Milvus):**
 - ✅ Connection URI configured
 - ✅ Authentication token set
-- ✅ Collection: insightopscollection
+- ✅ Collection: insightdocscollection
 - ✅ Dimension: 768
 
 **Embeddings (Sentence Transformers):**

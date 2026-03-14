@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # Milvus
     milvus_uri: str
     milvus_token: str
-    milvus_collection: str = Field("insightopscollection")
+    milvus_collection: str = Field("insightdocscollection")
     milvus_dim: int = Field(768)
     
     # Embeddings
