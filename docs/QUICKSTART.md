@@ -4,7 +4,10 @@
 
 - Python 3.11+
 - Docker and Docker Compose
-- Gemini API key
+- **Gemini API Key**:
+  1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey).
+  2. Click **Create API Key**.
+  3. Copy the key (starts with `AIza...`).
 - **Tesseract OCR**: (Optional, for OCR support)
   - Ubuntu: `sudo apt-get install tesseract-ocr`
   - macOS: `brew install tesseract`
