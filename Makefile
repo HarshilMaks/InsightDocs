@@ -88,17 +88,17 @@ docker-rebuild:
 	docker-compose up -d
 
 migrate-up:
-uv run alembic upgrade head
+	uv run alembic upgrade head
 
 migrate-down:
-uv run alembic downgrade -1
+	uv run alembic downgrade -1
 
 migrate-generate:
-@read -p "Enter migration message: " message; \
-uv run alembic revision --autogenerate -m "$$message"
+	@read -p "Enter migration message: " message; \
+	uv run alembic revision --autogenerate -m "$$message"
 
 migrate-check:
-uv run alembic current
+	uv run alembic current
 
 migrate-milvus:
-uv run python scripts/migrate_milvus_schema.py
+	uv run python scripts/migrate_milvus_schema.py
