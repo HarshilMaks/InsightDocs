@@ -1,41 +1,92 @@
 import pytest
-import time
 from fastapi.testclient import TestClient
-from limits.storage import MemoryStorage
-from backend.api.main import app
-from backend.core.limiter import limiter
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+from unittest.mock import patch
 
-# Mock dependency
-from backend.core.security import get_current_user
+from backend.api.main import app
+from backend.models.database import Base, get_db
 from backend.models.schemas import User
 
-@pytest.fixture
-def mock_user():
-    return User(id="user_rate_limit_test", email="test@example.com", is_active=True)
 
-def test_rate_limiting_upload(client, mock_user):
-    # Override auth dependency
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-    
-    # Upload limit is 5/minute
-    # We will try to upload 6 times
-    
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def override_get_db():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_database():
+    Base.metadata.create_all(bind=engine)
+    app.dependency_overrides[get_db] = override_get_db
+    yield
+    app.dependency_overrides.pop(get_db, None)
+    Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def client(setup_database):
+    return TestClient(app)
+
+
+def _register_and_login(client: TestClient, email: str, name: str):
+    r = client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "name": name, "password": "SecurePass123!"},
+    )
+    assert r.status_code == 201, r.text
+    r = client.post(
+        "/api/v1/auth/login",
+        data={"username": email, "password": "SecurePass123!"},
+    )
+    assert r.status_code == 200, r.text
+    return r.json()["token"]["access_token"]
+
+
+def test_rate_limiting_upload_enforced_per_user(client):
+    token = _register_and_login(client, "ratelimit@example.com", "Rate Limit")
+    headers = {"Authorization": f"Bearer {token}"}
     file_content = b"test content"
-    files = {"file": ("test.txt", file_content, "text/plain")}
-    
-    # First 5 should succeed (or fail with 422/500 but NOT 429)
-    for i in range(5):
-        # We need to recreate files tuple for each request because TestClient consumes it
-        files = {"file": (f"test_{i}.txt", file_content, "text/plain")}
-        response = client.post("/api/v1/documents/upload", files=files)
-        # We expect 429 ONLY when limit is exceeded. 
-        # Other errors (DB connection etc) are fine for this test.
-        assert response.status_code != 429, f"Request {i+1} failed with 429"
-        
-    # 6th should fail with 429
-    files = {"file": ("test_6.txt", file_content, "text/plain")}
-    response = client.post("/api/v1/documents/upload", files=files)
-    assert response.status_code == 429
-    assert "Rate limit exceeded" in response.text
-    
-    app.dependency_overrides = {}
+
+    with patch("backend.api.documents.process_document_task.apply_async") as mock_apply_async:
+        mock_apply_async.return_value = type("TaskRef", (), {"id": "task-rl-1"})()
+
+        for i in range(5):
+            files = {"file": (f"test_{i}.txt", file_content, "text/plain")}
+            response = client.post("/api/v1/documents/upload", files=files, headers=headers)
+            assert response.status_code != 429, f"Request {i + 1} unexpectedly hit rate limit"
+
+        files = {"file": ("test_6.txt", file_content, "text/plain")}
+        response = client.post("/api/v1/documents/upload", files=files, headers=headers)
+        assert response.status_code == 429
+        assert "Rate limit exceeded" in response.text
+
+
+def test_rate_limiting_isolated_between_users(client):
+    token_a = _register_and_login(client, "ratelimit-a@example.com", "Rate A")
+    token_b = _register_and_login(client, "ratelimit-b@example.com", "Rate B")
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+    file_content = b"test content"
+
+    with patch("backend.api.documents.process_document_task.apply_async") as mock_apply_async:
+        mock_apply_async.return_value = type("TaskRef", (), {"id": "task-rl-2"})()
+
+        for i in range(5):
+            files = {"file": (f"a_{i}.txt", file_content, "text/plain")}
+            assert client.post("/api/v1/documents/upload", files=files, headers=headers_a).status_code != 429
+
+        files = {"file": ("b_0.txt", file_content, "text/plain")}
+        response_b = client.post("/api/v1/documents/upload", files=files, headers=headers_b)
+        assert response_b.status_code != 429
