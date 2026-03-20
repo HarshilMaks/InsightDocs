@@ -13,6 +13,7 @@ InsightDocs is a production-ready platform that combines multi-agent AI architec
 ### Key Capabilities
 
 - **📄 Document Intelligence**: Upload and process PDFs, Word documents, and text files
+- **🔐 Secure BYOK Architecture**: Bring Your Own Key with AES-256 encryption and tenant isolation
 - **🤖 Multi-Agent System**: Coordinated AI agents working together on complex workflows
 - **🔍 Semantic Search**: RAG-powered queries with vector similarity search
 - **⚡ Async Processing**: Background task processing with Celery workers
@@ -34,7 +35,7 @@ The system employs four specialized agents coordinated by an orchestrator:
 
 - Document chunking and intelligent segmentation
 - Vector embedding generation with sentence transformers
-- FAISS-powered similarity search
+- Milvus-powered similarity search (Hybrid Dense + Sparse)
 - Context-aware response generation using Gemini
 - Source citation and attribution
 
@@ -62,7 +63,7 @@ The system employs four specialized agents coordinated by an orchestrator:
                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                         Data Layer                           │
-│  PostgreSQL (Metadata) ↔ FAISS (Vectors) ↔ Redis (Queue)  │
+│  PostgreSQL (Metadata) ↔ Milvus (Vectors) ↔ Redis (Queue)  │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
@@ -79,7 +80,7 @@ User → API → Document Record (PostgreSQL)
                          → Data Agent: Store file in S3, parse content
                          → Data Agent: Chunk text into segments
                          → Analysis Agent: Generate embeddings
-                         → Data Agent: Store in FAISS
+                         → Data Agent: Store in Milvus
            → Task Complete → Document ready for querying
 ```
 
@@ -339,11 +340,12 @@ VECTOR_DIMENSION=384
 
 ## 🔒 Security Features
 
-- Environment-based configuration for sensitive data
-- Pydantic input validation on all endpoints
-- SQL injection prevention via SQLAlchemy ORM
-- File upload validation and sanitization
-- Secrets management via environment variables
+- **BYOK (Bring Your Own Key)**: User keys stored with AES-256 encryption
+- **Tenant Isolation**: Strict DB and Vector DB isolation per user
+- **Rate Limiting**: Authenticated user-based rate limiting
+- **Input Validation**: Pydantic validation on all endpoints
+- **SQL Injection Prevention**: SQLAlchemy ORM usage
+- **Secrets Management**: Environment-based configuration
 
 ## 📈 Performance & Scalability
 
@@ -363,7 +365,7 @@ VECTOR_DIMENSION=384
 | **Task Queue** | Celery |
 | **Database** | PostgreSQL |
 | **Cache/Queue** | Redis |
-| **Vector DB** | FAISS |
+| **Vector DB** | Milvus |
 | **Storage** | S3/MinIO |
 | **LLM** | Gemini GPT |
 | **Embeddings** | Sentence Transformers |
@@ -450,4 +452,4 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ---
 
-**Built with ❤️ using Python, FastAPI, Celery, PostgreSQL, Redis, FAISS, and Gemini**
+**Built with ❤️ using Python, FastAPI, Celery, PostgreSQL, Redis, Milvus, and Gemini**

@@ -2,7 +2,7 @@
 
 Base URL: http://localhost:8000/api/v1
 
-No auth required currently (auth infrastructure exists but not enforced).
+Authentication required for all endpoints (Bearer Token).
 
 ## System
 
@@ -90,6 +90,7 @@ Validates type (.txt,.pdf,.docx,.pptx) and size (max 50MB)
 **Example:**
 ```bash
 curl -X POST "http://localhost:8000/api/v1/documents/upload" \
+  -H "Authorization: Bearer <token>" \
   -F "file=@document.pdf"
 ```
 
@@ -167,7 +168,8 @@ Trigger async podcast generation for a document (requires document status=comple
 
 **Example:**
 ```bash
-curl -X POST "http://localhost:8000/api/v1/documents/uuid/generate-podcast"
+curl -X POST "http://localhost:8000/api/v1/documents/uuid/generate-podcast" \
+  -H "Authorization: Bearer <token>"
 ```
 
 **Response:**
@@ -197,7 +199,8 @@ Generate document summary (requires document status=completed)
 
 **Example:**
 ```bash
-curl -X POST "http://localhost:8000/api/v1/documents/uuid/summarize"
+curl -X POST "http://localhost:8000/api/v1/documents/uuid/summarize" \
+  -H "Authorization: Bearer <token>"
 ```
 
 **Response:**
@@ -213,7 +216,8 @@ Generate quiz from document (requires document status=completed)
 
 **Example:**
 ```bash
-curl -X POST "http://localhost:8000/api/v1/documents/uuid/quiz"
+curl -X POST "http://localhost:8000/api/v1/documents/uuid/quiz" \
+  -H "Authorization: Bearer <token>"
 ```
 
 **Response:**
@@ -236,7 +240,8 @@ Generate mindmap from document (requires document status=completed)
 
 **Example:**
 ```bash
-curl -X POST "http://localhost:8000/api/v1/documents/uuid/mindmap"
+curl -X POST "http://localhost:8000/api/v1/documents/uuid/mindmap" \
+  -H "Authorization: Bearer <token>"
 ```
 
 **Response:**
@@ -279,6 +284,7 @@ Query documents using RAG
 **Example:**
 ```bash
 curl -X POST "http://localhost:8000/api/v1/query/" \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"query": "What are the key findings?", "top_k": 5}'
 ```

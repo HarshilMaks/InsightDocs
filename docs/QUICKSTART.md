@@ -69,7 +69,12 @@ celery -A backend.workers.celery_app worker --loglevel=info
 
 ### CLI Commands
 
+> **Note**: Run `python cli.py login` first to authenticate.
+
 ```bash
+# Login
+python cli.py login --email user@example.com --password secret
+
 # Check system health
 python cli.py health
 
@@ -88,34 +93,48 @@ python cli.py status <task-id>
 
 ### REST API Examples
 
+> **Note**: All endpoints require authentication. First, obtain a token via `/api/v1/auth/login`.
+
+**Login & Get Token:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/auth/login" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=user@example.com&password=yourpassword"
+```
+
 **Upload Document:**
 ```bash
 curl -X POST "http://localhost:8000/api/v1/documents/upload" \
+  -H "Authorization: Bearer <your_token>" \
   -F "file=@document.pdf"
 ```
 
 **Query Documents:**
 ```bash
 curl -X POST "http://localhost:8000/api/v1/query/" \
+  -H "Authorization: Bearer <your_token>" \
   -H "Content-Type: application/json" \
   -d '{"query": "What is this about?", "top_k": 5}'
 ```
 
 **Summarize Document:**
 ```bash
-curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/summarize"
+curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/summarize" \
+  -H "Authorization: Bearer <your_token>"
 ```
 
 **Generate Quiz:**
 ```bash
 curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/quiz" \
+  -H "Authorization: Bearer <your_token>" \
   -H "Content-Type: application/json" \
   -d '{"num_questions": 5}'
 ```
 
 **Create Mind Map:**
 ```bash
-curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/mindmap"
+curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/mindmap" \
+  -H "Authorization: Bearer <your_token>"
 ```
 
 ## Supported Formats
