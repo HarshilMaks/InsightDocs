@@ -54,7 +54,7 @@ backend/
 - Document upload/management endpoints
 - RAG query interface
 - Task status monitoring
-- JWT authentication (not enforced yet)
+- JWT authentication (Enforced)
 
 **CLI Tool**
 - Direct system interaction
@@ -122,10 +122,12 @@ BaseAgent
 - Redis as message broker
 - Background task processing
 - Uses `asyncio.run()` wrapper for async operations
+- **Security**: Workers operate with scoped DB sessions and require explicit `user_id` ownership for all tasks.
 
 **Core Tasks**
-- `process_document`: Full document processing pipeline
+- `process_document`: Full document processing pipeline (Ingest -> Chunk -> Embed -> Summarize)
 - `generate_embeddings`: Vector generation for chunks
+- `generate_podcast`: Podcast script generation and TTS (Google/offline fallback)
 - `cleanup_old_tasks`: Maintenance operations
 
 ### 4. Data Storage Layer
@@ -143,23 +145,25 @@ queries: id, user_id, query_text, response, created_at, updated_at
 **Milvus Vector Database**
 ```python
 # Collection Schema
-collection_name: "document_chunks"
+collection_name: "insightdocscollection"
 fields:
-  - id: INT64 (primary key)
+  - id: VARCHAR (primary key)
   - document_id: VARCHAR
+  - user_id: VARCHAR (Tenant Isolation)
   - text: VARCHAR  
-  - vector: FLOAT_VECTOR (384 dimensions)
+  - dense_vector: FLOAT_VECTOR (384 dimensions)
+  - sparse_vector: SPARSE_FLOAT_VECTOR (BM25)
 
 # Index Configuration
 index_type: IVF_FLAT
 metric_type: COSINE
-nlist: 1024
+nlist: 128
 ```
 
 **Redis**
 - Celery message broker
 - Task result backend
-- MessageQueue pub/sub (available but unused)
+- Rate Limiting storage (sliding window)
 
 **S3/MinIO**
 - Original document storage
@@ -230,20 +234,23 @@ class EmbeddingEngine:
 1. Query Request
    │
    ├── User submits natural language query
+   ├── API validates JWT & Rate Limit (User-scoped)
    │
-2. Query Embedding
+2. Orchestrator Processing
    │
-   ├── Generate 384-dim vector using all-MiniLM-L6-v2
+   ├── Fetch User's decrypted API Key (BYOK)
+   ├── Generate Query Embedding (Dense + Sparse)
    │
-3. Vector Search
+3. Vector Search (Hybrid)
    │
-   ├── Milvus COSINE similarity search
-   ├── Retrieve top-k relevant chunks
+   ├── Milvus Hybrid Search (Dense + Sparse)
+   ├── Filter: `user_id == current_user.id` (Strict Isolation)
+   ├── Retrieve top-k candidates
    │
 4. Context Assembly
    │
-   ├── Combine retrieved chunks
-   ├── Include source metadata
+   ├── Rerank results (Cross-Encoder)
+   ├── Verify Document DB ownership
    │
 5. LLM Generation
    │
@@ -255,14 +262,17 @@ class EmbeddingEngine:
    └── Return answer with source attribution
 ```
 
-## Authentication System
+## Authentication & Security
 
-**JWT Implementation**
-- Access tokens (short-lived)
-- Refresh tokens (long-lived)
-- bcrypt password hashing
-- `get_current_user` dependency available
-- **Note**: Authentication not enforced on endpoints yet
+**Authentication**
+- **JWT Implementation**: Access/Refresh tokens with bcrypt hashing.
+- **Enforcement**: All document/query endpoints require valid JWT.
+- **BYOK (Bring Your Own Key)**: Users provide Gemini API keys, stored with AES-256 encryption.
+
+**Tenant Isolation**
+- **Database**: All records filtered by `user_id`.
+- **Vector DB**: Milvus queries enforced with `user_id` scalar filter.
+- **Workers**: Tasks require explicit ownership validation before execution.
 
 ## Performance Characteristics
 

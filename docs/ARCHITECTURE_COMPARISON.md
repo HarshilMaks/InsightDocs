@@ -184,19 +184,19 @@ Returns to user:
 
 | Feature | AI PDF Summarizer | InsightDocs | Status |
 |---|---|---|---|
-| **PDF Upload & Parsing** | ✅ Full extraction | ⚠️ Placeholder (returns hardcoded string) | **Critical gap** |
-| **Image Upload (OCR)** | ✅ Vision-based | ❌ Not supported | Missing |
-| **PPT Support** | ✅ | ❌ Not supported | Missing |
-| **Word (.docx) Support** | ✅ | ⚠️ Placeholder | Gap |
+| **PDF Upload & Parsing** | ✅ Full extraction | ✅ Native + OCR fallback (PyPDF2/Tesseract) | **Parity** |
+| **Image Upload (OCR)** | ✅ Vision-based | ✅ OCR Support (Tesseract) | **Parity** |
+| **PPT Support** | ✅ | ✅ Full extraction (python-pptx) | **Parity** |
+| **Word (.docx) Support** | ✅ | ✅ Full extraction (python-docx) | **Parity** |
 | **TXT Support** | ✅ | ✅ Fully working | **Parity** |
 | **eBook Support** | ✅ | ❌ Not supported | Missing |
-| **File Size Validation** | ✅ 50MB limit | ❌ No validation | Minor gap |
-| **Summary Generation** | ✅ Core feature | ⚠️ Code exists (`LLMClient.summarize`), not wired to pipeline | Plumbing exists |
-| **Mind Map** | ✅ Visual knowledge graph | ❌ Nothing equivalent | Missing |
+| **File Size Validation** | ✅ 50MB limit | ✅ 50MB limit enforced | **Parity** |
+| **Summary Generation** | ✅ Core feature | ✅ Implemented (`/summarize`) | **Parity** |
+| **Mind Map** | ✅ Visual knowledge graph | ✅ JSON data generation (`/mindmap`) | **Data Ready** |
 | **AI Chat (RAG)** | ✅ Chat with documents | ✅ Full RAG pipeline working | **Parity** |
-| **Generate Podcast** | ✅ Audio from document | ❌ No audio generation | Missing |
+| **Generate Podcast** | ✅ Audio from document | ✅ Implemented (Google TTS) | **Parity** |
 | **Generate Presentation** | ✅ Slides from content | ❌ No slide generation | Missing |
-| **Generate Quiz** | ✅ Questions from content | ❌ No quiz generation | Missing |
+| **Generate Quiz** | ✅ Questions from content | ✅ Implemented (`/quiz`) | **Parity** |
 | **Drag & Drop UI** | ✅ Polished frontend | ❌ Frontend directory exists but empty | Missing |
 
 ### Comparison Summary
@@ -233,15 +233,8 @@ InsightDocs:
 
 | Gap | Severity | Effort to Fix |
 |---|---|---|
-| PDF parsing is a placeholder | **Critical** | Low — integrate `PyPDF2` or `pdfplumber` |
-| DOCX parsing is a placeholder | **High** | Low — integrate `python-docx` |
-| No summary endpoint exposed | **High** | Low — wire existing `LLMClient.summarize()` to a new route |
-| No file size validation | **Medium** | Trivial — add check in upload endpoint |
-| Auth not enforced on endpoints | **Medium** | Low — add dependency injection for current user |
-| Celery sync/async mismatch | **Medium** | Low — wrap async calls with `asyncio.run()` |
-| No frontend | **High** | Medium — build React/Vue app (CORS already configured) |
-| No image/OCR support | **Medium** | Medium — integrate Tesseract or cloud vision API |
-| No quiz/podcast/slides generation | **Low** (for now) | Medium — new LLM prompts + output formatters |
+| No frontend | **Critical** | Medium — build React/Vue app (CORS already configured) |
+| No slide generation | **Low** | Medium — new LLM prompt + python-pptx |
 
 ---
 
@@ -293,10 +286,8 @@ InsightDocs is approximately **20% feature-complete** compared to consumer AI do
 
 ### What's Missing (The "Last Mile")
 
-1. **Actual document parsing** — The single biggest blocker. PDF and DOCX return placeholder strings.
-2. **Output format endpoints** — Summary, quiz, slides, etc. The LLM integration exists; it just needs new prompts and routes.
-3. **A frontend** — CORS is configured, API is ready. Needs a React/Vue app with drag-and-drop upload.
-4. **Wiring existing code** — Summarization, entity extraction, and suggestions all work in isolation but aren't exposed as user-facing features.
+1. **A frontend** — The CORS is configured, API is ready. Needs a React app with drag-and-drop upload.
+2. **Slide generation** — The only missing content generation feature.
 
 ### Strategic Position
 
