@@ -165,16 +165,19 @@ class OrchestratorAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Failed to update document OCR info: {e}")
 
-    async def process_query(self, query_text: str, user_id: str = None) -> Dict[str, Any]:
+    async def process_query(self, query_text: str, user_id: str) -> Dict[str, Any]:
         """Process a query using RAG pipeline (Hybrid Search + Reranker + LLM).
         
         This is the main entry point for the /query endpoint.
         Args:
             query_text: The user's query
-            user_id: Optional user ID for filtering results to user's documents only
+            user_id: Required user ID for strict tenant isolation
         Returns: {"answer": str, "sources": [{"content": str, "metadata": dict, "score": float}]}
         """
         try:
+            if not user_id:
+                raise ValueError("user_id is required for tenant-isolated queries")
+
             self.log_event("query_start", {"query": query_text, "user_id": user_id})
             
             # Step 1: Hybrid Vector Search (Dense + Sparse) with user filter
@@ -224,4 +227,18 @@ class OrchestratorAgent(BaseAgent):
         """Execute RAG query workflow (legacy method, delegates to process_query)."""
         query_text = message.get("query_text")
         user_id = message.get("user_id")
+        if not user_id:
+            return {
+                "success": False,
+                "answer": "",
+                "sources": [],
+                "error": "user_id is required for tenant-isolated queries",
+            }
+        if not query_text:
+            return {
+                "success": False,
+                "answer": "",
+                "sources": [],
+                "error": "query_text is required",
+            }
         return await self.process_query(query_text, user_id=user_id)

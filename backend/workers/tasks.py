@@ -23,6 +23,21 @@ def _run_async(coro):
     return loop.run_until_complete(coro)
 
 
+def _create_db_session() -> tuple[Session, Any]:
+    """Create an owned DB session for worker tasks."""
+    db_gen = get_db()
+    db = next(db_gen)
+    return db, db_gen
+
+
+def _close_db_session(db_gen: Any) -> None:
+    """Close an owned DB session generator created by _create_db_session."""
+    try:
+        db_gen.close()
+    except Exception as e:
+        logger.warning(f"Failed to close DB generator: {e}")
+
+
 def _update_task(db: Session, task_id: str, **kwargs):
     """Update a task record."""
     task = db.query(Task).filter(Task.id == task_id).first()
@@ -32,13 +47,26 @@ def _update_task(db: Session, task_id: str, **kwargs):
         db.commit()
 
 
-def _update_document(db: Session, doc_id: str, **kwargs):
+def _update_document(db: Session, doc_id: str, user_id: Optional[str] = None, **kwargs):
     """Update a document record."""
-    doc = db.query(Document).filter(Document.id == doc_id).first()
+    query = db.query(Document).filter(Document.id == doc_id)
+    if user_id:
+        query = query.filter(Document.user_id == user_id)
+    doc = query.first()
     if doc:
         for k, v in kwargs.items():
             setattr(doc, k, v)
         db.commit()
+
+
+def _get_owned_document(db: Session, doc_id: str, user_id: Optional[str]) -> Optional[Document]:
+    """Fetch a document scoped to the given owner."""
+    if not user_id:
+        return None
+    return db.query(Document).filter(
+        Document.id == doc_id,
+        Document.user_id == user_id,
+    ).first()
 
 
 def _get_user_api_key(db: Session, user_id: Optional[str]) -> Optional[str]:
@@ -61,12 +89,24 @@ def process_document_task(self, document_id: str, file_path: str, filename: str,
     """Async task to process a document through the agent pipeline."""
     logger.info(f"Processing document {document_id}: {filename} (User: {user_id})")
 
-    db = next(get_db())
+    db, db_gen = _create_db_session()
+    if not user_id:
+        error_msg = "user_id is required for process_document_task"
+        logger.error(error_msg)
+        _update_task(db, self.request.id, status=TaskStatus.FAILED, error=error_msg)
+        return {"success": False, "error": error_msg}
+
+    if not _get_owned_document(db, document_id, user_id):
+        error_msg = f"Document {document_id} not found for user {user_id}"
+        logger.error(error_msg)
+        _update_task(db, self.request.id, status=TaskStatus.FAILED, error=error_msg)
+        return {"success": False, "error": error_msg}
+
     api_key = _get_user_api_key(db, user_id)
     
     try:
         _update_task(db, self.request.id, status=TaskStatus.PROCESSING, progress=10.0)
-        _update_document(db, document_id, status=TaskStatus.PROCESSING)
+        _update_document(db, document_id, user_id=user_id, status=TaskStatus.PROCESSING)
 
         orchestrator = OrchestratorAgent(api_key=api_key)
         
@@ -86,13 +126,15 @@ def process_document_task(self, document_id: str, file_path: str, filename: str,
         if result.get("success"):
             _update_task(db, self.request.id,
                          status=TaskStatus.COMPLETED, result=result, progress=100.0)
-            _update_document(db, document_id, status=TaskStatus.COMPLETED)
+            _update_document(db, document_id, user_id=user_id, status=TaskStatus.COMPLETED)
         else:
             error_msg = result.get("error", "Unknown processing error")
             _update_task(db, self.request.id,
                          status=TaskStatus.FAILED, error=error_msg)
             _update_document(db, document_id,
-                             status=TaskStatus.FAILED, error_message=error_msg)
+                             user_id=user_id,
+                             status=TaskStatus.FAILED,
+                             error_message=error_msg)
 
         logger.info(f"Completed processing document {document_id}")
         return result
@@ -100,9 +142,11 @@ def process_document_task(self, document_id: str, file_path: str, filename: str,
     except Exception as e:
         logger.error(f"Error processing document {document_id}: {e}", exc_info=True)
         _update_task(db, self.request.id, status=TaskStatus.FAILED, error=str(e))
-        _update_document(db, document_id, status=TaskStatus.FAILED, error_message=str(e))
+        _update_document(db, document_id, user_id=user_id, status=TaskStatus.FAILED, error_message=str(e))
         # Don't re-raise if we want to avoid Celery retries for fatal errors
         return {"success": False, "error": str(e)}
+    finally:
+        _close_db_session(db_gen)
 
 
 @celery_app.task(bind=True, name="insightdocs.generate_embeddings")
@@ -110,7 +154,19 @@ def generate_embeddings_task(self, document_id: str, chunks: list, user_id: str 
     """Async task to generate embeddings for document chunks."""
     logger.info(f"Generating embeddings for document {document_id}")
 
-    db = next(get_db())
+    db, db_gen = _create_db_session()
+    if not user_id:
+        error_msg = "user_id is required for generate_embeddings_task"
+        logger.error(error_msg)
+        _update_task(db, self.request.id, status=TaskStatus.FAILED, error=error_msg)
+        return {"success": False, "error": error_msg}
+
+    if not _get_owned_document(db, document_id, user_id):
+        error_msg = f"Document {document_id} not found for user {user_id}"
+        logger.error(error_msg)
+        _update_task(db, self.request.id, status=TaskStatus.FAILED, error=error_msg)
+        return {"success": False, "error": error_msg}
+
     api_key = _get_user_api_key(db, user_id)
 
     try:
@@ -122,7 +178,7 @@ def generate_embeddings_task(self, document_id: str, chunks: list, user_id: str 
             "chunks": chunks,
             "metadata": {
                 "document_id": document_id,
-                "user_id": user_id or "unknown",
+                "user_id": user_id,
             }
         }))
 
@@ -140,6 +196,8 @@ def generate_embeddings_task(self, document_id: str, chunks: list, user_id: str 
         logger.error(f"Error generating embeddings for document {document_id}: {e}")
         _update_task(db, self.request.id, status=TaskStatus.FAILED, error=str(e))
         return {"success": False, "error": str(e)}
+    finally:
+        _close_db_session(db_gen)
 
 
 @celery_app.task(bind=True, name="insightdocs.generate_podcast")
@@ -147,7 +205,13 @@ def generate_podcast_task(self, document_id: str, user_id: str = None):
     """Async task to generate a podcast audio for a document."""
     logger.info(f"Generating podcast for document {document_id}")
 
-    db = next(get_db())
+    db, db_gen = _create_db_session()
+    if not user_id:
+        error_msg = "user_id is required for generate_podcast_task"
+        logger.error(error_msg)
+        _update_task(db, self.request.id, status=TaskStatus.FAILED, error=error_msg)
+        return {"success": False, "error": error_msg}
+
     api_key = _get_user_api_key(db, user_id)
 
     try:
@@ -155,6 +219,10 @@ def generate_podcast_task(self, document_id: str, user_id: str = None):
 
         # 1. Get document content
         from backend.models import DocumentChunk
+        doc = _get_owned_document(db, document_id, user_id)
+        if not doc:
+            raise ValueError(f"Document {document_id} not found for user {user_id}")
+
         chunks = (
             db.query(DocumentChunk)
             .filter(DocumentChunk.document_id == document_id)
@@ -165,8 +233,6 @@ def generate_podcast_task(self, document_id: str, user_id: str = None):
             raise ValueError("No content found for this document")
 
         text = "\n\n".join(c.content for c in chunks)
-        doc = db.query(Document).filter(Document.id == document_id).first()
-
         # 2. Generate podcast script via LLM
         from backend.utils.llm_client import LLMClient
         llm = LLMClient(api_key=api_key)
@@ -208,26 +274,34 @@ def generate_podcast_task(self, document_id: str, user_id: str = None):
                          result={"s3_key": s3_key, "duration": duration},
                          progress=100.0)
             logger.info(f"Podcast generated for document {document_id}: {s3_key}")
+            return {"success": True, "s3_key": s3_key, "duration": duration}
         else:
             _update_task(db, self.request.id,
                          status=TaskStatus.FAILED,
                          error="Audio generation failed or produced no output")
-
-        return {"success": True}
+            return {"success": False, "error": "Audio generation failed or produced no output"}
 
     except Exception as e:
         logger.error(f"Error generating podcast: {e}", exc_info=True)
         _update_task(db, self.request.id, status=TaskStatus.FAILED, error=str(e))
         return {"success": False, "error": str(e)}
+    finally:
+        try:
+            if "tmp_path" in locals() and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to clean up temporary podcast file: {cleanup_error}")
+        _close_db_session(db_gen)
 
 
 @celery_app.task(name="insightdocs.cleanup_old_tasks")
 def cleanup_old_tasks():
     """Periodic task to clean up old completed tasks."""
     logger.info("Running cleanup of old tasks")
+    db_gen = None
     try:
         from datetime import datetime, timedelta
-        db = next(get_db())
+        db, db_gen = _create_db_session()
         cutoff_date = datetime.utcnow() - timedelta(days=30)
         old_tasks = db.query(Task).filter(
             Task.created_at < cutoff_date,
@@ -242,3 +316,6 @@ def cleanup_old_tasks():
     except Exception as e:
         logger.error(f"Error cleaning up old tasks: {e}")
         return {"error": str(e)}
+    finally:
+        if db_gen is not None:
+            _close_db_session(db_gen)
