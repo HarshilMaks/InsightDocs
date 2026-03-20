@@ -19,21 +19,11 @@ async def list_tasks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List user's tasks (filtered by owner).
-    
-    Args:
-        skip: Number of records to skip
-        limit: Maximum number of records to return
-        db: Database session
-        current_user: Authenticated user
-        
-    Returns:
-        List of tasks owned by current user
-    """
+    """List user's tasks (filtered by owner)."""
     try:
         tasks = db.query(Task).filter(
             Task.user_id == current_user.id
-        ).offset(skip).limit(limit).all()
+        ).order_by(Task.created_at.desc()).offset(skip).limit(limit).all()
         
         task_list = [
             {
@@ -62,16 +52,7 @@ async def get_task_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get task status (user must own the task).
-    
-    Args:
-        task_id: Task ID
-        db: Database session
-        current_user: Authenticated user
-        
-    Returns:
-        Task status information
-    """
+    """Get task status (user must own the task)."""
     try:
         # Check database for task details and ownership
         task = db.query(Task).filter(
@@ -80,8 +61,9 @@ async def get_task_status(
         ).first()
         
         if task:
-            # Check Celery task status
-            celery_task = celery_app.AsyncResult(task_id)
+            # Check Celery task status just in case DB is stale (optional optimization)
+            # celery_task = celery_app.AsyncResult(task_id) 
+            
             return TaskStatusResponse(
                 task_id=task_id,
                 status=task.status,

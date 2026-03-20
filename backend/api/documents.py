@@ -68,7 +68,7 @@ async def upload_document(
         db.refresh(document)
 
         task = process_document_task.apply_async(
-            args=[document.id, temp_path, file.filename]
+            args=[document.id, temp_path, file.filename, current_user.id]
         )
 
         # Create Task record so the worker can find and update it
@@ -187,6 +187,20 @@ def _get_document_text(document_id: str, db: Session, current_user: User) -> str
     return "\n\n".join(c.content for c in chunks)
 
 
+from backend.core.security import get_current_user, decrypt_api_key
+
+def _get_user_llm_client(current_user: User) -> LLMClient:
+    """Helper to initialize LLMClient with user's API key if present."""
+    api_key = None
+    if current_user.byok_enabled and current_user.gemini_api_key_encrypted:
+        try:
+            api_key = decrypt_api_key(current_user.gemini_api_key_encrypted)
+        except Exception:
+            logger.error(f"Failed to decrypt API key for user {current_user.id}")
+            # Fallback to system key or fail gracefully depending on policy
+            pass
+    return LLMClient(api_key=api_key)
+
 @router.post("/{document_id}/summarize")
 @limiter.limit("10/minute")
 async def summarize_document(
@@ -197,7 +211,7 @@ async def summarize_document(
 ):
     """Generate an LLM summary of a processed document (user must own it)."""
     text = _get_document_text(document_id, db, current_user)
-    llm = LLMClient()
+    llm = _get_user_llm_client(current_user)
     summary = await llm.summarize(text)
     return {"document_id": document_id, "summary": summary}
 
@@ -212,7 +226,7 @@ async def generate_quiz(
 ):
     """Generate quiz questions from a processed document (user must own it)."""
     text = _get_document_text(document_id, db, current_user)
-    llm = LLMClient()
+    llm = _get_user_llm_client(current_user)
     quiz = await llm.generate_quiz(text)
     return {"document_id": document_id, "quiz": quiz}
 
@@ -227,7 +241,7 @@ async def generate_mindmap(
 ):
     """Generate a mind map (concepts + relationships) from a processed document (user must own it)."""
     text = _get_document_text(document_id, db, current_user)
-    llm = LLMClient()
+    llm = _get_user_llm_client(current_user)
     mindmap = await llm.generate_mindmap(text)
     return {"document_id": document_id, "mindmap": mindmap}
 
@@ -250,7 +264,7 @@ async def generate_podcast(
     if doc.status != TaskStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Document processing not complete")
 
-    task = generate_podcast_task.apply_async(args=[document_id])
+    task = generate_podcast_task.apply_async(args=[document_id, current_user.id])
 
     # Create Task record
     task_record = Task(

@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 class AnalysisAgent(BaseAgent):
     """Agent responsible for content analysis and embeddings."""
     
-    def __init__(self, agent_id: str = "analysis_agent"):
+    def __init__(self, agent_id: str = "analysis_agent", api_key: str = None):
         super().__init__(agent_id, "AnalysisAgent")
         self.embedding_engine = get_embedding_engine()
-        self.llm_client = LLMClient()
+        self.llm_client = LLMClient(api_key=api_key)
     
     async def process(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Process analysis tasks.

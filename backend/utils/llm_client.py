@@ -11,8 +11,10 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     """Client for interacting with LLM services."""
 
-    def __init__(self):
-        genai.configure(api_key=settings.gemini_api_key)
+    def __init__(self, api_key: str = None):
+        # Use provided key or fall back to global settings
+        key = api_key or settings.gemini_api_key
+        genai.configure(api_key=key)
         self.model = genai.GenerativeModel(settings.gemini_model)
 
     # ------------------------------------------------------------------

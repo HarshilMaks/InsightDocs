@@ -69,6 +69,7 @@ class EmbeddingEngine:
                 fields = [
                     FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=100),
                     FieldSchema(name="document_id", dtype=DataType.VARCHAR, max_length=100),
+                    FieldSchema(name="user_id", dtype=DataType.VARCHAR, max_length=100),  # NEW: For tenant isolation
                     FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=65535),
                     FieldSchema(name="dense_vector", dtype=DataType.FLOAT_VECTOR, dim=self.dimension),
                     FieldSchema(name="sparse_vector", dtype=DataType.SPARSE_FLOAT_VECTOR)
@@ -153,7 +154,7 @@ class EmbeddingEngine:
     
     async def store_embeddings(
         self,
-        embeddings: Dict[str, Any],  # Changed type hint
+        embeddings: Dict[str, Any],
         texts: List[str],
         metadata: Dict[str, Any]
     ) -> List[str]:
@@ -162,7 +163,7 @@ class EmbeddingEngine:
         Args:
             embeddings: Dict containing 'dense' and 'sparse' lists
             texts: Original texts
-            metadata: Metadata for the embeddings (must include 'document_id')
+            metadata: Metadata for the embeddings (must include 'document_id' and 'user_id')
             
         Returns:
             List of vector IDs
@@ -176,11 +177,13 @@ class EmbeddingEngine:
             import uuid
             vector_ids = [str(uuid.uuid4()) for _ in range(len(texts))]
             document_id = metadata.get('document_id', 'unknown')
+            user_id = metadata.get('user_id', 'unknown')  # NEW: Extract user_id
             
-            # Prepare data for insertion
+            # Prepare data for insertion (order must match schema)
             entities = [
                 vector_ids,  # id field
                 [document_id] * len(texts),  # document_id field
+                [user_id] * len(texts),  # user_id field (NEW)
                 texts,  # text field
                 embeddings['dense'],  # dense_vector field
                 embeddings['sparse']  # sparse_vector field
@@ -190,7 +193,7 @@ class EmbeddingEngine:
             self.collection.insert(entities)
             self.collection.flush()
             
-            logger.info(f"Stored {len(vector_ids)} vectors in Milvus")
+            logger.info(f"Stored {len(vector_ids)} vectors for user {user_id} in Milvus")
             return vector_ids
         except Exception as e:
             logger.error(f"Error storing embeddings in Milvus: {e}")
@@ -200,13 +203,15 @@ class EmbeddingEngine:
     async def search(
         self,
         query_text: str,
-        top_k: int = 5
+        top_k: int = 5,
+        user_id: str = None
     ) -> List[Dict[str, Any]]:
         """Search for similar vectors in Milvus using Hybrid Search.
         
         Args:
             query_text: Query text to search for
             top_k: Number of results to return
+            user_id: Optional user ID to filter results (for multi-tenant isolation)
             
         Returns:
             List of search results with text, score, and metadata
@@ -229,7 +234,7 @@ class EmbeddingEngine:
                 data=[dense_query],
                 anns_field="dense_vector",
                 param={"metric_type": "COSINE", "params": {"nprobe": 10}},
-                limit=top_k
+                limit=top_k * 3  # Fetch more candidates for filtering
             )
             
             # Sparse search request
@@ -237,8 +242,11 @@ class EmbeddingEngine:
                 data=[sparse_query],
                 anns_field="sparse_vector",
                 param={"metric_type": "IP", "params": {"drop_ratio_search": 0.2}},
-                limit=top_k
+                limit=top_k * 3  # Fetch more candidates for filtering
             )
+            
+            # Build filter expression for user isolation
+            expr = f'user_id == "{user_id}"' if user_id else None
             
             # Perform Hybrid Search
             # Rerank with WeightedRanker (0.7 dense + 0.3 sparse is a good starting point)
@@ -248,7 +256,8 @@ class EmbeddingEngine:
                 reqs=[dense_req, sparse_req],
                 rerank=ranker,
                 limit=top_k,
-                output_fields=["text", "document_id"]
+                output_fields=["text", "document_id", "user_id"],
+                expr=expr  # Apply user filter
             )
             
             # Format results
@@ -260,11 +269,12 @@ class EmbeddingEngine:
                         "text": hit.entity.get("text"),
                         "score": float(hit.score),
                         "metadata": {
-                            "document_id": hit.entity.get("document_id")
+                            "document_id": hit.entity.get("document_id"),
+                            "user_id": hit.entity.get("user_id")
                         }
                     })
             
-            logger.info(f"Found {len(results)} results for query")
+            logger.info(f"Found {len(results)} results for query (user_id filter: {user_id or 'none'})")
             return results
         except Exception as e:
             logger.error(f"Error searching in Milvus: {e}")

@@ -27,6 +27,48 @@ def get_password_hash(password: str) -> str:
     """Hashes a plain password."""
     return pwd_context.hash(password)
 
+# --- API Key Encryption Utilities ---
+import os
+import base64
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+def _derive_key(salt: bytes) -> bytes:
+    """Derive a 32-byte key from the application SECRET_KEY."""
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(settings.secret_key.encode()))
+
+def encrypt_api_key(plain_key: str) -> Optional[str]:
+    """Encrypt an API key using the app secret. Returns 'salt$ciphertext'."""
+    if not plain_key:
+        return None
+    salt = os.urandom(16)
+    key = _derive_key(salt)
+    cipher = Fernet(key)
+    encrypted_bytes = cipher.encrypt(plain_key.encode())
+    # Format: base64(salt) + "$" + base64(ciphertext)
+    return f"{base64.b64encode(salt).decode()}${encrypted_bytes.decode()}"
+
+def decrypt_api_key(encrypted_bundle: str) -> Optional[str]:
+    """Decrypt an API key. Expects 'salt$ciphertext' format."""
+    if not encrypted_bundle or "$" not in encrypted_bundle:
+        return None
+    try:
+        salt_str, ciphertext = encrypted_bundle.split("$", 1)
+        salt = base64.b64decode(salt_str)
+        key = _derive_key(salt)
+        cipher = Fernet(key)
+        return cipher.decrypt(ciphertext.encode()).decode()
+    except Exception:
+        return None
+
+
 # --- JWT Token Creation ---
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/auth/login")

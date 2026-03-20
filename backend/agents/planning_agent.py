@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 class PlanningAgent(BaseAgent):
     """Agent responsible for planning and workflow management."""
     
-    def __init__(self, agent_id: str = "planning_agent"):
+    def __init__(self, agent_id: str = "planning_agent", api_key: str = None):
         super().__init__(agent_id, "PlanningAgent")
-        self.llm_client = LLMClient()
+        self.llm_client = LLMClient(api_key=api_key)
     
     async def process(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Process planning tasks.
