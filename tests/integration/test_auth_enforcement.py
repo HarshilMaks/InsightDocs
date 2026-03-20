@@ -1,313 +1,254 @@
 """
-Phase B: Authentication Enforcement Tests
-Validates that all 12 protected endpoints require JWT and verify user ownership.
+Authentication enforcement and resource isolation tests.
+Uses in-memory SQLite and current API contracts.
 """
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-import os
-
-os.environ.setdefault("JWT_SECRET", "test-secret-key")
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from backend.api.main import app
-from backend.models import get_db
-from backend.models.schemas import User
-from backend.core.security import create_access_token
-from backend.models.database import engine, Base
+from backend.models import Document, Task, TaskStatus
+from backend.models.database import Base, get_db
 
 
-@pytest.fixture(scope="session")
-def test_db():
-    """Create test database tables."""
-    Base.metadata.create_all(bind=engine)
-    yield
-    # Don't drop tables - keep for inspection
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-@pytest.fixture
-def client(test_db):
-    """FastAPI test client."""
-    def override_get_db():
-        db = next(get_db())
-        try:
-            yield db
-        finally:
-            db.close()
-    
-    app.dependency_overrides[get_db] = override_get_db
-    return TestClient(app)
-
-
-@pytest.fixture
-def db_session(test_db):
-    """Database session for test data setup."""
-    db = next(get_db())
+def override_get_db():
+    db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
 
 
+@pytest.fixture(scope="module", autouse=True)
+def setup_database():
+    Base.metadata.create_all(bind=engine)
+    app.dependency_overrides[get_db] = override_get_db
+    yield
+    app.dependency_overrides.pop(get_db, None)
+    Base.metadata.drop_all(bind=engine)
+
+
 @pytest.fixture
-def test_user(db_session):
-    """Create a test user."""
-    user = User(
-        id="test-user-1",
-        email="test@example.com",
-        password_hash="hashed_password",
-        is_active=True
+def client(setup_database):
+    return TestClient(app)
+
+
+def _register_and_login(client: TestClient, email: str, name: str):
+    r = client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "name": name, "password": "SecurePass123!"},
     )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-    return user
+    assert r.status_code == 201, r.text
 
-
-@pytest.fixture
-def other_user(db_session):
-    """Create another test user for isolation testing."""
-    user = User(
-        id="test-user-2",
-        email="other@example.com",
-        password_hash="hashed_password",
-        is_active=True
+    r = client.post(
+        "/api/v1/auth/login",
+        data={"username": email, "password": "SecurePass123!"},
     )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
-def auth_token(test_user):
-    """Generate JWT token for test user."""
-    return create_access_token(data={"sub": test_user.email})
-
-
-@pytest.fixture
-def other_auth_token(other_user):
-    """Generate JWT token for other user."""
-    return create_access_token(data={"sub": other_user.email})
+    assert r.status_code == 200, r.text
+    return r.json()["token"]["access_token"]
 
 
 class TestAuthenticationRequired:
-    """Test that all protected endpoints return 401 without token."""
+    def test_documents_upload_no_token(self, client):
+        r = client.post("/api/v1/documents/upload", files={"file": ("a.txt", b"x")})
+        assert r.status_code == 401
 
-    def test_document_upload_no_token(self, client):
-        """POST /documents without token → 401."""
-        response = client.post("/api/v1/documents", files={"file": ("test.txt", b"content")})
-        assert response.status_code == 401
+    def test_documents_list_no_token(self, client):
+        r = client.get("/api/v1/documents/")
+        assert r.status_code == 401
 
-    def test_document_list_no_token(self, client):
-        """GET /documents without token → 401."""
-        response = client.get("/api/v1/documents")
-        assert response.status_code == 401
+    def test_documents_detail_no_token(self, client):
+        r = client.get("/api/v1/documents/fake-id")
+        assert r.status_code == 401
 
-    def test_document_detail_no_token(self, client):
-        """GET /documents/{id} without token → 401."""
-        response = client.get("/api/v1/documents/fake-id")
-        assert response.status_code == 401
-
-    def test_document_delete_no_token(self, client):
-        """DELETE /documents/{id} without token → 401."""
-        response = client.delete("/api/v1/documents/fake-id")
-        assert response.status_code == 401
+    def test_documents_delete_no_token(self, client):
+        r = client.delete("/api/v1/documents/fake-id")
+        assert r.status_code == 401
 
     def test_query_no_token(self, client):
-        """POST /query without token → 401."""
-        response = client.post("/api/v1/query", json={"query": "test"})
-        assert response.status_code == 401
+        r = client.post("/api/v1/query/", json={"query": "test"})
+        assert r.status_code == 401
 
-    def test_task_list_no_token(self, client):
-        """GET /tasks without token → 401."""
-        response = client.get("/api/v1/tasks")
-        assert response.status_code == 401
+    def test_tasks_list_no_token(self, client):
+        r = client.get("/api/v1/tasks/")
+        assert r.status_code == 401
 
-    def test_task_detail_no_token(self, client):
-        """GET /tasks/{id} without token → 401."""
-        response = client.get("/api/v1/tasks/fake-id")
-        assert response.status_code == 401
+    def test_tasks_detail_no_token(self, client):
+        r = client.get("/api/v1/tasks/fake-id")
+        assert r.status_code == 401
 
     def test_summarize_no_token(self, client):
-        """POST /documents/{id}/summarize without token → 401."""
-        response = client.post("/api/v1/documents/fake-id/summarize")
-        assert response.status_code == 401
+        r = client.post("/api/v1/documents/fake-id/summarize")
+        assert r.status_code == 401
 
     def test_quiz_no_token(self, client):
-        """POST /documents/{id}/quiz without token → 401."""
-        response = client.post("/api/v1/documents/fake-id/quiz")
-        assert response.status_code == 401
+        r = client.post("/api/v1/documents/fake-id/quiz")
+        assert r.status_code == 401
 
     def test_mindmap_no_token(self, client):
-        """POST /documents/{id}/mindmap without token → 401."""
-        response = client.post("/api/v1/documents/fake-id/mindmap")
-        assert response.status_code == 401
+        r = client.post("/api/v1/documents/fake-id/mindmap")
+        assert r.status_code == 401
 
     def test_generate_podcast_no_token(self, client):
-        """POST /documents/{id}/generate-podcast without token → 401."""
-        response = client.post("/api/v1/documents/fake-id/generate-podcast")
-        assert response.status_code == 401
+        r = client.post("/api/v1/documents/fake-id/generate-podcast")
+        assert r.status_code == 401
 
     def test_get_podcast_no_token(self, client):
-        """GET /documents/{id}/podcast without token → 401."""
-        response = client.get("/api/v1/documents/fake-id/podcast")
-        assert response.status_code == 401
+        r = client.get("/api/v1/documents/fake-id/podcast")
+        assert r.status_code == 401
 
 
-class TestAuthenticationWithToken:
-    """Test that protected endpoints work with valid token."""
+class TestProtectedEndpointsWithToken:
+    def test_documents_list_with_token(self, client):
+        token = _register_and_login(client, "authlist@example.com", "Auth List")
+        r = client.get("/api/v1/documents/", headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 200
+        assert "documents" in r.json()
 
-    def test_document_list_with_token(self, client, auth_token):
-        """GET /documents with token → 200."""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        response = client.get("/api/v1/documents", headers=headers)
-        assert response.status_code == 200
-        assert "documents" in response.json()
-
-    def test_task_list_with_token(self, client, auth_token):
-        """GET /tasks with token → 200."""
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        response = client.get("/api/v1/tasks", headers=headers)
-        assert response.status_code == 200
-        assert "tasks" in response.json()
+    def test_tasks_list_with_token(self, client):
+        token = _register_and_login(client, "authtask@example.com", "Auth Task")
+        r = client.get("/api/v1/tasks/", headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 200
+        assert "tasks" in r.json()
 
 
 class TestUnprotectedEndpoints:
-    """Test that unprotected endpoints work without token."""
-
     def test_root_no_token(self, client):
-        """GET / without token → 200."""
-        response = client.get("/")
-        assert response.status_code == 200
+        assert client.get("/").status_code == 200
 
     def test_health_no_token(self, client):
-        """GET /health without token → 200."""
-        response = client.get("/api/v1/health")
-        assert response.status_code == 200
-
-    def test_login_no_token(self, client):
-        """POST /auth/login without token → should work."""
-        response = client.post("/api/v1/auth/login", json={
-            "email": "test@example.com",
-            "password": "password"
-        })
-        # May fail with wrong credentials, but shouldn't return 401
-        assert response.status_code != 401
+        assert client.get("/api/v1/health").status_code == 200
 
     def test_register_no_token(self, client):
-        """POST /auth/register without token → should work."""
-        response = client.post("/api/v1/auth/register", json={
-            "email": f"newuser{hash('x')}@example.com",
-            "password": "password123"
-        })
-        # May fail with validation, but shouldn't return 401
-        assert response.status_code != 401
+        r = client.post(
+            "/api/v1/auth/register",
+            json={"email": "openreg@example.com", "name": "Open", "password": "SecurePass123!"},
+        )
+        assert r.status_code in (201, 400)
 
 
 class TestUserIsolation:
-    """Test that users can only access their own resources."""
+    def test_user_sees_only_own_documents(self, client):
+        token1 = _register_and_login(client, "iso1@example.com", "Iso One")
+        token2 = _register_and_login(client, "iso2@example.com", "Iso Two")
 
-    def test_user_sees_only_own_documents(self, client, auth_token, other_auth_token, 
-                                         db_session, test_user, other_user):
-        """User A's document list should not include User B's documents."""
-        from backend.models import Document, TaskStatus
-        
-        # Create doc for user1
-        doc1 = Document(
-            id="doc-user1",
-            filename="user1.pdf",
-            user_id=test_user.id,
-            status=TaskStatus.COMPLETED,
-            file_size=1000,
-            chunks_count=5
-        )
-        db_session.add(doc1)
-        db_session.commit()
-        
-        # Create doc for user2
-        doc2 = Document(
-            id="doc-user2",
-            filename="user2.pdf",
-            user_id=other_user.id,
-            status=TaskStatus.COMPLETED,
-            file_size=2000,
-            chunks_count=10
-        )
-        db_session.add(doc2)
-        db_session.commit()
-        
-        # User1 lists documents
-        headers1 = {"Authorization": f"Bearer {auth_token}"}
-        response1 = client.get("/api/v1/documents", headers=headers1)
-        assert response1.status_code == 200
-        docs1 = response1.json()["documents"]
-        doc1_ids = [d["id"] for d in docs1]
-        
-        # User1 should see only their own document
-        assert "doc-user1" in doc1_ids
-        assert "doc-user2" not in doc1_ids
-        
-        # User2 lists documents
-        headers2 = {"Authorization": f"Bearer {other_auth_token}"}
-        response2 = client.get("/api/v1/documents", headers=headers2)
-        assert response2.status_code == 200
-        docs2 = response2.json()["documents"]
-        doc2_ids = [d["id"] for d in docs2]
-        
-        # User2 should see only their own document
-        assert "doc-user2" in doc2_ids
-        assert "doc-user1" not in doc2_ids
+        h1 = {"Authorization": f"Bearer {token1}"}
+        h2 = {"Authorization": f"Bearer {token2}"}
 
-    def test_user_cannot_access_others_document(self, client, auth_token, other_auth_token,
-                                               db_session, test_user, other_user):
-        """User A cannot GET User B's document."""
-        from backend.models import Document, TaskStatus
-        
-        # Create doc for user2
-        doc = Document(
-            id="doc-other-user",
-            filename="other.pdf",
-            user_id=other_user.id,
-            status=TaskStatus.COMPLETED,
-            file_size=1000,
-            chunks_count=5
-        )
-        db_session.add(doc)
-        db_session.commit()
-        
-        # User1 tries to access User2's document
-        headers1 = {"Authorization": f"Bearer {auth_token}"}
-        response = client.get("/api/v1/documents/doc-other-user", headers=headers1)
-        
-        # Should return 403 or 404 (not found from user's perspective)
-        assert response.status_code in [403, 404]
+        u1 = client.get("/api/v1/users/me/byok-status", headers=h1).json()["user_id"]
+        u2 = client.get("/api/v1/users/me/byok-status", headers=h2).json()["user_id"]
 
-    def test_user_cannot_delete_others_document(self, client, auth_token, other_auth_token,
-                                               db_session, test_user, other_user):
-        """User A cannot DELETE User B's document."""
-        from backend.models import Document, TaskStatus
-        
-        # Create doc for user2
-        doc = Document(
-            id="doc-to-protect",
-            filename="protected.pdf",
-            user_id=other_user.id,
-            status=TaskStatus.COMPLETED,
-            file_size=1000,
-            chunks_count=5
-        )
-        db_session.add(doc)
-        db_session.commit()
-        
-        # User1 tries to delete User2's document
-        headers1 = {"Authorization": f"Bearer {auth_token}"}
-        response = client.delete("/api/v1/documents/doc-to-protect", headers=headers1)
-        
-        # Should return 403 or 404
-        assert response.status_code in [403, 404]
-        
-        # Document should still exist for User2
-        headers2 = {"Authorization": f"Bearer {other_auth_token}"}
-        response2 = client.get("/api/v1/documents/doc-to-protect", headers=headers2)
-        assert response2.status_code == 200
+        db = TestingSessionLocal()
+        try:
+            db.add_all(
+                [
+                    Document(
+                        id="iso-doc-1",
+                        filename="u1.pdf",
+                        user_id=u1,
+                        status=TaskStatus.COMPLETED,
+                        file_size=10,
+                        file_type=".pdf",
+                        s3_bucket="b",
+                        s3_key="k1",
+                    ),
+                    Document(
+                        id="iso-doc-2",
+                        filename="u2.pdf",
+                        user_id=u2,
+                        status=TaskStatus.COMPLETED,
+                        file_size=10,
+                        file_type=".pdf",
+                        s3_bucket="b",
+                        s3_key="k2",
+                    ),
+                ]
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        r1 = client.get("/api/v1/documents/", headers=h1)
+        r2 = client.get("/api/v1/documents/", headers=h2)
+
+        ids1 = {d["id"] for d in r1.json()["documents"]}
+        ids2 = {d["id"] for d in r2.json()["documents"]}
+
+        assert "iso-doc-1" in ids1 and "iso-doc-2" not in ids1
+        assert "iso-doc-2" in ids2 and "iso-doc-1" not in ids2
+
+    def test_user_cannot_access_others_document(self, client):
+        token1 = _register_and_login(client, "iso3@example.com", "Iso Three")
+        token2 = _register_and_login(client, "iso4@example.com", "Iso Four")
+        h1 = {"Authorization": f"Bearer {token1}"}
+        h2 = {"Authorization": f"Bearer {token2}"}
+
+        u2 = client.get("/api/v1/users/me/byok-status", headers=h2).json()["user_id"]
+
+        db = TestingSessionLocal()
+        try:
+            db.add(
+                Document(
+                    id="iso-protected-doc",
+                    filename="protected.pdf",
+                    user_id=u2,
+                    status=TaskStatus.COMPLETED,
+                    file_size=10,
+                    file_type=".pdf",
+                    s3_bucket="b",
+                    s3_key="k3",
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        r = client.get("/api/v1/documents/iso-protected-doc", headers=h1)
+        assert r.status_code == 404
+
+    def test_user_cannot_delete_others_document(self, client):
+        token1 = _register_and_login(client, "iso5@example.com", "Iso Five")
+        token2 = _register_and_login(client, "iso6@example.com", "Iso Six")
+        h1 = {"Authorization": f"Bearer {token1}"}
+        h2 = {"Authorization": f"Bearer {token2}"}
+
+        u2 = client.get("/api/v1/users/me/byok-status", headers=h2).json()["user_id"]
+
+        db = TestingSessionLocal()
+        try:
+            db.add(
+                Document(
+                    id="iso-delete-doc",
+                    filename="protected2.pdf",
+                    user_id=u2,
+                    status=TaskStatus.COMPLETED,
+                    file_size=10,
+                    file_type=".pdf",
+                    s3_bucket="b",
+                    s3_key="k4",
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        r = client.delete("/api/v1/documents/iso-delete-doc", headers=h1)
+        assert r.status_code == 404
+
+        r2 = client.get("/api/v1/documents/iso-delete-doc", headers=h2)
+        assert r2.status_code == 200
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

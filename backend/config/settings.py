@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     celery_broker_url: str
     celery_result_backend: str
     
-    # LLM
-    gemini_api_key: str
+    # LLM (Optional for BYOK - Bring Your Own Key mode)
+    gemini_api_key: str = Field(None)  # Optional: Users can provide their own keys
     gemini_model: str = Field("gemini-1.5-pro")
     gemini_temperature: float = Field(0.7)
     

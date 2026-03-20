@@ -54,6 +54,10 @@ class User(Base, TimestampMixin):
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # BYOK Fields
+    gemini_api_key_encrypted = Column(String(500), nullable=True)
+    byok_enabled = Column(Boolean, default=False)
+
     # Relationships
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     queries = relationship("Query", back_populates="user", cascade="all, delete-orphan")

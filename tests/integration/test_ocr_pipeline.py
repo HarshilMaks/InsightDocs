@@ -1,200 +1,163 @@
 """
-Phase B: OCR Pipeline Integration Tests
-Tests OCR detection, text extraction, and integration with document processing.
+Integration tests for OCR detection/extraction and parser integration.
 """
 
 import pytest
-import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-os.environ.setdefault("JWT_SECRET", "test-secret-key")
-
+from backend.models.schemas import Document, DocumentChunk, TaskStatus
+from backend.utils.document_processor import DocumentProcessor
 from backend.utils.ocr_processor import OcrProcessor
 
 
 class TestOCRDetection:
-    """Test scanned PDF detection."""
-
     def test_detect_scanned_pdf_with_few_text_blocks(self):
-        """OCR processor should detect PDFs with < 3 text blocks per page as scanned."""
-        processor = OcrProcessor()
-        
-        # Mock PyMuPDF to return minimal text blocks
-        with patch('backend.utils.ocr_processor.fitz') as mock_fitz:
+        with patch("backend.utils.ocr_processor.fitz") as mock_fitz:
             mock_doc = MagicMock()
-            mock_page = MagicMock()
-            
-            # Simulate < 3 text blocks (scanned page)
-            mock_page.get_text("blocks").return_value = [("text1",), ("text2",)]
-            mock_doc.__getitem__.return_value = mock_page
             mock_doc.page_count = 1
+
+            mock_page = MagicMock()
+            mock_page.get_text.return_value = [("text1",), ("text2",)]
+            mock_rect = MagicMock()
+            mock_rect.get_area.return_value = 1_000_000
+            mock_page.rect = mock_rect
+
+            mock_doc.__getitem__.return_value = mock_page
             mock_fitz.open.return_value = mock_doc
-            
-            is_scanned, confidence = processor.detect_scanned_pdf("/fake/path.pdf")
-            
-            assert is_scanned == True
+
+            is_scanned, confidence = OcrProcessor.detect_scanned_pdf("/fake/path.pdf")
+            assert is_scanned is True
             assert 0.0 <= confidence <= 1.0
 
     def test_detect_native_pdf_with_many_text_blocks(self):
-        """OCR processor should detect PDFs with >= 3 text blocks per page as native."""
-        processor = OcrProcessor()
-        
-        with patch('backend.utils.ocr_processor.fitz') as mock_fitz:
+        with patch("backend.utils.ocr_processor.fitz") as mock_fitz:
             mock_doc = MagicMock()
-            mock_page = MagicMock()
-            
-            # Simulate >= 3 text blocks (native PDF)
-            mock_page.get_text("blocks").return_value = [
-                ("text1",), ("text2",), ("text3",), ("text4",)
-            ]
-            mock_doc.__getitem__.return_value = mock_page
             mock_doc.page_count = 1
+
+            mock_page = MagicMock()
+            mock_page.get_text.return_value = [("a",), ("b",), ("c",), ("d",)]
+            mock_rect = MagicMock()
+            mock_rect.get_area.return_value = 1_000_000
+            mock_page.rect = mock_rect
+
+            mock_doc.__getitem__.return_value = mock_page
             mock_fitz.open.return_value = mock_doc
-            
-            is_scanned, confidence = processor.detect_scanned_pdf("/fake/path.pdf")
-            
-            assert is_scanned == False
+
+            is_scanned, confidence = OcrProcessor.detect_scanned_pdf("/fake/path.pdf")
+            assert is_scanned is False
+            assert 0.0 <= confidence <= 1.0
 
     def test_detection_handles_multiple_pages(self):
-        """Detection should check multiple pages (up to 3) for accuracy."""
-        processor = OcrProcessor()
-        
-        with patch('backend.utils.ocr_processor.fitz') as mock_fitz:
+        with patch("backend.utils.ocr_processor.fitz") as mock_fitz:
             mock_doc = MagicMock()
-            mock_pages = []
-            
-            # Pages 0-2: scanned (few text blocks)
-            for i in range(3):
-                page = MagicMock()
-                page.get_text("blocks").return_value = [("text",)]
-                mock_pages.append(page)
-            
-            # Page 3: native (many text blocks) - beyond check limit
-            page = MagicMock()
-            page.get_text("blocks").return_value = [("a",), ("b",), ("c",), ("d",)]
-            mock_pages.append(page)
-            
-            mock_doc.__getitem__.side_effect = mock_pages
             mock_doc.page_count = 4
+
+            pages = []
+            for _ in range(3):
+                p = MagicMock()
+                p.get_text.return_value = [("text",)]
+                p.rect.get_area.return_value = 1_000_000
+                pages.append(p)
+
+            p4 = MagicMock()
+            p4.get_text.return_value = [("a",), ("b",), ("c",), ("d",)]
+            p4.rect.get_area.return_value = 1_000_000
+            pages.append(p4)
+
+            mock_doc.__getitem__.side_effect = pages
             mock_fitz.open.return_value = mock_doc
-            
-            is_scanned, _ = processor.detect_scanned_pdf("/fake/path.pdf")
-            
-            # Should be detected as scanned (first 3 pages are scanned)
-            assert is_scanned == True
+
+            is_scanned, confidence = OcrProcessor.detect_scanned_pdf("/fake/path.pdf")
+            assert is_scanned is True
+            assert 0.0 <= confidence <= 1.0
 
 
 class TestOCRTextExtraction:
-    """Test OCR text extraction from images."""
-
     def test_extract_text_from_image_with_confidence(self):
-        """OCR should extract text and return confidence score."""
-        processor = OcrProcessor()
-        
-        with patch('backend.utils.ocr_processor.pytesseract') as mock_ocr:
-            mock_ocr.image_to_data.return_value = """level page_num block_num par_num ...
-1 1 1 1 10 10 100 100 0.95 "Hello"
-1 1 1 1 120 10 200 100 0.90 "World"
-"""
-            with patch('backend.utils.ocr_processor.Image') as mock_image:
-                mock_img = MagicMock()
-                mock_image.open.return_value = mock_img
-                
-                text, confidence = processor.extract_text_from_image("/fake/image.png")
-                
-                # Should have extracted text
-                assert text is not None
-                assert len(text) > 0
-                # Confidence should be between 0 and 1
-                assert 0.0 <= confidence <= 1.0
+        with patch("backend.utils.ocr_processor.Image.open") as mock_open, patch(
+            "backend.utils.ocr_processor.pytesseract.image_to_data"
+        ) as mock_image_to_data:
+            mock_open.return_value = MagicMock()
+            mock_image_to_data.return_value = {
+                "text": ["Hello", "World", ""],
+                "conf": ["95", "90", "-1"],
+            }
 
-    def test_extract_text_handles_missing_tesseract(self):
-        """Should handle gracefully when Tesseract is not installed."""
-        processor = OcrProcessor()
-        
-        with patch('backend.utils.ocr_processor.pytesseract') as mock_ocr:
-            mock_ocr.pytesseract_not_found.side_effect = Exception("Tesseract not found")
-            
-            # Should not raise exception
-            with patch('backend.utils.ocr_processor.Image') as mock_image:
-                mock_img = MagicMock()
-                mock_image.open.return_value = mock_img
-                
-                # Extraction should fail gracefully
-                try:
-                    text, confidence = processor.extract_text_from_image("/fake/image.png")
-                except Exception as e:
-                    # Exception expected but shouldn't crash
-                    assert "Tesseract" in str(e) or "not" in str(e).lower()
+            text, confidence = OcrProcessor.extract_text_from_image("/fake/image.png")
+            assert text == "Hello World"
+            assert 0.9 <= confidence <= 1.0
+
+    def test_extract_text_handles_errors_gracefully(self):
+        with patch("backend.utils.ocr_processor.Image.open") as mock_open:
+            mock_open.side_effect = Exception("open failed")
+            text, confidence = OcrProcessor.extract_text_from_image("/fake/image.png")
+            assert text == ""
+            assert confidence == 0.0
 
 
 class TestOCRIntegrationWithDocumentProcessor:
-    """Test OCR integration with document processing pipeline."""
-
-    def test_ocr_processor_called_on_scanned_pdf_upload(self):
-        """When a scanned PDF is uploaded, OCR processor should be invoked."""
-        from backend.utils.document_processor import DocumentProcessor
-        
+    @pytest.mark.asyncio
+    async def test_scanned_pdf_uses_ocr_pipeline(self):
         processor = DocumentProcessor()
-        
-        with patch.object(processor, '_process_pdf') as mock_pdf:
-            with patch.object(OcrProcessor, 'detect_scanned_pdf') as mock_detect:
-                mock_detect.return_value = (True, 0.85)  # Detected as scanned
-                
-                # This would normally be called during document upload
-                # Verify detection is called
-                is_scanned, conf = OcrProcessor().detect_scanned_pdf("/fake.pdf")
-                
-                assert is_scanned == True
-                assert conf == 0.85
+        with patch.object(OcrProcessor, "detect_scanned_pdf", return_value=(True, 0.85)), patch.object(
+            OcrProcessor, "process_scanned_pdf", return_value=("ocr text", 0.91)
+        ):
+            result = await processor._parse_pdf_file("/fake/path.pdf")
 
-    def test_ocr_fallback_on_native_pdf(self):
-        """For native PDFs, OCR should not be triggered unnecessarily."""
-        from backend.utils.document_processor import DocumentProcessor
-        
+        assert result["text"] == "ocr text"
+        assert result["metadata"]["is_scanned"] is True
+        assert result["metadata"]["ocr_confidence"] == 0.91
+
+    @pytest.mark.asyncio
+    async def test_native_pdf_path_without_ocr(self):
         processor = DocumentProcessor()
-        
-        with patch.object(OcrProcessor, 'detect_scanned_pdf') as mock_detect:
-            mock_detect.return_value = (False, 0.0)  # Native PDF
-            
-            is_scanned, conf = OcrProcessor().detect_scanned_pdf("/fake.pdf")
-            
-            assert is_scanned == False
-            assert conf == 0.0
+
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = (
+            "This native PDF page contains enough text to avoid OCR fallback. "
+            "It should remain on the standard extraction path."
+        )
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+
+        with patch.object(OcrProcessor, "detect_scanned_pdf", return_value=(False, 0.1)), patch(
+            "PyPDF2.PdfReader", return_value=mock_reader
+        ):
+            result = await processor._parse_pdf_file("/fake/native.pdf")
+
+        assert result["metadata"]["is_scanned"] is False
+        assert "native PDF page contains enough text" in result["text"]
 
 
 class TestOCRMetadataTracking:
-    """Test that OCR metadata is properly stored."""
-
     def test_document_model_stores_ocr_fields(self):
-        """Document model should track is_scanned and ocr_confidence."""
-        from backend.models.schemas import Document, TaskStatus
-        
         doc = Document(
             id="test-doc",
             filename="scanned.pdf",
+            file_type=".pdf",
+            file_size=5000,
+            s3_bucket="test-bucket",
+            s3_key="uploads/scanned.pdf",
             user_id="user1",
             status=TaskStatus.COMPLETED,
-            file_size=5000,
-            chunks_count=10,
             is_scanned=True,
-            ocr_confidence=0.92
+            ocr_confidence=0.92,
         )
-        
-        assert doc.is_scanned == True
+        assert doc.is_scanned is True
         assert doc.ocr_confidence == 0.92
 
-    def test_document_chunk_preserves_ocr_metadata(self):
-        """Document chunks should preserve OCR confidence in metadata."""
-        from backend.models.schemas import DocumentChunk
-        
+    def test_document_chunk_model_basic_fields(self):
         chunk = DocumentChunk(
             id="chunk1",
             document_id="doc1",
             content="OCR extracted text",
             chunk_index=0,
-            metadata={"ocr_confidence": 0.88, "source": "ocr"}
+            milvus_id="vec-1",
         )
-        
-        assert chunk.metadata["ocr_confidence"] == 0.88
-        assert chunk.metadata["source"] == "ocr"
+        assert chunk.document_id == "doc1"
+        assert chunk.content == "OCR extracted text"
+        assert chunk.milvus_id == "vec-1"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

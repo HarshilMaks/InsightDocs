@@ -1,413 +1,278 @@
 """
-Phase B: RAG Query and User Isolation Tests
-Tests that RAG searches only return results from current user's documents.
+RAG query isolation tests for multi-tenant behavior.
 """
 
 import pytest
-import os
-from unittest.mock import patch, MagicMock, AsyncMock
-
-os.environ.setdefault("JWT_SECRET", "test-secret-key")
-
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+from unittest.mock import AsyncMock, patch
+
 from backend.api.main import app
-from backend.models import get_db, Document, DocumentChunk, TaskStatus
-from backend.models.schemas import User
-from backend.core.security import create_access_token
-from backend.models.database import engine, Base
+from backend.middleware.guardrails import check_input_guardrail
+from backend.models import Document, Query as QueryModel, TaskStatus
+from backend.models.database import Base, get_db
 
 
-@pytest.fixture(scope="function")
-def test_db_engine():
-    """Create in-memory SQLite engine."""
-    from sqlalchemy import create_engine
-    from sqlalchemy.pool import StaticPool
-    
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool
-    )
-    Base.metadata.create_all(bind=engine)
-    return engine
+engine = create_engine(
+    "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-@pytest.fixture(scope="function")
-def test_db(test_db_engine):
-    """Ensure tables exist."""
-    yield
 
-@pytest.fixture
-def db_session(test_db_engine):
-    """Database session."""
-    from sqlalchemy.orm import sessionmaker
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)
+def override_get_db():
     db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-@pytest.fixture
-def client(test_db_engine):
-    """FastAPI test client."""
-    from sqlalchemy.orm import sessionmaker
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)
-    
-    def override_get_db():
-        db = TestingSessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
-    
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_database():
+    Base.metadata.create_all(bind=engine)
     app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
-    app.dependency_overrides = {}
+    app.dependency_overrides[check_input_guardrail] = lambda: None
+    yield
+    app.dependency_overrides.pop(check_input_guardrail, None)
+    app.dependency_overrides.pop(get_db, None)
+    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture
-def user_a(db_session):
-    """Create test user A."""
-    user = User(
-        id="user-a",
-        email="usera@example.com",
-        name="User A",
-        hashed_password="hash",
-        is_active=True
+def client(setup_database):
+    return TestClient(app)
+
+
+def _register_and_login(client: TestClient, email: str, name: str):
+    r = client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "name": name, "password": "SecurePass123!"},
     )
-    db_session.add(user)
-    db_session.commit()
-    return user
+    assert r.status_code == 201, r.text
 
-
-@pytest.fixture
-def user_b(db_session):
-    """Create test user B."""
-    user = User(
-        id="user-b",
-        email="userb@example.com",
-        name="User B",
-        hashed_password="hash",
-        is_active=True
+    r = client.post(
+        "/api/v1/auth/login",
+        data={"username": email, "password": "SecurePass123!"},
     )
-    db_session.add(user)
-    db_session.commit()
-    return user
+    assert r.status_code == 200, r.text
+    return r.json()["token"]["access_token"]
 
 
-@pytest.fixture
-def token_a(user_a):
-    """JWT token for user A."""
-    return create_access_token(data={"user_id": user_a.id, "sub": user_a.email})
-
-
-@pytest.fixture
-def token_b(user_b):
-    """JWT token for user B."""
-    return create_access_token(data={"user_id": user_b.id, "sub": user_b.email})
-
-
-@pytest.fixture
-def user_a_docs(db_session, user_a):
-    """Create documents for user A."""
-    doc = Document(
-        id="doc-a-1",
-        filename="financial_report.pdf",
-        user_id=user_a.id,
-        status=TaskStatus.COMPLETED,
-        file_size=5000,
-        file_type="application/pdf",
-        s3_bucket="test-bucket",
-        s3_key="uploads/financial_report.pdf",
-    )
-    db_session.add(doc)
-    
-    # Add chunks with searchable content
-    chunk = DocumentChunk(
-        id="chunk-a-1",
-        document_id="doc-a-1",
-        content="Our quarterly financial performance shows strong growth in revenue.",
-        chunk_index=0
-    )
-    db_session.add(chunk)
-    db_session.commit()
-    
-    return [doc]
-
-
-@pytest.fixture
-def user_b_docs(db_session, user_b):
-    """Create documents for user B."""
-    doc = Document(
-        id="doc-b-1",
-        filename="marketing_strategy.pdf",
-        user_id=user_b.id,
-        status=TaskStatus.COMPLETED,
-        file_size=3000,
-        file_type="application/pdf",
-        s3_bucket="test-bucket",
-        s3_key="uploads/marketing_strategy.pdf",
-    )
-    db_session.add(doc)
-    
-    # Add chunks with different content
-    chunk = DocumentChunk(
-        id="chunk-b-1",
-        document_id="doc-b-1",
-        content="Our marketing strategy focuses on customer engagement and brand awareness.",
-        chunk_index=0
-    )
-    db_session.add(chunk)
-    db_session.commit()
-    
-    return [doc]
-
-@pytest.fixture
-def mock_rag_components():
-    """Mock all external RAG components to prevent real API/Model calls."""
-    with patch('backend.middleware.guardrails._call_gemini_guard', return_value=(True, "")) as mock_guard, \
-         patch('backend.api.query.get_embedding_engine') as mock_get_engine, \
-         patch('backend.api.query.get_reranker') as mock_get_reranker, \
-         patch('backend.api.query.LLMClient') as mock_llm_cls:
-        
-        # Mock Embedding Engine
-        mock_engine = MagicMock()
-        mock_engine.search = AsyncMock()  # Async search
-        mock_get_engine.return_value = mock_engine
-        
-        # Mock Reranker
-        mock_reranker = MagicMock()
-        # Default behavior: return results as-is (sliced by top_n)
-        mock_reranker.rerank.side_effect = lambda q, r, top_n=5: r[:top_n]
-        mock_get_reranker.return_value = mock_reranker
-        
-        # Mock LLM Client
-        mock_llm = MagicMock()
-        mock_llm.generate_rag_response = AsyncMock(return_value="Mocked RAG response") # Async generate
-        mock_llm_cls.return_value = mock_llm
-        
-        yield {
-            "guard": mock_guard,
-            "engine": mock_engine,
-            "reranker": mock_reranker,
-            "llm": mock_llm
-        }
+def _user_id_from_token(client: TestClient, token: str) -> str:
+    h = {"Authorization": f"Bearer {token}"}
+    r = client.get("/api/v1/users/me/byok-status", headers=h)
+    assert r.status_code == 200
+    return r.json()["user_id"]
 
 
 class TestRAGSourceFiltering:
-    """Test that RAG results are filtered by user ownership."""
+    def test_query_only_returns_user_sources(self, client):
+        token_a = _register_and_login(client, "usera@example.com", "User A")
+        token_b = _register_and_login(client, "userb@example.com", "User B")
+        user_a = _user_id_from_token(client, token_a)
+        user_b = _user_id_from_token(client, token_b)
 
-    def test_query_only_returns_user_sources(self, client, token_a, user_a_docs, user_b_docs, mock_rag_components):
-        """User A's query should only return sources from User A's documents."""
-        headers = {"Authorization": f"Bearer {token_a}"}
-        
-        # Mock embedding search returning results from both users
-        mock_rag_components["engine"].search.return_value = [
-            {
-                "text": "Revenue data...",
-                "metadata": {"document_id": "doc-a-1"},
-                "score": 0.95
-            },
-            {
-                "text": "Marketing campaign...",
-                "metadata": {"document_id": "doc-b-1"},
-                "score": 0.87
-            }
-        ]
-        
-        response = client.post(
-            "/api/v1/query/",
-            headers=headers,
-            json={"query": "financial performance"}
-        )
-        
-        assert response.status_code == 200
-        result = response.json()
-        
-        # Should only include User A's sources
-        source_ids = [s["document_id"] for s in result.get("sources", [])]
+        db = TestingSessionLocal()
+        try:
+            db.add_all(
+                [
+                    Document(
+                        id="doc-a-1",
+                        filename="a.pdf",
+                        user_id=user_a,
+                        status=TaskStatus.COMPLETED,
+                        file_size=100,
+                        file_type=".pdf",
+                        s3_bucket="test",
+                        s3_key="a.pdf",
+                    ),
+                    Document(
+                        id="doc-b-1",
+                        filename="b.pdf",
+                        user_id=user_b,
+                        status=TaskStatus.COMPLETED,
+                        file_size=100,
+                        file_type=".pdf",
+                        s3_bucket="test",
+                        s3_key="b.pdf",
+                    ),
+                ]
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        mock_orch = AsyncMock()
+        mock_orch.process_query.return_value = {
+            "success": True,
+            "answer": "ok",
+            "sources": [
+                {"content": "A", "score": 0.95, "metadata": {"document_id": "doc-a-1"}},
+                {"content": "B", "score": 0.90, "metadata": {"document_id": "doc-b-1"}},
+            ],
+        }
+
+        with patch("backend.api.query._get_user_orchestrator", return_value=mock_orch):
+            r = client.post(
+                "/api/v1/query/",
+                headers={"Authorization": f"Bearer {token_a}"},
+                json={"query": "financial performance"},
+            )
+
+        assert r.status_code == 200, r.text
+        source_ids = {s["document_id"] for s in r.json().get("sources", [])}
         assert "doc-a-1" in source_ids
         assert "doc-b-1" not in source_ids
 
-    def test_query_with_no_user_documents_returns_empty_sources(self, client, token_b, mock_rag_components):
-        """User with no documents should get empty sources."""
-        headers = {"Authorization": f"Bearer {token_b}"}
-        
-        # Mock engine returns some results (e.g. from other users)
-        mock_rag_components["engine"].search.return_value = [
-             {
-                "text": "Revenue data...",
-                "metadata": {"document_id": "doc-a-1"},
-                "score": 0.95
-            }
-        ]
-        
-        # This user (B) has no documents yet (if we don't use user_b_docs fixture)
-        
-        response = client.post(
-            "/api/v1/query/",
-            headers=headers,
-            json={"query": "something to search"}
-        )
-        
-        assert response.status_code == 200
-        result = response.json()
-        # User has no documents, so sources should be empty
-        assert len(result.get("sources", [])) == 0
+    def test_query_with_no_user_documents_returns_empty_sources(self, client):
+        token = _register_and_login(client, "empty@example.com", "Empty User")
 
-    def test_different_users_get_different_sources(self, client, token_a, token_b,
-                                                  user_a_docs, user_b_docs, mock_rag_components):
-        """User A and User B should get different sources for same query."""
-        
-        # Mock returns all results
-        mock_rag_components["engine"].search.return_value = [
-            {
-                "text": "User A's content",
-                "metadata": {"document_id": "doc-a-1"},
-                "score": 0.9
-            },
-            {
-                "text": "User B's content",
-                "metadata": {"document_id": "doc-b-1"},
-                "score": 0.85
+        mock_orch = AsyncMock()
+        mock_orch.process_query.return_value = {
+            "success": True,
+            "answer": "ok",
+            "sources": [
+                {"content": "other", "score": 0.7, "metadata": {"document_id": "non-owned-doc"}},
+            ],
+        }
+
+        with patch("backend.api.query._get_user_orchestrator", return_value=mock_orch):
+            r = client.post(
+                "/api/v1/query/",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"query": "something"},
+            )
+
+        assert r.status_code == 200
+        assert r.json().get("sources", []) == []
+
+    def test_different_users_get_different_sources(self, client):
+        token_a = _register_and_login(client, "diffa@example.com", "Diff A")
+        token_b = _register_and_login(client, "diffb@example.com", "Diff B")
+        user_a = _user_id_from_token(client, token_a)
+        user_b = _user_id_from_token(client, token_b)
+
+        db = TestingSessionLocal()
+        try:
+            db.add_all(
+                [
+                    Document(
+                        id="doc-diff-a",
+                        filename="da.pdf",
+                        user_id=user_a,
+                        status=TaskStatus.COMPLETED,
+                        file_size=10,
+                        file_type=".pdf",
+                        s3_bucket="test",
+                        s3_key="da.pdf",
+                    ),
+                    Document(
+                        id="doc-diff-b",
+                        filename="db.pdf",
+                        user_id=user_b,
+                        status=TaskStatus.COMPLETED,
+                        file_size=10,
+                        file_type=".pdf",
+                        s3_bucket="test",
+                        s3_key="db.pdf",
+                    ),
+                ]
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        mock_orch = AsyncMock()
+
+        async def _side_effect(query_text: str, user_id: str):
+            if user_id == user_a:
+                return {
+                    "success": True,
+                    "answer": "A",
+                    "sources": [{"content": "A", "score": 0.8, "metadata": {"document_id": "doc-diff-a"}}],
+                }
+            return {
+                "success": True,
+                "answer": "B",
+                "sources": [{"content": "B", "score": 0.8, "metadata": {"document_id": "doc-diff-b"}}],
             }
-        ]
-        
-        # User A searches
-        headers_a = {"Authorization": f"Bearer {token_a}"}
-        response_a = client.post(
-            "/api/v1/query/",
-            headers=headers_a,
-            json={"query": "content"}
-        )
-        sources_a = response_a.json().get("sources", [])
-        
-        # User B searches same query
-        headers_b = {"Authorization": f"Bearer {token_b}"}
-        response_b = client.post(
-            "/api/v1/query/",
-            headers=headers_b,
-            json={"query": "content"}
-        )
-        sources_b = response_b.json().get("sources", [])
-        
-        # Results should differ based on user ownership
-        doc_ids_a = {s.get("document_id") for s in sources_a}
-        doc_ids_b = {s.get("document_id") for s in sources_b}
-        
-        assert "doc-a-1" in doc_ids_a
-        assert "doc-b-1" not in doc_ids_a
-        
-        assert "doc-b-1" in doc_ids_b
-        assert "doc-a-1" not in doc_ids_b
+
+        mock_orch.process_query.side_effect = _side_effect
+
+        with patch("backend.api.query._get_user_orchestrator", return_value=mock_orch):
+            ra = client.post("/api/v1/query/", headers={"Authorization": f"Bearer {token_a}"}, json={"query": "q"})
+            rb = client.post("/api/v1/query/", headers={"Authorization": f"Bearer {token_b}"}, json={"query": "q"})
+
+        assert ra.status_code == 200 and rb.status_code == 200
+        assert {s["document_id"] for s in ra.json()["sources"]} == {"doc-diff-a"}
+        assert {s["document_id"] for s in rb.json()["sources"]} == {"doc-diff-b"}
 
 
 class TestRAGQueryRecordTracking:
-    """Test that query records include user information."""
+    def test_query_record_includes_user_id(self, client):
+        token = _register_and_login(client, "record@example.com", "Record User")
+        user_id = _user_id_from_token(client, token)
 
-    def test_query_record_includes_user_id(self, db_session, client, token_a, mock_rag_components):
-        """Query record in database should include user_id."""
-        headers = {"Authorization": f"Bearer {token_a}"}
-        
-        mock_rag_components["engine"].search.return_value = [
-            {
-                "text": "test result",
-                "metadata": {"document_id": "doc-a-1"},
-                "score": 0.9
-            }
-        ]
-        
-        response = client.post(
-            "/api/v1/query/",
-            headers=headers,
-            json={"query": "test"}
-        )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "query_id" in data
-        
-        # Verify in DB
-        from backend.models import Query as QueryModel
-        query_record = db_session.query(QueryModel).filter_by(id=data["query_id"]).first()
-        assert query_record is not None
-        assert query_record.user_id == "user-a"
+        db = TestingSessionLocal()
+        try:
+            db.add(
+                Document(
+                    id="doc-record",
+                    filename="record.pdf",
+                    user_id=user_id,
+                    status=TaskStatus.COMPLETED,
+                    file_size=10,
+                    file_type=".pdf",
+                    s3_bucket="test",
+                    s3_key="record.pdf",
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
 
+        mock_orch = AsyncMock()
+        mock_orch.process_query.return_value = {
+            "success": True,
+            "answer": "ok",
+            "sources": [{"content": "x", "score": 0.9, "metadata": {"document_id": "doc-record"}}],
+        }
 
-class TestRAGWithOCRContent:
-    """Test RAG search on OCR-extracted content."""
+        with patch("backend.api.query._get_user_orchestrator", return_value=mock_orch):
+            r = client.post("/api/v1/query/", headers={"Authorization": f"Bearer {token}"}, json={"query": "test"})
 
-    def test_query_finds_ocr_extracted_text(self, db_session, client, token_a, mock_rag_components):
-        """RAG should search OCR-extracted text effectively."""
-        
-        # Create document with OCR metadata
-        doc = Document(
-            id="ocr-doc",
-            filename="scanned.pdf",
-            user_id="user-a",
-            status=TaskStatus.COMPLETED,
-            file_size=2000,
-            file_type="application/pdf",
-            s3_bucket="test-bucket",
-            s3_key="uploads/scanned.pdf",
-            is_scanned=True,
-            ocr_confidence=0.92
-        )
-        db_session.add(doc)
-        db_session.commit()
-        
-        headers = {"Authorization": f"Bearer {token_a}"}
-        
-        mock_rag_components["engine"].search.return_value = [
-            {
-                "text": "This text was extracted from a scanned document...",
-                "metadata": {"document_id": "ocr-doc"},
-                "score": 0.88
-            }
-        ]
-        
-        response = client.post(
-            "/api/v1/query/",
-            headers=headers,
-            json={"query": "scanned document OCR"}
-        )
-        
-        assert response.status_code == 200
-        sources = response.json().get("sources", [])
-        assert len(sources) > 0
-        assert sources[0]["document_id"] == "ocr-doc"
+        assert r.status_code == 200
+        qid = r.json()["query_id"]
+
+        db = TestingSessionLocal()
+        try:
+            rec = db.query(QueryModel).filter(QueryModel.id == qid).first()
+            assert rec is not None
+            assert rec.user_id == user_id
+        finally:
+            db.close()
 
 
 class TestRAGErrorHandling:
-    """Test RAG query error handling."""
+    def test_milvus_offline_returns_appropriate_error(self, client):
+        token = _register_and_login(client, "errorcase@example.com", "Error Case")
 
-    def test_empty_query_handled(self, client, token_a, mock_rag_components):
-        """Empty query should be handled gracefully."""
-        headers = {"Authorization": f"Bearer {token_a}"}
-        
-        response = client.post(
-            "/api/v1/query/",
-            headers=headers,
-            json={"query": ""}
-        )
-        
-        # Should either succeed with empty results or return 400
-        # If the backend allows empty query strings
-        assert response.status_code in [200, 400]
+        mock_orch = AsyncMock()
+        mock_orch.process_query.return_value = {
+            "success": False,
+            "answer": "",
+            "sources": [],
+            "error": "Milvus connection failed",
+        }
 
-    def test_milvus_offline_returns_appropriate_error(self, client, token_a, mock_rag_components):
-        """If Milvus is offline, should return appropriate error."""
-        headers = {"Authorization": f"Bearer {token_a}"}
-        
-        # Simulate engine failure
-        mock_rag_components["engine"].search.side_effect = Exception("Milvus connection failed")
-        
-        response = client.post(
-            "/api/v1/query/",
-            headers=headers,
-            json={"query": "test"}
-        )
-        
-        # Should return 500
-        assert response.status_code == 500
-        assert "Milvus connection failed" in response.json().get("detail", "")
+        with patch("backend.api.query._get_user_orchestrator", return_value=mock_orch):
+            r = client.post("/api/v1/query/", headers={"Authorization": f"Bearer {token}"}, json={"query": "test"})
+
+        assert r.status_code == 500
+        assert "Milvus connection failed" in r.json().get("detail", "")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

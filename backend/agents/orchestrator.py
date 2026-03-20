@@ -12,11 +12,17 @@ logger = logging.getLogger(__name__)
 class OrchestratorAgent(BaseAgent):
     """Central orchestrator coordinating all sub-agents."""
 
-    def __init__(self, agent_id: str = "orchestrator"):
+    def __init__(self, agent_id: str = "orchestrator", api_key: str = None):
         super().__init__(agent_id, "OrchestratorAgent")
-        self.data_agent = DataAgent()
-        self.analysis_agent = AnalysisAgent()
-        self.planning_agent = PlanningAgent()
+        self.data_agent = None
+        self.analysis_agent = AnalysisAgent(api_key=api_key)
+        self.planning_agent = PlanningAgent(api_key=api_key)
+
+    def _get_data_agent(self) -> DataAgent:
+        """Lazily initialize DataAgent to avoid unnecessary storage connections."""
+        if self.data_agent is None:
+            self.data_agent = DataAgent()
+        return self.data_agent
 
     async def process(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Orchestrate a complex workflow across multiple agents."""
@@ -40,7 +46,7 @@ class OrchestratorAgent(BaseAgent):
         document_id = message.get("document_id")
 
         # Step 1: Ingest document (upload to S3, parse content)
-        ingest_result = await self.data_agent.process({
+        ingest_result = await self._get_data_agent().process({
             "task_type": "ingest",
             "file_path": message.get("file_path"),
             "filename": message.get("filename"),
@@ -57,7 +63,7 @@ class OrchestratorAgent(BaseAgent):
         await self._update_document_ocr_info(document_id, is_scanned, ocr_confidence)
 
         # Step 2: Chunk text
-        transform_result = await self.data_agent.process({
+        transform_result = await self._get_data_agent().process({
             "task_type": "transform",
             "content": raw_text,
             "chunk_size": message.get("chunk_size", 1000),
@@ -75,6 +81,7 @@ class OrchestratorAgent(BaseAgent):
                 "document_id": document_id,
                 "document_path": ingest_result["stored_path"],
                 "filename": message.get("filename"),
+                "user_id": message.get("user_id", "unknown"),  # NEW: For tenant isolation
             },
         })
         if not embed_result.get("success"):
@@ -158,15 +165,63 @@ class OrchestratorAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Failed to update document OCR info: {e}")
 
-    async def _query_workflow(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute RAG query workflow."""
-        query_text = message.get("query_text")
-        self.log_event("workflow_start", {"workflow_type": "query", "query": query_text})
+    async def process_query(self, query_text: str, user_id: str = None) -> Dict[str, Any]:
+        """Process a query using RAG pipeline (Hybrid Search + Reranker + LLM).
+        
+        This is the main entry point for the /query endpoint.
+        Args:
+            query_text: The user's query
+            user_id: Optional user ID for filtering results to user's documents only
+        Returns: {"answer": str, "sources": [{"content": str, "metadata": dict, "score": float}]}
+        """
+        try:
+            self.log_event("query_start", {"query": query_text, "user_id": user_id})
+            
+            # Step 1: Hybrid Vector Search (Dense + Sparse) with user filter
+            from backend.utils.embeddings import get_embedding_engine
+            embedding_engine = get_embedding_engine()
+            search_results = await embedding_engine.search(query_text, top_k=20, user_id=user_id)
+            
+            # Step 2: Rerank top candidates
+            from backend.utils.reranker import get_reranker
+            reranker = get_reranker()
+            reranked_results = reranker.rerank(query_text, search_results, top_n=5)
+            
+            # Step 3: Generate answer using RAG
+            context_chunks = [r["text"] for r in reranked_results]
+            # Use the LLMClient from AnalysisAgent (which has the api_key)
+            answer = await self.analysis_agent.llm_client.generate_rag_response(query_text, context_chunks)
+            
+            # Format sources for response
+            sources = [
+                {
+                    "content": r["text"],
+                    "metadata": r.get("metadata", {}),
+                    "score": r.get("score", 0.0)
+                }
+                for r in reranked_results
+            ]
+            
+            self.log_event("query_complete", {"query": query_text, "sources_count": len(sources)})
+            
+            return {
+                "success": True,
+                "answer": answer,
+                "sources": sources,
+                "agent_id": self.agent_id
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing query: {e}", exc_info=True)
+            return {
+                "success": False,
+                "answer": "I encountered an error processing your query. Please try again.",
+                "sources": [],
+                "error": str(e)
+            }
 
-        return {
-            "success": True,
-            "workflow_type": "query",
-            "query": query_text,
-            "answer": "Query processing workflow placeholder",
-            "agent_id": self.agent_id,
-        }
+    async def _query_workflow(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute RAG query workflow (legacy method, delegates to process_query)."""
+        query_text = message.get("query_text")
+        user_id = message.get("user_id")
+        return await self.process_query(query_text, user_id=user_id)

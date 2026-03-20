@@ -4,12 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 # --- Updated Imports ---
-from backend.api import documents, query, tasks, auth  # Import the new auth router
+from backend.api import documents, query, tasks, auth, users  # Import the new users router
 from backend.api.schemas import HealthResponse
 from backend.models.schemas import Base  # Import Base from your merged models file
 from backend.models.database import engine, get_db
 from backend.config import settings  # Import your new settings
-from backend.middleware.guardrails import InputGuardrailMiddleware
+# from backend.middleware.guardrails import InputGuardrailMiddleware  # Removed
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from backend.core.limiter import limiter
@@ -52,13 +52,15 @@ if settings.allowed_origins:
     )
 
 # --- Safety guardrail: screen query inputs with Gemini ---
-app.add_middleware(InputGuardrailMiddleware)
+# Removed middleware approach in favor of per-route dependency in query.py
+# app.add_middleware(InputGuardrailMiddleware)
 
 # --- Include all routers with the API prefix ---
 app.include_router(auth.router, prefix=settings.api_prefix)
 app.include_router(documents.router, prefix=settings.api_prefix)
 app.include_router(query.router, prefix=settings.api_prefix)
 app.include_router(tasks.router, prefix=settings.api_prefix)
+app.include_router(users.router, prefix=settings.api_prefix)
 
 
 @app.get("/", response_model=HealthResponse, tags=["System"])
