@@ -124,6 +124,13 @@ class DocumentChunk(Base, TimestampMixin):
     embedding_model = Column(String(100), nullable=True)
     embedding_dimension = Column(Integer, nullable=True)
     milvus_id = Column(String(100), nullable=True) # Renamed from embedding_id
+    
+    # Spatial positioning (bounding boxes for precise citations)
+    page_number = Column(Integer, nullable=True)
+    bbox_x1 = Column(Float, nullable=True)  # Left coordinate
+    bbox_y1 = Column(Float, nullable=True)  # Top coordinate
+    bbox_x2 = Column(Float, nullable=True)  # Right coordinate
+    bbox_y2 = Column(Float, nullable=True)  # Bottom coordinate
 
     # Relationships
     document = relationship("Document", back_populates="chunks")

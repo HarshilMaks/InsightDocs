@@ -51,27 +51,35 @@ class AnalysisAgent(BaseAgent):
         """Generate embeddings for text chunks.
         
         Args:
-            message: Message containing chunks to embed
+            message: Message containing chunks to embed (str or dict with 'text' key)
             
         Returns:
             Embeddings result
         """
         chunks = message.get("chunks", [])
         
-        self.log_event("embed_start", {"chunk_count": len(chunks)})
+        # Extract text from chunks (handle both str and dict formats)
+        chunk_texts = []
+        for chunk in chunks:
+            if isinstance(chunk, str):
+                chunk_texts.append(chunk)
+            else:
+                chunk_texts.append(chunk.get("text", ""))
+        
+        self.log_event("embed_start", {"chunk_count": len(chunk_texts)})
         
         # Generate embeddings (returns dict with 'dense' and 'sparse')
-        embeddings = await self.embedding_engine.embed_texts(chunks)
+        embeddings = await self.embedding_engine.embed_texts(chunk_texts)
         
         # Store in vector database
         vector_ids = await self.embedding_engine.store_embeddings(
             embeddings,
-            chunks,
+            chunk_texts,  # Store the text strings
             message.get("metadata", {})
         )
         
         self.log_event("embed_complete", {
-            "chunk_count": len(chunks),
+            "chunk_count": len(chunk_texts),
             "vector_ids": len(vector_ids)
         })
         

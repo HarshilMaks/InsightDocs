@@ -13,11 +13,12 @@ def processor():
 async def test_chunk_text_basic(processor):
     """Test basic text chunking."""
     text = "This is sentence one. This is sentence two. This is sentence three."
-    
+
     chunks = await processor.chunk_text(text, chunk_size=50, overlap=10)
-    
+
     assert len(chunks) > 0
-    assert all(isinstance(chunk, str) for chunk in chunks)
+    # Chunks are now dicts with 'text' key (bbox upgrade)
+    assert all(isinstance(chunk, dict) and 'text' in chunk for chunk in chunks)
 
 
 @pytest.mark.asyncio
@@ -36,7 +37,8 @@ async def test_chunk_text_small(processor):
     chunks = await processor.chunk_text(text, chunk_size=100)
     
     assert len(chunks) == 1
-    assert chunks[0] == text
+    # Chunks are now dicts with 'text' key (bbox upgrade)
+    assert chunks[0]['text'] == text
 
 
 @pytest.mark.asyncio

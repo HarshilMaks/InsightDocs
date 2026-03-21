@@ -132,21 +132,36 @@ class OrchestratorAgent(BaseAgent):
         }
 
     async def _store_chunks_to_db(self, document_id: str, chunks: list, vector_ids: list):
-        """Persist document chunks to PostgreSQL."""
+        """Persist document chunks to PostgreSQL with optional bbox data."""
         try:
             from backend.models import get_db, DocumentChunk
 
             db = next(get_db())
-            for i, chunk_text in enumerate(chunks):
+            for i, chunk_data in enumerate(chunks):
+                # Handle both old format (str) and new format (dict with bbox)
+                if isinstance(chunk_data, str):
+                    chunk_text = chunk_data
+                    bbox = None
+                    page_number = None
+                else:
+                    chunk_text = chunk_data.get("text", "")
+                    bbox = chunk_data.get("bbox")
+                    page_number = chunk_data.get("page_number")
+                
                 chunk = DocumentChunk(
                     document_id=document_id,
                     chunk_index=i,
                     content=chunk_text,
                     milvus_id=vector_ids[i] if i < len(vector_ids) else None,
+                    page_number=page_number,
+                    bbox_x1=bbox["x1"] if bbox else None,
+                    bbox_y1=bbox["y1"] if bbox else None,
+                    bbox_x2=bbox["x2"] if bbox else None,
+                    bbox_y2=bbox["y2"] if bbox else None,
                 )
                 db.add(chunk)
             db.commit()
-            logger.info(f"Stored {len(chunks)} chunks for document {document_id}")
+            logger.info(f"Stored {len(chunks)} chunks for document {document_id} (with bbox data where available)")
         except Exception as e:
             logger.error(f"Failed to store chunks to DB: {e}")
 

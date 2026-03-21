@@ -40,10 +40,12 @@ class Settings(BaseSettings):
     milvus_uri: str
     milvus_token: str
     milvus_collection: str = Field("insightdocscollection")
-    milvus_dim: int = Field(768)
+    milvus_dim: int = Field(768)  # Updated to match bge-base-en-v1.5 (768-dim)
     
     # Embeddings
     vector_dimension: int = Field(384)
+    embedding_model_name: str = Field("BAAI/bge-base-en-v1.5")
+    legacy_embedding_model: str = Field("all-MiniLM-L6-v2")  # For backward compatibility
     
     # Storage
     s3_endpoint: str
