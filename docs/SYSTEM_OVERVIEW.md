@@ -14,7 +14,7 @@ InsightDocs is a production-ready AI-driven agent architecture system that trans
 
 ### RAG (Retrieval-Augmented Generation)
 - Document chunking and embedding generation
-- Vector similarity search with FAISS
+- Vector similarity search with Milvus
 - Context-aware response generation with Gemini
 - Source citation and attribution
 
@@ -52,7 +52,7 @@ Agent Orchestration → Specialized Agents → Message Queue
 
 ### 3. Data Layer
 ```
-PostgreSQL (Metadata) ← → FAISS (Vectors) ← → Redis (Queue)
+PostgreSQL (Metadata) ← → Milvus (Vectors) ← → Redis (Queue)
 ```
 
 ### 4. Storage Layer
@@ -71,7 +71,7 @@ S3/MinIO (Files) ← → Local Storage (Temp)
    a. Data Agent: Store file in S3, parse content
    b. Data Agent: Chunk text into segments
    c. Analysis Agent: Generate embeddings
-   d. Data Agent: Store embeddings in FAISS
+   d. Data Agent: Store embeddings in Milvus
 5. Task marked as completed
 6. Document ready for querying
 ```
@@ -80,7 +80,7 @@ S3/MinIO (Files) ← → Local Storage (Temp)
 ```
 1. User submits query via API
 2. Analysis Agent generates query embedding
-3. FAISS retrieves top-k similar chunks
+3. Milvus retrieves top-k similar chunks
 4. LLM Client constructs context from chunks
 5. Gemini generates contextual answer
 6. Response includes answer + sources with citations
@@ -183,11 +183,11 @@ pytest tests/test_core_agent.py -v
 
 ## Documentation
 
-- `README.md`: Project overview and features
-- `docs/QUICKSTART.md`: Getting started guide
-- `docs/ARCHITECTURE.md`: Detailed system architecture
-- `docs/API.md`: API endpoint reference
-- `docs/DEVELOPMENT.md`: Development guide
+- `../README.md`: Project overview and features
+- `QUICKSTART.md`: Getting started guide
+- `../ARCHITECTURE.md`: Detailed system architecture
+- `API.md`: API endpoint reference
+- `DEVELOPMENT.md`: Development guide
 
 ## Development Tools
 
@@ -251,7 +251,7 @@ The codebase demonstrates:
 
 ## Contributing
 
-See `docs/DEVELOPMENT.md` for:
+See `DEVELOPMENT.md` for:
 - Development workflow
 - Code style guide
 - Testing guidelines
@@ -260,9 +260,9 @@ See `docs/DEVELOPMENT.md` for:
 ## Support
 
 - GitHub Issues: Bug reports and feature requests
-- Documentation: Comprehensive guides in `docs/`
+- Documentation: Comprehensive guides in this directory
 - Code Examples: See `cli.py` and tests
 
 ---
 
-**Built with**: Python 3.11, FastAPI, Celery, PostgreSQL, Redis, FAISS, Gemini, Docker
+**Built with**: Python 3.11, FastAPI, Celery, PostgreSQL, Redis, Milvus, Gemini, Docker
