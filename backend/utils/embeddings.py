@@ -19,9 +19,9 @@ class EmbeddingEngine:
     """Handles embedding generation and vector storage with Milvus."""
     
     def __init__(self):
-        # Dense model (standard embeddings)
-        self.dense_model = SentenceTransformer('all-MiniLM-L6-v2')
-        self.dimension = settings.vector_dimension
+        # Dense model (upgraded to bge-base for better quality)
+        self.dense_model = SentenceTransformer(settings.embedding_model_name)
+        self.dimension = settings.milvus_dim  # Use milvus_dim (768) instead of vector_dimension
         
         # Sparse model (BM25 for keyword search)
         # Using BGEM3EmbeddingFunction as a wrapper or similar if available,

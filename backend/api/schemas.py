@@ -82,11 +82,20 @@ class DocumentUploadResponse(BaseSchema):
 # Query Schemas (Updated)
 # ---------------------------------------------------------
 
+class BoundingBox(BaseSchema):
+    """Spatial coordinates for text positioning"""
+    x1: float = Field(..., description="Left coordinate")
+    y1: float = Field(..., description="Top coordinate")
+    x2: float = Field(..., description="Right coordinate")
+    y2: float = Field(..., description="Bottom coordinate")
+    page_number: int = Field(..., description="Page number (1-indexed)")
+
 class SourceReference(BaseSchema):
     document_id: str
     document_name: str
     content_preview: str
     similarity_score: float
+    bbox: Optional[BoundingBox] = Field(None, description="Bounding box for precise citation")
 
 class QueryRequest(BaseSchema):
     query: str = Field(..., description="Query text")
