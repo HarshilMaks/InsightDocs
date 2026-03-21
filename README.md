@@ -294,10 +294,10 @@ make docker-logs    # View service logs
 ## 📚 Documentation
 
 - **[Quick Start Guide](docs/QUICKSTART.md)**: Getting started with InsightDocs
-- **[Architecture Guide](docs/ARCHITECTURE.md)**: Deep dive into system design
+- **[Architecture Guide](ARCHITECTURE.md)**: Deep dive into system design
 - **[API Reference](docs/API.md)**: Complete API endpoint documentation
 - **[Development Guide](docs/DEVELOPMENT.md)**: Contributing and development workflow
-- **[System Overview](SYSTEM_OVERVIEW.md)**: Detailed component breakdown
+- **[System Overview](docs/SYSTEM_OVERVIEW.md)**: Detailed component breakdown
 
 ## ⚙️ Configuration
 
