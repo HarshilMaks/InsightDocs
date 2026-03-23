@@ -567,6 +567,7 @@ const ProtectedRoute = ({ children }) => {
 - Document list (search, filter, sort)
 - Quick stats
 - Recent queries
+- Task status overview for uploads and podcast generation
 
 ---
 
@@ -599,6 +600,9 @@ const ProtectedRoute = ({ children }) => {
 ```
 
 **Actions**:
+- Summarize document
+- Generate quiz
+- Generate mind map
 - Generate podcast
 - Download document
 - Delete document
@@ -640,6 +644,7 @@ const ProtectedRoute = ({ children }) => {
 - Real-time streaming responses
 - Source citations with page numbers
 - Message history
+- Query history panel/sidebar from `/query/history`
 - Copy responses
 - Export chat (future)
 
@@ -680,9 +685,37 @@ const ProtectedRoute = ({ children }) => {
 
 **Features**:
 - BYOK API key input (encrypted storage)
+- BYOK status fetched from `/users/me/byok-status`
+- Enable/disable BYOK toggle
 - Profile editing (name, email)
 - Theme preference (light/dark)
 - Notification settings (future)
+
+---
+
+## 🔌 Backend API Surface (Current)
+
+This is the exact backend surface the frontend should target now.
+
+> Note: There is **no** `GET /users/me` profile endpoint yet. The login response already includes the user object, and BYOK state should be fetched separately from `/users/me/byok-status`.
+
+| Area | Endpoints | Frontend usage |
+|------|-----------|----------------|
+| Authentication | `POST /auth/register`, `POST /auth/login` | Sign up and sign in |
+| Documents | `POST /documents/upload`, `GET /documents/`, `GET /documents/{document_id}`, `DELETE /documents/{document_id}` | Dashboard + document detail |
+| Document Intelligence | `POST /documents/{document_id}/summarize`, `POST /documents/{document_id}/quiz`, `POST /documents/{document_id}/mindmap`, `POST /documents/{document_id}/generate-podcast`, `GET /documents/{document_id}/podcast` | Document actions and media |
+| Query | `POST /query/`, `GET /query/history` | Chat page and query history |
+| Tasks | `GET /tasks/`, `GET /tasks/{task_id}` | Upload/podcast job status |
+| User Settings | `PUT /users/me/api-key`, `DELETE /users/me/api-key`, `PATCH /users/me/byok-settings`, `GET /users/me/byok-status` | BYOK settings panel |
+| System | `GET /`, `GET /api/v1/health` | App bootstrap and diagnostics |
+
+### Auth Contract Notes
+
+- `POST /auth/register` accepts JSON: `{ name, email, password }`
+- `POST /auth/login` uses OAuth2 form data:
+  - `username` = email
+  - `password` = password
+- `POST /query/` accepts JSON: `{ query, top_k? }`
 
 ---
 
