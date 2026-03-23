@@ -52,6 +52,9 @@ class LoginRequest(BaseSchema):
 class LoginResponse(BaseSchema):
     token: Token
     user: UserResponse
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    token_type: str = "bearer"
 
 # ---------------------------------------------------------
 # Document Schemas (Updated)

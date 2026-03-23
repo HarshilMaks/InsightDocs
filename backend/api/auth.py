@@ -78,4 +78,10 @@ def login_for_access_token(
         token_type="bearer"
     )
     
-    return LoginResponse(token=token, user=user)
+    return LoginResponse(
+        token=token,
+        user=user,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+    )

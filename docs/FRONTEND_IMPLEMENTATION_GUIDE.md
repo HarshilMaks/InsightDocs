@@ -439,6 +439,7 @@ const ProtectedRoute = ({ children }) => {
 **DocumentViewer.tsx** - Document detail view:
 - PDF viewer (or preview for other formats)
 - Metadata panel
+- Summary / quiz / mind map action buttons
 - Generate podcast button
 - Download button
 - Chunk viewer with bbox highlighting
@@ -447,6 +448,7 @@ const ProtectedRoute = ({ children }) => {
 
 **ChatInterface.tsx** - Main chat UI:
 - Document selector dropdown
+- Query history sidebar/panel
 - Message history
 - Input box
 - Send button
@@ -482,6 +484,21 @@ const ProtectedRoute = ({ children }) => {
 - Delete button (with confirmation)
 - Guide link to Google AI Studio
 
+#### 6. Task Components
+
+**TaskStatusCard.tsx** - Async job summary:
+- Task type (upload, podcast generation)
+- Status badge
+- Progress bar
+- Created time
+- Link to task details
+
+**TaskList.tsx** - Task feed:
+- Recent uploads and podcast jobs
+- Filter by status
+- Auto-refresh while processing
+- Empty state when no tasks exist
+
 ---
 
 ## 📄 Pages to Build
@@ -512,7 +529,7 @@ const ProtectedRoute = ({ children }) => {
 
 **Flow**:
 1. User enters email + password
-2. API call to `/auth/login`
+2. API call to `/auth/login` with form-encoded `username` + `password`
 3. Store JWT token in Zustand + localStorage
 4. Redirect to `/dashboard`
 
@@ -767,29 +784,54 @@ export default api;
 **src/lib/api.ts** (continued):
 ```typescript
 // Auth
-export const login = (email: string, password: string) =>
-  api.post('/auth/login', { username: email, password });
+export const login = (email: string, password: string) => {
+  const form = new URLSearchParams();
+  form.append('username', email);
+  form.append('password', password);
+  return api.post('/auth/login', form, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+};
 
 export const register = (name: string, email: string, password: string) =>
   api.post('/auth/register', { name, email, password });
 
 // Documents
-export const getDocuments = () => api.get('/documents');
+export const getDocuments = () => api.get('/documents/');
 export const getDocument = (id: string) => api.get(`/documents/${id}`);
 export const uploadDocument = (file: File) => {
   const formData = new FormData();
   formData.append('file', file);
-  return api.post('/documents/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  return api.post('/documents/upload', formData);
 };
 export const deleteDocument = (id: string) => api.delete(`/documents/${id}`);
+export const summarizeDocument = (id: string) =>
+  api.post(`/documents/${id}/summarize`);
+
+export const generateQuiz = (id: string) =>
+  api.post(`/documents/${id}/quiz`);
+
+export const generateMindmap = (id: string) =>
+  api.post(`/documents/${id}/mindmap`);
+
+export const generatePodcast = (id: string) =>
+  api.post(`/documents/${id}/generate-podcast`);
+
+export const getPodcast = (id: string) =>
+  api.get(`/documents/${id}/podcast`);
 
 // Chat
-export const sendQuery = (documentId: string, query: string) =>
-  api.post('/query', { document_id: documentId, query_text: query });
+export const sendQuery = (query: string, topK = 5) =>
+  api.post('/query/', { query, top_k: topK });
 
-export const getQueries = () => api.get('/queries');
+export const getQueryHistory = (skip = 0, limit = 100) =>
+  api.get('/query/history', { params: { skip, limit } });
+
+// Tasks
+export const getTasks = (skip = 0, limit = 100) =>
+  api.get('/tasks/', { params: { skip, limit } });
+
+export const getTaskStatus = (taskId: string) => api.get(`/tasks/${taskId}`);
 
 // API Key (BYOK)
 export const saveApiKey = (apiKey: string) =>
@@ -797,8 +839,10 @@ export const saveApiKey = (apiKey: string) =>
 
 export const deleteApiKey = () => api.delete('/users/me/api-key');
 
-// User
-export const getCurrentUser = () => api.get('/users/me');
+export const updateByokSettings = (enabled: boolean) =>
+  api.patch('/users/me/byok-settings', { enabled });
+
+export const getByokStatus = () => api.get('/users/me/byok-status');
 ```
 
 ---
@@ -816,7 +860,9 @@ interface User {
   id: string;
   email: string;
   name: string;
-  byok_enabled: boolean;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface AuthState {
@@ -851,6 +897,8 @@ export const useAuthStore = create<AuthState>()(
   )
 );
 ```
+
+> BYOK state is separate from the login response. Fetch `/users/me/byok-status` in the Settings page when you need to show whether the user is using their own Gemini key.
 
 ### TanStack Query for Server State
 
@@ -1034,4 +1082,4 @@ export const useDocuments = () => {
 
 ## 📝 Summary
 
-This guide provides a complete blueprint for building the InsightDocs frontend. Follow the implementation order, use the component structure, and integrate with the existing backend API. The result will be a modern, performant, and beautiful React application! 🚀
+This guide provides a complete blueprint for building the InsightDocs frontend. Follow the implementation order, use the component structure, and integrate with the current backend API surface, including document intelligence, task tracking, and BYOK settings. The result will be a modern, performant, and beautiful React application! 🚀

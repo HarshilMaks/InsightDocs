@@ -54,6 +54,12 @@ class OrchestratorAgent(BaseAgent):
         if not ingest_result.get("success"):
             return ingest_result
 
+        await self._update_document_storage_info(
+            document_id,
+            self._get_data_agent().file_storage.bucket_name,
+            ingest_result["stored_path"],
+        )
+
         raw_text = ingest_result["content"].get("text", "")
         metadata = ingest_result["content"].get("metadata", {})
         
@@ -179,6 +185,23 @@ class OrchestratorAgent(BaseAgent):
                 logger.info(f"Updated document {document_id} OCR info: is_scanned={is_scanned}, conf={ocr_confidence}")
         except Exception as e:
             logger.error(f"Failed to update document OCR info: {e}")
+
+    async def _update_document_storage_info(self, document_id: str, s3_bucket: str, s3_key: str):
+        """Update the Document record with the final object storage location."""
+        try:
+            from backend.models import get_db, Document
+
+            db = next(get_db())
+            doc = db.query(Document).filter(Document.id == document_id).first()
+            if doc:
+                doc.s3_bucket = s3_bucket
+                doc.s3_key = s3_key
+                db.commit()
+                logger.info(
+                    f"Updated document {document_id} storage info: bucket={s3_bucket}, key={s3_key}"
+                )
+        except Exception as e:
+            logger.error(f"Failed to update document storage info: {e}")
 
     async def process_query(self, query_text: str, user_id: str) -> Dict[str, Any]:
         """Process a query using RAG pipeline (Hybrid Search + Reranker + LLM).

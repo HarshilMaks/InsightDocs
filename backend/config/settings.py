@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     aws_access_key_id: str
     aws_secret_access_key: str
     s3_bucket_name: str
+    aws_default_region: str = Field("us-east-1")
     
     @property
     def allowed_origins_list(self) -> List[str]:

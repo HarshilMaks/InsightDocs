@@ -3,6 +3,7 @@ from typing import Optional
 import logging
 from pathlib import Path
 import boto3
+from botocore.client import Config
 from botocore.exceptions import ClientError
 from backend.config import settings
 
@@ -17,7 +18,9 @@ class FileStorage:
             's3',
             endpoint_url=settings.s3_endpoint,
             aws_access_key_id=settings.aws_access_key_id,
-            aws_secret_access_key=settings.aws_secret_access_key
+            aws_secret_access_key=settings.aws_secret_access_key,
+            region_name=settings.aws_default_region,
+            config=Config(signature_version="s3v4"),
         )
         self.bucket_name = settings.s3_bucket_name
         self._ensure_bucket_exists()

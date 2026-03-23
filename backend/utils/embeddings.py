@@ -30,8 +30,9 @@ class EmbeddingEngine:
             from milvus_model.hybrid import BGEM3EmbeddingFunction
             self.sparse_model = BGEM3EmbeddingFunction(use_fp16=False, device="cpu")
             self.has_sparse = True
-        except ImportError:
-            logger.warning("milvus-model not installed, sparse vectors disabled")
+        except Exception as e:
+            logger.warning(f"Sparse vectors disabled: {e}")
+            self.sparse_model = None
             self.has_sparse = False
             
         self.collection = None  # Initialize before connect attempt
@@ -221,10 +222,9 @@ class EmbeddingEngine:
             raise RuntimeError("Milvus connection not available")
             
         try:
-            # Generate query embeddings (dense + sparse)
+            # Generate query embeddings (dense + sparse when available)
             query_embeds = await self.embed_texts([query_text])
             dense_query = query_embeds['dense'][0]
-            sparse_query = query_embeds['sparse'][0]
             
             # Create AnnSearchRequests
             from pymilvus import AnnSearchRequest, WeightedRanker
@@ -237,28 +237,42 @@ class EmbeddingEngine:
                 limit=top_k * 3  # Fetch more candidates for filtering
             )
             
-            # Sparse search request
-            sparse_req = AnnSearchRequest(
-                data=[sparse_query],
-                anns_field="sparse_vector",
-                param={"metric_type": "IP", "params": {"drop_ratio_search": 0.2}},
-                limit=top_k * 3  # Fetch more candidates for filtering
-            )
-            
             # Build filter expression for user isolation
             expr = f'user_id == "{user_id}"' if user_id else None
-            
-            # Perform Hybrid Search
-            # Rerank with WeightedRanker (0.7 dense + 0.3 sparse is a good starting point)
-            ranker = WeightedRanker(0.7, 0.3)
-            
-            search_results = self.collection.hybrid_search(
-                reqs=[dense_req, sparse_req],
-                rerank=ranker,
-                limit=top_k,
-                output_fields=["text", "document_id", "user_id"],
-                expr=expr  # Apply user filter
-            )
+
+            if self.has_sparse and query_embeds['sparse']:
+                sparse_query = query_embeds['sparse'][0]
+
+                # Sparse search request
+                sparse_req = AnnSearchRequest(
+                    data=[sparse_query],
+                    anns_field="sparse_vector",
+                    param={"metric_type": "IP", "params": {"drop_ratio_search": 0.2}},
+                    limit=top_k * 3,  # Fetch more candidates for filtering
+                )
+
+                # Perform Hybrid Search
+                # Rerank with WeightedRanker (0.7 dense + 0.3 sparse is a good starting point)
+                ranker = WeightedRanker(0.7, 0.3)
+
+                search_results = self.collection.hybrid_search(
+                    reqs=[dense_req, sparse_req],
+                    rerank=ranker,
+                    limit=top_k,
+                    output_fields=["text", "document_id", "user_id"],
+                    expr=expr,  # Apply user filter
+                )
+            else:
+                # Dense-only fallback keeps document search working even if sparse
+                # model dependencies are unavailable in the runtime environment.
+                search_results = self.collection.search(
+                    data=[dense_query],
+                    anns_field="dense_vector",
+                    param={"metric_type": "COSINE", "params": {"nprobe": 10}},
+                    limit=top_k,
+                    output_fields=["text", "document_id", "user_id"],
+                    expr=expr,
+                )
             
             # Format results
             results = []
