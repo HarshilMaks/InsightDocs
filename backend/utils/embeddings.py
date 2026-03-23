@@ -1,6 +1,9 @@
 """Embedding generation and vector database management using Milvus."""
 from typing import List, Dict, Any, Optional
+from collections import Counter
+import hashlib
 import logging
+import re
 from sentence_transformers import SentenceTransformer
 from pymilvus import (
     connections,
@@ -22,6 +25,8 @@ class EmbeddingEngine:
         # Dense model (upgraded to bge-base for better quality)
         self.dense_model = SentenceTransformer(settings.embedding_model_name)
         self.dimension = settings.milvus_dim  # Use milvus_dim (768) instead of vector_dimension
+        self._token_pattern = re.compile(r"[A-Za-z0-9]+")
+        self._fallback_sparse_dim = 2**18
         
         # Sparse model (BM25 for keyword search)
         # Using BGEM3EmbeddingFunction as a wrapper or similar if available,
@@ -31,13 +36,33 @@ class EmbeddingEngine:
             self.sparse_model = BGEM3EmbeddingFunction(use_fp16=False, device="cpu")
             self.has_sparse = True
         except Exception as e:
-            logger.warning(f"Sparse vectors disabled: {e}")
+            logger.warning(f"BGEM3 sparse model unavailable; using hashed sparse fallback: {e}")
             self.sparse_model = None
             self.has_sparse = False
             
         self.collection = None  # Initialize before connect attempt
         self._connect_milvus()
         self._init_collection()
+
+    def _fallback_sparse_encode(self, texts: List[str]) -> List[Dict[int, float]]:
+        """Create deterministic sparse vectors without external sparse-model deps."""
+        sparse_vectors: List[Dict[int, float]] = []
+        for text in texts:
+            tokens = self._token_pattern.findall(text.lower())
+            if not tokens:
+                sparse_vectors.append({})
+                continue
+
+            counts = Counter(tokens)
+            total = float(sum(counts.values()))
+            vector: Dict[int, float] = {}
+            for token, count in counts.items():
+                digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+                index = int.from_bytes(digest, "big") % self._fallback_sparse_dim
+                vector[index] = vector.get(index, 0.0) + (count / total)
+            sparse_vectors.append(vector)
+
+        return sparse_vectors
     
     def _connect_milvus(self):
         """Connect to Milvus database."""
@@ -143,8 +168,9 @@ class EmbeddingEngine:
                 # {'dense': [...], 'sparse': [...]}
                 sparse_list = results['sparse']
             else:
-                # Fallback empty sparse vectors if not available (shouldn't happen in prod)
-                sparse_list = [{}] * len(texts)
+                # Deterministic fallback keeps sparse search and Milvus inserts working
+                # even when milvus-model's BGEM3 helper cannot be initialized.
+                sparse_list = self._fallback_sparse_encode(texts)
 
             logger.info(f"Generated {len(dense_list)} hybrid embeddings")
             return {
@@ -247,7 +273,8 @@ class EmbeddingEngine:
             # Build filter expression for user isolation
             expr = f'user_id == "{user_id}"' if user_id else None
 
-            if self.has_sparse and query_embeds['sparse']:
+            sparse_query_set = query_embeds.get('sparse')
+            if sparse_query_set is not None:
                 sparse_query = query_embeds['sparse'][0]
 
                 # Sparse search request
@@ -270,8 +297,8 @@ class EmbeddingEngine:
                     expr=expr,  # Apply user filter
                 )
             else:
-                # Dense-only fallback keeps document search working even if sparse
-                # model dependencies are unavailable in the runtime environment.
+                # Dense-only fallback only happens when no sparse representation was
+                # produced at all.
                 search_results = self.collection.search(
                     data=[dense_query],
                     anns_field="dense_vector",
