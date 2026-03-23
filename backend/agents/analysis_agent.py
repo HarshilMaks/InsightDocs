@@ -65,8 +65,17 @@ class AnalysisAgent(BaseAgent):
                 chunk_texts.append(chunk)
             else:
                 chunk_texts.append(chunk.get("text", ""))
+
+        chunk_texts = [text for text in chunk_texts if text and text.strip()]
         
         self.log_event("embed_start", {"chunk_count": len(chunk_texts)})
+
+        if not chunk_texts:
+            return {
+                "success": False,
+                "error": "No text chunks available for embedding",
+                "agent_id": self.agent_id,
+            }
         
         # Generate embeddings (returns dict with 'dense' and 'sparse')
         embeddings = await self.embedding_engine.embed_texts(chunk_texts)

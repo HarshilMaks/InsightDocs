@@ -66,3 +66,22 @@ async def test_embedding_engine_search_falls_back_to_dense_only(mock_sentence_tr
             },
         }
     ]
+
+
+@pytest.mark.asyncio
+@patch("backend.utils.embeddings.SentenceTransformer")
+@patch.object(EmbeddingEngine, "_connect_milvus", lambda self: None)
+@patch.object(EmbeddingEngine, "_init_collection", lambda self: None)
+async def test_store_embeddings_returns_empty_list_for_no_texts(mock_sentence_transformer):
+    mock_sentence_transformer.return_value = MagicMock()
+
+    missing_sparse_module = types.ModuleType("milvus_model.hybrid")
+
+    with patch.dict(sys.modules, {"milvus_model.hybrid": missing_sparse_module}):
+        engine = EmbeddingEngine()
+
+    engine.collection = MagicMock()
+    result = await engine.store_embeddings({"dense": [], "sparse": []}, [], {"document_id": "doc-1", "user_id": "user-1"})
+
+    engine.collection.insert.assert_not_called()
+    assert result == []

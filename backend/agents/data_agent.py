@@ -61,12 +61,10 @@ class DataAgent(BaseAgent):
         filename = message.get("filename")
         
         self.log_event("ingest_start", {"file_path": file_path})
-        
-        # Store file
+
+        # Store the uploaded file, but parse the local temp copy.
         stored_path = await self.file_storage.store_file(file_path, filename)
-        
-        # Parse document
-        parsed_content = await self.document_processor.parse_document(stored_path)
+        parsed_content = await self.document_processor.parse_document(file_path)
         
         self.log_event("ingest_complete", {
             "file_path": stored_path,
