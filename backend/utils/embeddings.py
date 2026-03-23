@@ -119,6 +119,9 @@ class EmbeddingEngine:
             Dictionary with 'dense' and 'sparse' embeddings
         """
         try:
+            if not texts:
+                return {"dense": [], "sparse": []}
+
             # Generate dense embeddings
             dense_embeddings = self.dense_model.encode(texts, convert_to_numpy=True)
             dense_list = dense_embeddings.tolist()
@@ -174,6 +177,10 @@ class EmbeddingEngine:
             raise RuntimeError("Milvus connection not available")
             
         try:
+            if not texts:
+                logger.warning("No texts provided for embedding storage")
+                return []
+
             # Generate unique IDs for each vector
             import uuid
             vector_ids = [str(uuid.uuid4()) for _ in range(len(texts))]
