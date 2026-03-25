@@ -1,7 +1,7 @@
 """Backend hardening tests for worker ownership, task failures, and rate-limit identity isolation."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from backend.core.limiter import _rate_limit_key
 from backend.workers import tasks
@@ -98,18 +98,6 @@ class TestWorkerOwnershipEnforcement:
         assert "user_id is required" in result["error"]
         mock_update_task.assert_called()
 
-    def test_generate_podcast_task_requires_user_id(self):
-        fake_db = _fake_db_with_no_doc()
-
-        with patch("backend.workers.tasks._create_db_session", return_value=(fake_db, object())), patch(
-            "backend.workers.tasks._close_db_session"
-        ), patch("backend.workers.tasks._update_task") as mock_update_task:
-            result = tasks.generate_podcast_task.run("doc-1", None)
-
-        assert result["success"] is False
-        assert "user_id is required" in result["error"]
-        mock_update_task.assert_called()
-
     def test_process_document_task_rejects_unowned_document(self):
         fake_db = _fake_db_with_no_doc()
 
@@ -120,53 +108,6 @@ class TestWorkerOwnershipEnforcement:
 
         assert result["success"] is False
         assert "not found for user" in result["error"]
-        mock_update_task.assert_called()
-
-
-class TestPodcastFailureHandling:
-    def test_generate_podcast_returns_failure_when_audio_not_generated(self):
-        doc = type("Doc", (), {"filename": "d.pdf", "has_podcast": False, "podcast_s3_key": None, "podcast_duration": None})()
-        chunk = type("Chunk", (), {"content": "hello world"})()
-        fake_db = _fake_db_with_doc(doc, chunks=[chunk])
-
-        with patch("backend.workers.tasks._create_db_session", return_value=(fake_db, object())), patch(
-            "backend.workers.tasks._close_db_session"
-        ), patch("backend.utils.llm_client.LLMClient.generate_podcast_script", new_callable=AsyncMock, return_value="script"), patch(
-            "backend.utils.podcast_generator.PodcastGenerator.generate_podcast_from_text",
-            return_value=(None, 0.0),
-        ), patch("backend.workers.tasks._update_task") as mock_update_task, patch(
-            "backend.storage.file_storage.FileStorage"
-        ):
-            result = tasks.generate_podcast_task.run("doc-1", "user-1")
-
-        assert result["success"] is False
-        assert "Audio generation failed" in result["error"]
-        mock_update_task.assert_called()
-
-    def test_generate_podcast_handles_s3_failure(self):
-        doc = type("Doc", (), {"filename": "d.pdf", "has_podcast": False, "podcast_s3_key": None, "podcast_duration": None})()
-        chunk = type("Chunk", (), {"content": "hello world"})()
-        fake_db = _fake_db_with_doc(doc, chunks=[chunk])
-
-        with patch("backend.workers.tasks._create_db_session", return_value=(fake_db, object())), patch(
-            "backend.workers.tasks._close_db_session"
-        ), patch(
-            "backend.utils.llm_client.LLMClient.generate_podcast_script",
-            new_callable=AsyncMock,
-            return_value="script",
-        ), patch(
-            "backend.utils.podcast_generator.PodcastGenerator.generate_podcast_from_text",
-            return_value=(b"audio-bytes", 5.0),
-        ), patch("backend.workers.tasks._update_task") as mock_update_task, patch(
-            "backend.storage.file_storage.FileStorage"
-        ) as mock_storage_cls:
-            mock_storage = MagicMock()
-            mock_storage.store_file = AsyncMock(side_effect=RuntimeError("S3 unavailable"))
-            mock_storage_cls.return_value = mock_storage
-            result = tasks.generate_podcast_task.run("doc-1", "user-1")
-
-        assert result["success"] is False
-        assert "S3 unavailable" in result["error"]
         mock_update_task.assert_called()
 
 

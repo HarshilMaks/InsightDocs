@@ -103,14 +103,14 @@ All models use UUID primary keys and a `TimestampMixin` (created_at, updated_at)
 | `id` | VARCHAR | Primary key |
 | `document_id` | VARCHAR | Links back to PostgreSQL |
 | `text` | VARCHAR | Original chunk text |
-| `vector` | FLOAT_VECTOR (384-dim) | IVF_FLAT index, COSINE metric |
+| `vector` | FLOAT_VECTOR (768-dim) | IVF_FLAT index, COSINE metric |
 
 ### Layer 5 — LLM & Embedding Integration
 
 | Component | Technology | Details |
 |---|---|---|
 | **LLM** | Google Gemini 1.5 Pro | Summarization, entity extraction, RAG responses, suggestions, decision support |
-| **Embeddings** | Sentence Transformers (`all-MiniLM-L6-v2`) | 384-dimensional vectors for semantic search |
+| **Embeddings** | Sentence Transformers (`BAAI/bge-base-en-v1.5`) | 768-dimensional vectors for semantic search |
 
 ---
 
@@ -144,7 +144,7 @@ OrchestratorAgent.process(workflow_type="ingest_and_analyze")
     │     • Configurable chunk_size (default: 1000) and overlap (default: 200)
     │
     ├── Step 3: AnalysisAgent.embed()
-    │     • SentenceTransformer generates 384-dim vectors
+    │     • SentenceTransformer generates 768-dim vectors
     │     • Vectors stored in Milvus collection
     │
     └── Step 4: PlanningAgent.track_progress()
@@ -193,8 +193,7 @@ Returns to user:
 | **File Size Validation** | ✅ 50MB limit | ✅ 50MB limit enforced | **Parity** |
 | **Summary Generation** | ✅ Core feature | ✅ Implemented (`/summarize`) | **Parity** |
 | **Mind Map** | ✅ Visual knowledge graph | ✅ JSON data generation (`/mindmap`) | **Data Ready** |
-| **AI Chat (RAG)** | ✅ Chat with documents | ✅ Full RAG pipeline working | **Parity** |
-| **Generate Podcast** | ✅ Audio from document | ✅ Implemented (Google TTS) | **Parity** |
+| **Ask Your PDF** | ✅ Threaded chat with documents | ✅ Full RAG pipeline + exact citations | **Parity** |
 | **Generate Presentation** | ✅ Slides from content | ❌ No slide generation | Missing |
 | **Generate Quiz** | ✅ Questions from content | ✅ Implemented (`/quiz`) | **Parity** |
 | **Drag & Drop UI** | ✅ Polished frontend | ❌ Frontend directory exists but empty | Missing |
@@ -203,7 +202,7 @@ Returns to user:
 
 ```
 AI PDF Summarizer:
-    Document → [ Black Box AI ] → Summary / Mind Map / Quiz / Podcast / Slides
+    Document → [ Black Box AI ] → Summary / Mind Map / Quiz / Slides
                                    (many output formats, single pipeline)
 
 InsightDocs:
@@ -246,9 +245,8 @@ Can InsightDocs evolve to match that product? **Yes.** Here's what each feature 
 |---|---|---|
 | **PDF Summarizer** | `LLMClient.summarize()`, upload pipeline | Fix PDF parsing, add `/summarize` endpoint (~30 lines) |
 | **Mind Map** | LLM integration, entity extraction | New LLM prompt to extract concepts + relationships, return structured JSON, frontend renderer |
-| **AI Chat** | Full RAG pipeline | **Already working** — closest feature match |
+| **Ask Your PDF** | Full RAG pipeline + chunk/page metadata | **Already working** — one threaded chat feature with exact source locations |
 | **Quiz Generation** | LLM integration, Planning Agent | New method on `LLMClient` with quiz prompt, new endpoint |
-| **Podcast Generation** | LLM summarization | Add TTS integration (Google Cloud TTS / ElevenLabs), new endpoint |
 | **Presentation Generation** | LLM integration | LLM extracts key points → `python-pptx` generates .pptx, new endpoint |
 
 ### Architectural Advantage
@@ -256,7 +254,7 @@ Can InsightDocs evolve to match that product? **Yes.** Here's what each feature 
 The multi-agent design means each new feature maps naturally to the existing pattern:
 
 - **Quiz** → `AnalysisAgent` or new `QuizAgent`
-- **Podcast** → New `MediaAgent` with TTS capability
+- **Ask Your PDF** → `Orchestrator` hydrates Milvus hits with page/chunk metadata and recent conversation turns before Gemini responds
 - **Slides** → `PlanningAgent` structures content → new `ExportAgent` generates files
 - **Mind Map** → `AnalysisAgent.extract()` already does entity extraction — extend to relationships
 
@@ -272,7 +270,7 @@ No architectural changes needed. Just new agent methods or new lightweight agent
 | **Direct agent calls (not queue)** | Simpler for current scale, lower latency | Less decoupled; queue infrastructure exists for future use |
 | **Celery for async processing** | Proven, scalable task queue with monitoring | Sync/async mismatch needs fixing (`asyncio.run()`) |
 | **Gemini 1.5 Pro as LLM** | Strong reasoning, large context window | Vendor lock-in to Google; could abstract behind interface |
-| **all-MiniLM-L6-v2 for embeddings** | Fast, lightweight, 384-dim vectors | Lower accuracy than larger models (e.g., `all-mpnet-base-v2`) |
+| **BAAI/bge-base-en-v1.5 for embeddings** | Stronger semantic search, 768-dim vectors | Slightly heavier than smaller models |
 | **S3/MinIO for file storage** | Cloud-native, scalable, presigned URL support | Requires running MinIO locally for development |
 | **UUID primary keys everywhere** | No sequential ID leakage, distributed-friendly | Slightly larger indexes, less human-readable |
 

@@ -22,9 +22,11 @@ class EmbeddingEngine:
     """Handles embedding generation and vector storage with Milvus."""
     
     def __init__(self):
-        # Dense model (upgraded to bge-base for better quality)
-        self.dense_model = SentenceTransformer(settings.embedding_model_name)
-        self.dimension = settings.milvus_dim  # Use milvus_dim (768) instead of vector_dimension
+        # Default to the newer dense model, but we may swap to the legacy
+        # model if the existing Milvus collection still uses the old schema.
+        self.dense_model_name = settings.embedding_model_name
+        self.dense_model = None
+        self.dimension = settings.milvus_dim
         self._token_pattern = re.compile(r"[A-Za-z0-9]+")
         self._fallback_sparse_dim = 2**18
         
@@ -43,6 +45,61 @@ class EmbeddingEngine:
         self.collection = None  # Initialize before connect attempt
         self._connect_milvus()
         self._init_collection()
+        self._configure_dense_model_for_collection()
+
+    def _load_dense_model(self, model_name: str) -> SentenceTransformer:
+        logger.info(f"Loading dense embedding model: {model_name}")
+        return SentenceTransformer(model_name)
+
+    def _get_collection_dense_dim(self) -> Optional[int]:
+        """Inspect the active collection to determine the dense vector dimension."""
+        if self.collection is None:
+            return None
+
+        try:
+            dense_field = next(
+                (field for field in self.collection.schema.fields if field.name == "dense_vector"),
+                None,
+            )
+            if dense_field is None:
+                return None
+
+            dim = getattr(dense_field, "dim", None)
+            if dim is None and hasattr(dense_field, "params"):
+                dim = dense_field.params.get("dim")
+            return int(dim) if dim is not None else None
+        except Exception as e:
+            logger.warning(f"Unable to inspect Milvus collection schema: {e}")
+            return None
+
+    def _configure_dense_model_for_collection(self):
+        """Load a dense model that matches the active Milvus schema."""
+        collection_dim = self._get_collection_dense_dim()
+        if collection_dim is None:
+            self.dense_model_name = settings.embedding_model_name
+            self.dense_model = self._load_dense_model(self.dense_model_name)
+            return
+
+        if collection_dim == settings.milvus_dim:
+            self.dimension = collection_dim
+            self.dense_model_name = settings.embedding_model_name
+        elif collection_dim == settings.vector_dimension:
+            self.dimension = collection_dim
+            self.dense_model_name = settings.legacy_embedding_model
+            logger.warning(
+                "Milvus collection uses legacy %s-dim dense schema; "
+                "loading %s to match it.",
+                collection_dim,
+                self.dense_model_name,
+            )
+        else:
+            raise RuntimeError(
+                f"Milvus dense_vector schema dim {collection_dim} is not compatible with "
+                f"supported embedding models ({settings.vector_dimension} and {settings.milvus_dim}). "
+                "Run the Milvus migration script before ingesting documents."
+            )
+
+        self.dense_model = self._load_dense_model(self.dense_model_name)
 
     def _fallback_sparse_encode(self, texts: List[str]) -> List[Dict[int, float]]:
         """Create deterministic sparse vectors without external sparse-model deps."""
@@ -127,7 +184,7 @@ class EmbeddingEngine:
             # Load collection into memory
             self.collection.load()
             logger.info("Collection loaded into memory")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize collection: {e}")
             logger.warning("Vector search will be unavailable")
@@ -263,13 +320,13 @@ class EmbeddingEngine:
             from pymilvus import AnnSearchRequest, WeightedRanker
             
             # Dense search request
-            dense_req = AnnSearchRequest(
-                data=[dense_query],
-                anns_field="dense_vector",
-                param={"metric_type": "COSINE", "params": {"nprobe": 10}},
-                limit=top_k * 3  # Fetch more candidates for filtering
-            )
-            
+            dense_req_kwargs = {
+                "data": [dense_query],
+                "anns_field": "dense_vector",
+                "param": {"metric_type": "COSINE", "params": {"nprobe": 10}},
+                "limit": top_k * 3,  # Fetch more candidates for filtering
+            }
+
             # Build filter expression for user isolation
             expr = f'user_id == "{user_id}"' if user_id else None
 
@@ -278,12 +335,19 @@ class EmbeddingEngine:
                 sparse_query = query_embeds['sparse'][0]
 
                 # Sparse search request
-                sparse_req = AnnSearchRequest(
-                    data=[sparse_query],
-                    anns_field="sparse_vector",
-                    param={"metric_type": "IP", "params": {"drop_ratio_search": 0.2}},
-                    limit=top_k * 3,  # Fetch more candidates for filtering
-                )
+                sparse_req_kwargs = {
+                    "data": [sparse_query],
+                    "anns_field": "sparse_vector",
+                    "param": {"metric_type": "IP", "params": {"drop_ratio_search": 0.2}},
+                    "limit": top_k * 3,  # Fetch more candidates for filtering
+                }
+
+                if expr is not None:
+                    dense_req_kwargs["expr"] = expr
+                    sparse_req_kwargs["expr"] = expr
+
+                dense_req = AnnSearchRequest(**dense_req_kwargs)
+                sparse_req = AnnSearchRequest(**sparse_req_kwargs)
 
                 # Perform Hybrid Search
                 # Rerank with WeightedRanker (0.7 dense + 0.3 sparse is a good starting point)
@@ -294,11 +358,15 @@ class EmbeddingEngine:
                     rerank=ranker,
                     limit=top_k,
                     output_fields=["text", "document_id", "user_id"],
-                    expr=expr,  # Apply user filter
                 )
             else:
                 # Dense-only fallback only happens when no sparse representation was
                 # produced at all.
+                if expr is not None:
+                    dense_req_kwargs["expr"] = expr
+
+                dense_req = AnnSearchRequest(**dense_req_kwargs)
+
                 search_results = self.collection.search(
                     data=[dense_query],
                     anns_field="dense_vector",

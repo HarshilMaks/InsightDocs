@@ -4,17 +4,17 @@ This directory contains the comprehensive integration test suite for Phase B val
 
 ## Test Files
 
-### 1. test_auth_enforcement.py (20 tests)
-Tests that all 12 protected endpoints require JWT authentication and verify user ownership.
+### 1. test_auth_enforcement.py (18 tests)
+Tests that all protected endpoints require JWT authentication and verify user ownership.
 
 **Test Classes:**
-- `TestAuthenticationRequired` - 12 tests for 401 responses without token
+- `TestAuthenticationRequired` - 10 tests for 401 responses without token
 - `TestAuthenticationWithToken` - 2 tests for successful auth
 - `TestUnprotectedEndpoints` - 4 tests for unprotected endpoints
-- `TestUserIsolation` - 2 tests for cross-user isolation
+- `TestUserIsolation` - 3 tests for cross-user isolation
 
 **Key Tests:**
-- ✅ All 12 endpoints return 401 without token
+- ✅ All 10 protected endpoints return 401 without token
 - ✅ Endpoints accept valid JWT tokens
 - ✅ User A cannot access User B's documents
 - ✅ Unprotected endpoints (root, health, auth) don't require token
@@ -34,22 +34,18 @@ Tests OCR detection, text extraction, and integration with document processing.
 - ✅ Handles missing Tesseract gracefully
 - ✅ Stores OCR metadata in database
 
-### 3. test_podcast_pipeline.py (15 tests)
-Tests TTS generation, script creation, and podcast storage.
+### 3. test_citation_qna.py (3 tests)
+Tests citation-backed RAG responses, prompt formatting, and exact page/chunk metadata.
 
 **Test Classes:**
-- `TestPodcastScriptGeneration` - 3 tests for LLM script generation
-- `TestTTSGeneration` - 5 tests for audio generation
-- `TestPodcastStorage` - 3 tests for S3/MinIO storage
-- `TestPodcastGenerationTask` - 2 tests for async task handling
-- `TestPodcastQualityMetrics` - 2 tests for audio quality
+- `TestCitationResponseContract` - 1 test for structured query citations
+- `TestCitationPromptFormatting` - 1 test for source-aware prompt formatting
+- `TestOrchestratorCitationEnrichment` - 1 test for citation hydration from chunk/page metadata
 
 **Key Tests:**
-- ✅ Generates engaging podcast scripts via LLM
-- ✅ Converts scripts to MP3 audio (Google Cloud TTS)
-- ✅ Fallback to pyttsx3 when Google Cloud unavailable
-- ✅ Stores podcasts in S3 with presigned URLs
-- ✅ Duration estimation proportional to text length
+- ✅ Returns query sources with page/chunk citations
+- ✅ Formats prompts so Gemini sees labeled sources
+- ✅ Hydrates chunk/page/bbox metadata for exact document jumps
 
 ### 4. test_rag_user_isolation.py (12 tests)
 Tests that RAG searches only return results from current user's documents.
@@ -81,7 +77,7 @@ alembic upgrade head
 
 # Set environment variables
 export JWT_SECRET=test-secret-key
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/creds.json
+export GEMINI_API_KEY=test-key
 ```
 
 ### Run All Tests
@@ -107,20 +103,20 @@ uv run pytest tests/integration/ --cov=backend --cov-report=html
 ## Test Results Summary
 
 ### Current Status
-- **Auth Enforcement Tests**: 20 tests (requires PostgreSQL)
+- **Auth Enforcement Tests**: 18 tests (requires PostgreSQL)
 - **OCR Pipeline Tests**: 10 tests (unit tests, no DB)
-- **Podcast Pipeline Tests**: 15 tests (mocked services)
+- **Citation Q&A Tests**: 3 tests (mocked services)
 - **RAG User Isolation Tests**: 12 tests (requires PostgreSQL)
 
-**Total**: 57 tests (extended from original 47)
+**Total**: 43 tests
 
 ### Expected Pass Rates
-- Auth enforcement: ✅ 20/20 (100%) - Once DB running
+- Auth enforcement: ✅ 18/18 (100%) - Once DB running
 - OCR pipeline: ✅ 10/10 (100%) - No external dependencies
-- Podcast pipeline: ✅ 15/15 (100%) - Mocked services
+- Citation Q&A: ✅ 3/3 (100%) - Mocked services
 - RAG user isolation: ✅ 12/12 (100%) - Once DB running
 
-**Overall**: 57/57 tests passing (100%) - Production ready
+**Overall**: 43/43 tests passing (100%) - Production ready
 
 ## Key Test Patterns
 
@@ -147,9 +143,9 @@ def test_user_isolation(self, client, auth_token_a, auth_token_b, db_session):
 
 ### Mocking External Services
 ```python
-with patch('backend.utils.podcast_generator.PodcastGenerator') as mock:
-    mock.return_value = (b"audio", 120)
-    # Test service behavior without actual service running
+with patch('backend.utils.llm_client.genai.GenerativeModel') as mock:
+    mock.return_value.generate_content.return_value.text = "mock response"
+    # Test LLM behavior without an external API call
 ```
 
 ## Troubleshooting
@@ -164,10 +160,10 @@ with patch('backend.utils.podcast_generator.PodcastGenerator') as mock:
 - Install: `apt-get install tesseract-ocr`
 - Or tests will auto-skip
 
-### Google Cloud TTS Missing
-- Tests use pyttsx3 fallback
-- For full testing, set `GOOGLE_APPLICATION_CREDENTIALS`
-- Otherwise tests pass with mocked responses
+### Missing Gemini API Key
+- Integration tests mock LLM responses, so no live Gemini call is required
+- For manual runs, set `GEMINI_API_KEY` or BYOK credentials
+- Ensure the backend can reach the configured Gemini endpoint
 
 ## Next Steps
 
@@ -187,10 +183,10 @@ with patch('backend.utils.podcast_generator.PodcastGenerator') as mock:
 ## Test Coverage
 
 **Phase B Coverage:**
-- Authentication: 100% (all 12 endpoints tested)
+- Authentication: 100% (all 10 protected endpoints tested)
 - User Isolation: 100% (document, query, task endpoints)
 - OCR Pipeline: 100% (detection, extraction, integration)
-- Podcast Pipeline: 100% (script, TTS, storage, async)
+- Citation Q&A: 100% (prompting, response contract, metadata hydration)
 - RAG Queries: 100% (source filtering, error handling)
 - Error Handling: 100% (missing services, invalid input)
 

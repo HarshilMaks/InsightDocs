@@ -24,7 +24,7 @@
   - `PUT /api/v1/users/me/api-key` - Save encrypted key
   - `DELETE /api/v1/users/me/api-key` - Remove key
   - `PATCH /api/v1/users/me/byok-settings` - Toggle BYOK on/off
-- ✅ **Workers**: All Celery tasks (`process_document`, `generate_embeddings`, `generate_podcast`) now:
+- ✅ **Workers**: All Celery tasks (`process_document`, `generate_embeddings`, `cleanup_old_tasks`) now:
   - Accept `user_id` parameter
   - Fetch user from database
   - Decrypt user's API key

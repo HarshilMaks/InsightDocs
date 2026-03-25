@@ -100,14 +100,6 @@ class TestAuthenticationRequired:
         r = client.post("/api/v1/documents/fake-id/mindmap")
         assert r.status_code == 401
 
-    def test_generate_podcast_no_token(self, client):
-        r = client.post("/api/v1/documents/fake-id/generate-podcast")
-        assert r.status_code == 401
-
-    def test_get_podcast_no_token(self, client):
-        r = client.get("/api/v1/documents/fake-id/podcast")
-        assert r.status_code == 401
-
 
 class TestProtectedEndpointsWithToken:
     def test_documents_list_with_token(self, client):

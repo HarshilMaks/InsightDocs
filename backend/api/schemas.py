@@ -91,18 +91,27 @@ class BoundingBox(BaseSchema):
     y1: float = Field(..., description="Top coordinate")
     x2: float = Field(..., description="Right coordinate")
     y2: float = Field(..., description="Bottom coordinate")
-    page_number: int = Field(..., description="Page number (1-indexed)")
+    page_number: Optional[int] = Field(None, description="Page number (1-indexed)")
 
 class SourceReference(BaseSchema):
+    source_number: int
     document_id: str
     document_name: str
+    chunk_id: str
+    chunk_index: int
+    page_number: Optional[int] = None
+    bbox: Optional[BoundingBox] = Field(None, description="Bounding box for precise citation")
     content_preview: str
     similarity_score: float
-    bbox: Optional[BoundingBox] = Field(None, description="Bounding box for precise citation")
+    citation_label: str
 
 class QueryRequest(BaseSchema):
     query: str = Field(..., description="Query text")
     top_k: Optional[int] = Field(5, description="Number of results to retrieve")
+    conversation_id: Optional[str] = Field(
+        None,
+        description="Conversation thread ID for follow-up questions",
+    )
     # You can add more filters here later, e.g.:
     # document_ids: Optional[List[str]] = None
 
@@ -110,10 +119,25 @@ class QueryResponse(BaseSchema):
     answer: str
     sources: List[SourceReference]
     query_id: str
+    conversation_id: str
+    turn_index: int
     query: str
     response_time: float
     confidence_score: Optional[float]
     tokens_used: Optional[int] = None
+
+class QueryHistoryItem(BaseSchema):
+    id: str
+    conversation_id: Optional[str] = None
+    turn_index: Optional[int] = None
+    query: str
+    response: Optional[str] = None
+    response_time: Optional[float] = None
+    created_at: datetime
+
+class QueryHistoryResponse(BaseSchema):
+    queries: List[QueryHistoryItem]
+    total: int
 
 # ---------------------------------------------------------
 # Task Schemas (Updated)
