@@ -31,12 +31,9 @@ InsightDocs uses **Alembic** (not raw SQL files) for database migrations. Here's
 
 **Content**:
 ```sql
--- Migration: Add OCR and TTS fields to documents table
+-- Migration: Add OCR fields to documents table
 ALTER TABLE documents ADD COLUMN is_scanned BOOLEAN DEFAULT FALSE;
 ALTER TABLE documents ADD COLUMN ocr_confidence FLOAT;
-ALTER TABLE documents ADD COLUMN has_podcast BOOLEAN DEFAULT FALSE;
-ALTER TABLE documents ADD COLUMN podcast_s3_key VARCHAR(500);
-ALTER TABLE documents ADD COLUMN podcast_duration FLOAT;
 ```
 
 **Status**: ⚠️ **This is OUTDATED and NOT USED**

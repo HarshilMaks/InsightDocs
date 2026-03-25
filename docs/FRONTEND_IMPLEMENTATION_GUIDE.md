@@ -440,7 +440,7 @@ const ProtectedRoute = ({ children }) => {
 - PDF viewer (or preview for other formats)
 - Metadata panel
 - Summary / quiz / mind map action buttons
-- Generate podcast button
+- Citation-backed Q&A button
 - Download button
 - Chunk viewer with bbox highlighting
 
@@ -487,14 +487,14 @@ const ProtectedRoute = ({ children }) => {
 #### 6. Task Components
 
 **TaskStatusCard.tsx** - Async job summary:
-- Task type (upload, podcast generation)
+- Task type (upload, query, document processing)
 - Status badge
 - Progress bar
 - Created time
 - Link to task details
 
 **TaskList.tsx** - Task feed:
-- Recent uploads and podcast jobs
+- Recent uploads and query jobs
 - Filter by status
 - Auto-refresh while processing
 - Empty state when no tasks exist
@@ -509,7 +509,7 @@ const ProtectedRoute = ({ children }) => {
 
 **Sections**:
 - Hero section with CTA
-- Feature highlights (BYOK, 23 formats, RAG, Podcast)
+- Feature highlights (BYOK, 23 formats, RAG, citation-backed Q&A)
 - How it works (3-step process)
 - Competitive advantages
 - Footer with links
@@ -584,7 +584,7 @@ const ProtectedRoute = ({ children }) => {
 - Document list (search, filter, sort)
 - Quick stats
 - Recent queries
-- Task status overview for uploads and podcast generation
+- Task status overview for uploads and query/document processing
 
 ---
 
@@ -620,7 +620,7 @@ const ProtectedRoute = ({ children }) => {
 - Summarize document
 - Generate quiz
 - Generate mind map
-- Generate podcast
+- Ask question with citations
 - Download document
 - Delete document
 - Share (future)
@@ -720,9 +720,9 @@ This is the exact backend surface the frontend should target now.
 |------|-----------|----------------|
 | Authentication | `POST /auth/register`, `POST /auth/login` | Sign up and sign in |
 | Documents | `POST /documents/upload`, `GET /documents/`, `GET /documents/{document_id}`, `DELETE /documents/{document_id}` | Dashboard + document detail |
-| Document Intelligence | `POST /documents/{document_id}/summarize`, `POST /documents/{document_id}/quiz`, `POST /documents/{document_id}/mindmap`, `POST /documents/{document_id}/generate-podcast`, `GET /documents/{document_id}/podcast` | Document actions and media |
+| Document Intelligence | `POST /documents/{document_id}/summarize`, `POST /documents/{document_id}/quiz`, `POST /documents/{document_id}/mindmap` | Document actions and media |
 | Query | `POST /query/`, `GET /query/history` | Chat page and query history |
-| Tasks | `GET /tasks/`, `GET /tasks/{task_id}` | Upload/podcast job status |
+| Tasks | `GET /tasks/`, `GET /tasks/{task_id}` | Upload/query job status |
 | User Settings | `PUT /users/me/api-key`, `DELETE /users/me/api-key`, `PATCH /users/me/byok-settings`, `GET /users/me/byok-status` | BYOK settings panel |
 | System | `GET /`, `GET /api/v1/health` | App bootstrap and diagnostics |
 
@@ -733,6 +733,7 @@ This is the exact backend surface the frontend should target now.
   - `username` = email
   - `password` = password
 - `POST /query/` accepts JSON: `{ query, top_k? }`
+- Query responses include structured citations with `source_number`, `page_number`, `chunk_index`, and `bbox` so the UI can jump to the exact passage.
 
 ---
 
@@ -814,18 +815,12 @@ export const generateQuiz = (id: string) =>
 export const generateMindmap = (id: string) =>
   api.post(`/documents/${id}/mindmap`);
 
-export const generatePodcast = (id: string) =>
-  api.post(`/documents/${id}/generate-podcast`);
+// Ask your PDF chat
+export const sendQuery = (query: string, topK = 5, conversationId?: string) =>
+  api.post('/query/', { query, top_k: topK, conversation_id: conversationId });
 
-export const getPodcast = (id: string) =>
-  api.get(`/documents/${id}/podcast`);
-
-// Chat
-export const sendQuery = (query: string, topK = 5) =>
-  api.post('/query/', { query, top_k: topK });
-
-export const getQueryHistory = (skip = 0, limit = 100) =>
-  api.get('/query/history', { params: { skip, limit } });
+export const getQueryHistory = (skip = 0, limit = 100, conversationId?: string) =>
+  api.get('/query/history', { params: { skip, limit, conversation_id: conversationId } });
 
 // Tasks
 export const getTasks = (skip = 0, limit = 100) =>

@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test test-cov lint clean run-backend run-worker docker-up docker-down docker-logs docker-rebuild venv
+.PHONY: help install install-dev test test-cov lint clean run-backend run-worker docker-up docker-down docker-logs docker-rebuild venv migrate-up migrate-down migrate-generate migrate-check migrate-milvus
 
 SHELL := /bin/bash
 VENV := .venv
@@ -18,6 +18,11 @@ help:
 	@echo "clean            - Clean up cache and temporary files"
 	@echo "run-backend      - Run the API server"
 	@echo "run-worker       - Run Celery worker"
+	@echo "migrate-up       - Run Alembic migrations up"
+	@echo "migrate-down     - Roll back one Alembic migration"
+	@echo "migrate-generate - Create a new Alembic migration"
+	@echo "migrate-check    - Show current Alembic revision"
+	@echo "migrate-milvus   - Recreate Milvus collection/schema"
 	@echo "docker-up        - Start all services with Docker Compose"
 	@echo "docker-down      - Stop all services"
 	@echo "docker-logs      - View Docker logs"

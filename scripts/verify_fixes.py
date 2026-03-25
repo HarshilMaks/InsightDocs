@@ -18,11 +18,14 @@ def test_settings():
         assert hasattr(settings, 'gemini_api_key'), "Missing gemini_api_key"
         assert hasattr(settings, 'milvus_uri'), "Missing milvus_uri"
         assert hasattr(settings, 'milvus_token'), "Missing milvus_token"
+        assert hasattr(settings, 'milvus_dim'), "Missing milvus_dim"
+        assert settings.milvus_dim == 768, f"Wrong Milvus dimension: {settings.milvus_dim}"
         assert hasattr(settings, 'vector_dimension'), "Missing vector_dimension"
-        assert settings.vector_dimension == 384, f"Wrong dimension: {settings.vector_dimension}"
+        assert settings.vector_dimension == 384, f"Wrong legacy dimension: {settings.vector_dimension}"
         
         print("   ✅ Settings structure is FLAT and correct")
-        print(f"   ✅ Vector dimension: {settings.vector_dimension}")
+        print(f"   ✅ Milvus dimension: {settings.milvus_dim}")
+        print(f"   ✅ Legacy vector dimension: {settings.vector_dimension}")
         return True
     except Exception as e:
         print(f"   ❌ Error: {e}")
@@ -107,12 +110,12 @@ async def test_embeddings_methods():
     try:
         from sentence_transformers import SentenceTransformer
         
-        model = SentenceTransformer('all-MiniLM-L6-v2')
+        model = SentenceTransformer('BAAI/bge-base-en-v1.5')
         texts = ["Hello world", "Test document"]
         embeddings = model.encode(texts, convert_to_numpy=True)
         
         assert len(embeddings) == 2, f"Wrong number of embeddings: {len(embeddings)}"
-        assert len(embeddings[0]) == 384, f"Wrong dimension: {len(embeddings[0])}"
+        assert len(embeddings[0]) == 768, f"Wrong dimension: {len(embeddings[0])}"
         
         print(f"   ✅ Sentence transformer works")
         print(f"   ✅ Generated {len(embeddings)} embeddings")

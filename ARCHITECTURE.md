@@ -127,7 +127,6 @@ BaseAgent
 **Core Tasks**
 - `process_document`: Full document processing pipeline (Ingest -> Chunk -> Embed -> Summarize)
 - `generate_embeddings`: Vector generation for chunks
-- `generate_podcast`: Podcast script generation and TTS (Google/offline fallback)
 - `cleanup_old_tasks`: Maintenance operations
 
 ### 4. Data Storage Layer
@@ -151,7 +150,7 @@ fields:
   - document_id: VARCHAR
   - user_id: VARCHAR (Tenant Isolation)
   - text: VARCHAR  
-  - dense_vector: FLOAT_VECTOR (384 dimensions)
+  - dense_vector: FLOAT_VECTOR (768 dimensions)
   - sparse_vector: SPARSE_FLOAT_VECTOR (BM25)
 
 # Index Configuration
@@ -185,7 +184,7 @@ class LLMClient:
 
 **SentenceTransformers Embeddings**
 ```python
-# Model: all-MiniLM-L6-v2 (384 dimensions)
+# Model: BAAI/bge-base-en-v1.5 (768 dimensions)
 class EmbeddingEngine:
     @staticmethod
     def get_embedding_engine() -> EmbeddingEngine  # Singleton
@@ -219,7 +218,7 @@ class EmbeddingEngine:
    │
 5. AnalysisAgent Processing
    │
-   ├── Generate 384-dim embeddings
+   ├── Generate 768-dim embeddings
    ├── Store vectors in Milvus
    ├── Auto-generate document summary
    │
@@ -279,7 +278,7 @@ class EmbeddingEngine:
 **Vector Search**
 - Milvus IVF_FLAT index for fast similarity search
 - COSINE metric optimized for semantic similarity
-- 384-dimensional vectors balance accuracy and speed
+- 768-dimensional vectors balance accuracy and retrieval quality
 
 **Async Processing**
 - Non-blocking document processing

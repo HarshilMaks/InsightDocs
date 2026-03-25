@@ -63,12 +63,13 @@ def migrate():
         FieldSchema(name="document_id",   dtype=DataType.VARCHAR, max_length=100),
         FieldSchema(name="user_id",       dtype=DataType.VARCHAR, max_length=100),  # NEW: Tenant isolation
         FieldSchema(name="text",          dtype=DataType.VARCHAR, max_length=65535),
-        FieldSchema(name="dense_vector",  dtype=DataType.FLOAT_VECTOR, dim=settings.vector_dimension),
+        FieldSchema(name="dense_vector",  dtype=DataType.FLOAT_VECTOR, dim=settings.milvus_dim),
         FieldSchema(name="sparse_vector", dtype=DataType.SPARSE_FLOAT_VECTOR),
     ]
     schema = CollectionSchema(fields=fields, description="Document embeddings (Hybrid + Multi-Tenant)")
     col = Collection(name=collection_name, schema=schema)
     print(f"  ✓ Collection '{collection_name}' created")
+    print(f"  ✓ Dense vector dim: {settings.milvus_dim}")
 
     # Create indexes
     print("\n→ Creating indexes...")

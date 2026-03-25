@@ -1,5 +1,5 @@
 """LLM client for interacting with Gemini and other LLM providers."""
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 import logging
 import google.generativeai as genai
@@ -55,18 +55,63 @@ class LLMClient:
             return []
 
     async def generate_rag_response(
-        self, query: str, context_chunks: List[str], max_tokens: int = 1000
+        self,
+        query: str,
+        context_chunks: List[Dict[str, Any]],
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        max_tokens: int = 1000,
     ) -> str:
-        """Generate response using RAG (Retrieval-Augmented Generation)."""
+        """Generate response using RAG (Retrieval-Augmented Generation).
+
+        The context should be a list of items with:
+        - text: the chunk text
+        - citation: metadata describing the source location
+        """
         try:
-            context_text = "\n\n".join(
-                f"Context {i+1}:\n{chunk}" for i, chunk in enumerate(context_chunks)
-            )
+            context_sections = []
+            for i, chunk in enumerate(context_chunks, start=1):
+                if isinstance(chunk, dict):
+                    text = chunk.get("text", "")
+                    citation = chunk.get("citation", {}) or {}
+                    label = citation.get("citation_label") or f"Source {i}"
+                    document_name = citation.get("document_name", "Document")
+                    page_number = citation.get("page_number")
+                    chunk_index = citation.get("chunk_index")
+                    location_bits = []
+                    if page_number is not None:
+                        location_bits.append(f"page {page_number}")
+                    if chunk_index is not None:
+                        location_bits.append(f"chunk {chunk_index}")
+                    location_text = ", ".join(location_bits) if location_bits else "location unavailable"
+                    context_sections.append(
+                        f"Source {i} — {label} | {document_name} ({location_text})\n{text}"
+                    )
+                else:
+                    context_sections.append(f"Source {i}\n{chunk}")
+
+            context_text = "\n\n".join(context_sections)
+            conversation_sections = []
+            for i, turn in enumerate(conversation_history or [], start=1):
+                user_text = turn.get("query") or turn.get("user") or ""
+                assistant_text = turn.get("response") or turn.get("assistant") or ""
+                if not user_text and not assistant_text:
+                    continue
+                conversation_sections.append(
+                    f"Turn {i}\nUser: {user_text}\nAssistant: {assistant_text}".strip()
+                )
+
+            prompt_sections = [
+                "Answer the user's follow-up question using only the provided sources.",
+                "Use the conversation history to resolve references like 'it', 'this', or 'that'.",
+                "Cite every factual claim inline with the matching source number, like [1] or [2].",
+                "If the answer cannot be found in the sources, say so clearly.",
+            ]
+            if conversation_sections:
+                prompt_sections.append("Conversation history:\n" + "\n\n".join(conversation_sections))
+            prompt_sections.append(f"Context:\n{context_text}")
+            prompt_sections.append(f"Question: {query}\n\nAnswer:")
             prompt = (
-                "Answer the following question based on the provided context. "
-                "If the answer cannot be found in the context, say so.\n\n"
-                f"Context:\n{context_text}\n\n"
-                f"Question: {query}\n\nAnswer:"
+                "\n\n".join(prompt_sections)
             )
             response = self.model.generate_content(prompt)
             return response.text
@@ -135,27 +180,6 @@ class LLMClient:
         except Exception as e:
             logger.error(f"Error generating mindmap: {e}")
             return {"central_topic": "Error", "nodes": [], "edges": []}
-
-    async def generate_podcast_script(self, text: str, doc_title: str = "Document") -> str:
-        """Generate a high-quality podcast script from document content using Gemini."""
-        try:
-            prompt = (
-                f"Convert the following document content into an engaging, professional "
-                f"podcast script for a solo host. The podcast title is '{doc_title}'.\n\n"
-                "The script should include:\n"
-                "1. An engaging introduction that sets the context.\n"
-                "2. A structured breakdown of the key findings and insights.\n"
-                "3. Real-world applications or takeaways for listeners.\n"
-                "4. A clear conclusion and wrap-up.\n\n"
-                "Make it sound natural for audio, with conversational transitions. "
-                "The target length is about 3-5 minutes of speech.\n\n"
-                f"Document Content:\n{text[:15000]}"
-            )
-            response = self.model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            logger.error(f"Error generating podcast script: {e}")
-            return f"Error generating podcast script: {str(e)}"
 
     # ------------------------------------------------------------------
     # Planning agent support

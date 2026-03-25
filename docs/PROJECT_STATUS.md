@@ -1,7 +1,7 @@
 # InsightDocs — Complete Project Status Report
 
 > Full analysis of what is built, how it's built, what works, what doesn't, and what remains.
-> Updated: 2026-03-21
+> Updated: 2026-03-24
 
 ---
 
@@ -20,7 +20,7 @@
 
 **InsightDocs** is an AI-driven multi-agent platform that transforms unstructured documents into queryable intelligence using RAG (Retrieval-Augmented Generation).
 
-**Core Flow**: Upload documents (PDF, DOCX, PPTX, TXT) → AI agents parse, chunk, and embed them → Users ask questions in natural language → Get answers with source citations.
+**Core Flow**: Upload documents (PDF, DOCX, PPTX, TXT) → AI agents parse, chunk, and embed them → Users ask follow-up questions in a threaded chat → Get answers with source citations.
 
 **Tech Stack**:
 
@@ -34,7 +34,7 @@
 | Cache/Broker | Redis 7 |
 | Object Storage | S3 / MinIO |
 | LLM | Google Gemini 1.5 Pro |
-| Embeddings | Sentence Transformers (all-MiniLM-L6-v2, 384-dim) |
+| Embeddings | Sentence Transformers (BAAI/bge-base-en-v1.5, 768-dim) |
 | Auth | JWT (python-jose + passlib/bcrypt) |
 | Containerization | Docker + Docker Compose |
 | Package Manager | uv |
@@ -55,7 +55,7 @@
 - **Planning Agent**: Tracks progress.
 
 ### Layer 3: Async Workers (Celery)
-- **Tasks**: `process_document`, `generate_embeddings`, `generate_podcast`.
+- **Tasks**: `process_document`, `generate_embeddings`, `cleanup_old_tasks`.
 - **Security**: Workers enforce ownership checks and use scoped DB sessions.
 
 ### Layer 4: Data Storage
@@ -72,7 +72,7 @@
 |---|---|---|
 | **Document Parsing** | ✅ Complete | PDF (Native + OCR), DOCX, PPTX, TXT |
 | **OCR Support** | ✅ Complete | Tesseract integration for scanned PDFs |
-| **Podcast Generation** | ✅ Complete | Script generation (LLM) + TTS |
+| **Citation-backed AI Chat** | ✅ Complete | RAG responses with exact page/chunk citations |
 | **Vector Search** | ✅ Complete | Milvus Hybrid Search (Dense + Sparse) |
 | **Reranking** | ✅ Complete | Cross-Encoder reranking for higher accuracy |
 | **Authentication** | ✅ Complete | JWT Register/Login, Enforced on ALL endpoints |
@@ -122,7 +122,7 @@ The backend has undergone a rigorous hardening phase (Phase 5):
 1.  **Initialize Project**: React + Vite + Shadcn UI (Done).
 2.  **Auth Pages**: Login / Register.
 3.  **Dashboard**: List documents, upload interface.
-4.  **Document View**: Chat, Summary, Podcast player, Mind Map.
+4.  **Document View**: Chat, Summary, Citation-backed Q&A, Mind Map.
 5.  **Settings**: API Key management (BYOK).
 
 ### P1 — Advanced Features

@@ -119,8 +119,6 @@ List documents with pagination
       "status": "completed",
       "is_scanned": false,
       "ocr_confidence": null,
-      "has_podcast": true,
-      "podcast_duration": 185.5,
       "created_at": "2024-01-15T10:30:00Z",
       "processed_at": "2024-01-15T10:35:00Z"
     }
@@ -142,8 +140,6 @@ Get full document details
   "status": "completed",
   "is_scanned": true,
   "ocr_confidence": 0.92,
-  "has_podcast": true,
-  "podcast_duration": 185.5,
   "content_preview": "Document content preview...",
   "chunk_count": 25,
   "created_at": "2024-01-15T10:30:00Z",
@@ -163,36 +159,7 @@ Get full document details
 }
 ```
 
-### POST /api/v1/documents/{document_id}/generate-podcast
-Trigger async podcast generation for a document (requires document status=completed)
-
-**Example:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/documents/uuid/generate-podcast" \
-  -H "Authorization: Bearer <token>"
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "task_id": "task_uuid",
-  "message": "Podcast generation started"
-}
-```
-
-### GET /api/v1/documents/{document_id}/podcast
-Get podcast audio metadata and URL
-
-**Response:**
-```json
-{
-  "url": "https://s3.amazonaws.com/bucket/podcast.mp3?signature=...",
-  "duration": 185.5
-}
-```
-
-## Query (RAG)
+## Ask Your PDF (RAG Chat)
 
 ### POST /api/v1/documents/{document_id}/summarize
 Generate document summary (requires document status=completed)
@@ -271,13 +238,14 @@ curl -X POST "http://localhost:8000/api/v1/documents/uuid/mindmap" \
 ## Query (RAG)
 
 ### POST /api/v1/query/
-Query documents using RAG
+Ask follow-up questions about your uploaded documents using RAG
 
 **Body:**
 ```json
 {
   "query": "What are the key findings?",
-  "top_k": 5
+  "top_k": 5,
+  "conversation_id": "conv_uuid_optional"
 }
 ```
 
@@ -292,11 +260,24 @@ curl -X POST "http://localhost:8000/api/v1/query/" \
 **Response:**
 ```json
 {
-  "answer": "Based on the documents, the key findings are...",
+  "answer": "Based on the document, the key findings are... [1]",
+  "conversation_id": "conv_uuid",
+  "turn_index": 1,
   "sources": [
     {
+      "source_number": 1,
       "document_id": "uuid",
       "document_name": "document.pdf",
+      "chunk_id": "chunk_uuid",
+      "chunk_index": 5,
+      "page_number": 12,
+      "bbox": {
+        "x1": 10.5,
+        "y1": 20.5,
+        "x2": 220.1,
+        "y2": 180.3
+      },
+      "citation_label": "document.pdf · Page 12 · Chunk 5",
       "content_preview": "Relevant content snippet...",
       "similarity_score": 0.85
     }
@@ -308,10 +289,14 @@ curl -X POST "http://localhost:8000/api/v1/query/" \
 }
 ```
 
-### GET /api/v1/query/history
-Get query history with pagination
+The numbered answer citations map directly to the `sources` array. The frontend can use `page_number`, `chunk_index`, and `bbox` to jump to the exact passage or highlight it in the document view.
 
-**Query params:** skip, limit
+Pass the `conversation_id` from one turn to the next to keep the same threaded chat session alive.
+
+### GET /api/v1/query/history
+Get query history with pagination. Pass `conversation_id` to load one chat thread.
+
+**Query params:** skip, limit, conversation_id
 
 **Response:**
 ```json
@@ -319,6 +304,8 @@ Get query history with pagination
   "queries": [
     {
       "id": "uuid",
+      "conversation_id": "conv_uuid",
+      "turn_index": 1,
       "query": "What are the key findings?",
       "response": "The key findings are...",
       "response_time": 1.23,
