@@ -160,6 +160,7 @@ class TestConversationThreading:
                     user_id=user_id,
                 )
             )
+            seed_db.commit()
             seed_db.add(
                 QueryModel(
                     id="query-thread-1",
@@ -314,6 +315,8 @@ class TestOrchestratorCitationEnrichment:
                 bbox_x2=30.0,
                 bbox_y2=40.0,
             )
+            db.add_all([user, document, chunk])
+            db.commit()
             db.add(
                 QueryModel(
                     id="query-history-1",
@@ -326,7 +329,6 @@ class TestOrchestratorCitationEnrichment:
                     sources=[],
                 )
             )
-            db.add_all([user, document, chunk])
             db.commit()
         finally:
             db.close()

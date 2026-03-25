@@ -16,7 +16,7 @@ Password: (check your .env file: POSTGRES_PASSWORD)
 
 1. **alembic_version** - Tracks which migrations are applied
 2. **users** - User accounts with BYOK encryption keys
-3. **documents** - Uploaded files with OCR/TTS metadata
+3. **documents** - Uploaded files with OCR and processing metadata
 4. **document_chunks** - Text chunks with bounding boxes
 5. **tasks** - Background job tracking
 6. **queries** - RAG query history

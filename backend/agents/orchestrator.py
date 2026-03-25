@@ -377,6 +377,8 @@ class OrchestratorAgent(BaseAgent):
             db_gen = get_db()
             db = next(db_gen)
         try:
+            top_k = max(1, top_k)
+            history_limit = max(0, history_limit)
             if not user_id:
                 raise ValueError("user_id is required for tenant-isolated queries")
 
