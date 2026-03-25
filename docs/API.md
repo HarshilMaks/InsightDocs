@@ -235,7 +235,7 @@ curl -X POST "http://localhost:8000/api/v1/documents/uuid/mindmap" \
 }
 ```
 
-## Query (RAG)
+## Ask Your PDF (RAG Chat)
 
 ### POST /api/v1/query/
 Ask follow-up questions about your uploaded documents using RAG

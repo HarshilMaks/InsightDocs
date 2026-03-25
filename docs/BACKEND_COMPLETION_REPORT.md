@@ -27,7 +27,7 @@
 
 ### 4. Advanced Features
 - **OCR**: Tesseract integration for image-based PDFs.
-- **Podcast Generation**: Text-to-Speech pipeline with script generation.
+- **Ask Your PDF**: Threaded document chat with citation-backed answers.
 - **Mind Maps**: Concept extraction and relationship mapping.
 - **Quizzes**: Automated question generation from content.
 
@@ -40,7 +40,7 @@
 1. **API Client**: Generate TypeScript client from OpenAPI spec.
 2. **Auth Flow**: Implement Login/Register and "Settings" page for API Key entry.
 3. **Upload UI**: Build drag-and-drop zone with progress tracking.
-4. **Chat Interface**: Connect to `/api/v1/query` with streaming support.
+4. **Ask Your PDF**: Connect to `/api/v1/query` with threaded follow-up support.
 
 ## Verification
 - Unit tests for BYOK logic passed.

@@ -509,7 +509,7 @@ const ProtectedRoute = ({ children }) => {
 
 **Sections**:
 - Hero section with CTA
-- Feature highlights (BYOK, 23 formats, RAG, citation-backed Q&A)
+- Feature highlights (BYOK, 23 formats, Ask Your PDF, citations)
 - How it works (3-step process)
 - Competitive advantages
 - Footer with links
@@ -1020,7 +1020,7 @@ export const useDocuments = () => {
 5. ✅ Implement search/filter
 6. ✅ Test upload flow
 
-### Phase 4: Chat Interface (Day 3-4)
+### Phase 4: Ask Your PDF Interface (Day 3-4)
 1. ✅ Create Chat page
 2. ✅ Build ChatInterface component
 3. ✅ Build ChatMessage component
