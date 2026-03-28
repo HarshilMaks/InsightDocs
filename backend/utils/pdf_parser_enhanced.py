@@ -1,9 +1,16 @@
 """Enhanced PDF parser using PyMuPDF (fitz) for spatial text extraction."""
 import logging
 from typing import List, Dict, Any, Tuple, Optional
-import fitz  # PyMuPDF
 
 logger = logging.getLogger(__name__)
+
+try:
+    import fitz  # PyMuPDF
+    FITZ_AVAILABLE = True
+except ImportError:
+    FITZ_AVAILABLE = False
+    logger.warning("PyMuPDF (fitz) not available. PDF spatial extraction will be disabled.")
+
 
 
 class PDFBlock:
@@ -40,6 +47,8 @@ class EnhancedPDFParser:
     """Enhanced PDF parser with spatial text extraction using PyMuPDF."""
     
     def __init__(self):
+        if not FITZ_AVAILABLE:
+            logger.warning("EnhancedPDFParser initialized without PyMuPDF support")
         self.min_text_length = 10  # Minimum chars per block
     
     def parse_pdf(self, file_path: str) -> Dict[str, Any]:
@@ -55,6 +64,9 @@ class EnhancedPDFParser:
                 - blocks: List of PDFBlock objects with spatial data
                 - metadata: Document metadata
         """
+        if not FITZ_AVAILABLE:
+            raise RuntimeError("PyMuPDF (fitz) is not installed. Cannot parse PDF with spatial extraction.")
+        
         try:
             doc = fitz.open(file_path)
             all_blocks: List[PDFBlock] = []
