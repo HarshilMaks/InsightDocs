@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MessageSquareQuote } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { v4 as uuidv4 } from 'uuid'
 import { getApiErrorMessage, getQueryHistory, sendQuery } from '@/lib/api'
 import { historyToMessages, responseToAssistantMessage } from '@/lib/threads'
 import { ChatPanel } from '@/components/ChatPanel'
@@ -44,7 +45,7 @@ export default function ConversationPage() {
     }
 
     const optimisticMessage: ChatMessage = {
-      id: `user-${crypto.randomUUID()}`,
+      id: `user-${uuidv4()}`,
       role: 'user',
       content: queryText,
       timestamp: new Date().toISOString(),
@@ -70,7 +71,7 @@ export default function ConversationPage() {
       setMessages((current) => [
         ...current,
         {
-          id: `error-${crypto.randomUUID()}`,
+          id: `error-${uuidv4()}`,
           role: 'assistant',
           content: getApiErrorMessage(error),
           timestamp: new Date().toISOString(),

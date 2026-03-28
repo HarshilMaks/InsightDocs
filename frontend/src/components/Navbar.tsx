@@ -24,6 +24,7 @@ export function Navbar() {
     <header className="fixed inset-x-0 top-0 z-50 h-16 border-b border-outline-variant/15 bg-surface/80 backdrop-blur-xl">
       <div className="flex h-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <button
+          aria-label="Go to dashboard"
           className="flex items-center gap-3 transition-transform hover:scale-[1.01]"
           onClick={() => navigate('/dashboard')}
           type="button"

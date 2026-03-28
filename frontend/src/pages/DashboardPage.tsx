@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { ArchiveRestore, FileStack, Layers3, Upload } from 'lucide-react'
@@ -13,6 +13,7 @@ import type { WorkspaceOutletContext } from '@/types'
 import { UploadDropzone } from '@/components/UploadDropzone'
 import { DocumentCard } from '@/components/DocumentCard'
 import { StatCard } from '@/components/StatCard'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 function taskIsActive(status: string) {
   return status === 'pending' || status === 'processing'
@@ -22,6 +23,12 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { documents, threads } = useOutletContext<WorkspaceOutletContext>()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState('')
+  const [deleteErrorOpen, setDeleteErrorOpen] = useState(false)
+  const [uploadErrorMessage, setUploadErrorMessage] = useState('')
+  const [uploadErrorOpen, setUploadErrorOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   const tasksQuery = useQuery({
     queryKey: ['tasks'],
@@ -94,15 +101,18 @@ export default function DashboardPage() {
   )
 
   const handleDelete = async (documentId: string) => {
-    const confirmed = window.confirm('Delete this document and its chunk data?')
-    if (!confirmed) {
-      return
-    }
+    setPendingDeleteId(documentId)
+    setDeleteDialogOpen(true)
+  }
 
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return
     try {
-      await deleteMutation.mutateAsync(documentId)
+      await deleteMutation.mutateAsync(pendingDeleteId)
+      setPendingDeleteId(null)
     } catch (error) {
-      window.alert(getApiErrorMessage(error))
+      setDeleteErrorMessage(getApiErrorMessage(error))
+      setDeleteErrorOpen(true)
     }
   }
 
@@ -110,7 +120,8 @@ export default function DashboardPage() {
     try {
       await uploadMutation.mutateAsync(file)
     } catch (error) {
-      window.alert(getApiErrorMessage(error))
+      setUploadErrorMessage(getApiErrorMessage(error))
+      setUploadErrorOpen(true)
       throw error
     }
   }
@@ -288,6 +299,40 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
+
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        title="Delete document?"
+        message="This will permanently delete the document and all its indexed chunks. This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        isDangerous
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setDeleteDialogOpen(false)
+          setPendingDeleteId(null)
+        }}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteErrorOpen}
+        title="Delete failed"
+        message={deleteErrorMessage}
+        confirmLabel="OK"
+        cancelLabel={undefined as any}
+        onConfirm={() => setDeleteErrorOpen(false)}
+        onCancel={() => setDeleteErrorOpen(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={uploadErrorOpen}
+        title="Upload failed"
+        message={uploadErrorMessage}
+        confirmLabel="OK"
+        cancelLabel={undefined as any}
+        onConfirm={() => setUploadErrorOpen(false)}
+        onCancel={() => setUploadErrorOpen(false)}
+      />
     </div>
   )
 }
