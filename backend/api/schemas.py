@@ -19,6 +19,7 @@ class BaseSchema(BaseModel):
         from_attributes = True
         use_enum_values = True
         validate_assignment = True
+        protected_namespaces = ()
 
 # ---------------------------------------------------------
 # User & Auth Schemas (from Insight)
@@ -138,6 +139,29 @@ class QueryHistoryItem(BaseSchema):
 class QueryHistoryResponse(BaseSchema):
     queries: List[QueryHistoryItem]
     total: int
+
+class ByokStatusResponse(BaseSchema):
+    byok_enabled: bool
+    has_api_key: bool
+    user_id: str
+    email: str
+    status: str
+    model_status: str
+    message: str
+    active_model: Optional[str] = None
+    fallback_models: List[str] = Field(default_factory=list)
+    available_models: List[str] = Field(default_factory=list)
+    checked_at: Optional[datetime] = None
+
+class ApiKeyResponse(BaseSchema):
+    message: str
+    byok_enabled: bool
+    status: str
+    model_status: str
+    active_model: Optional[str] = None
+    fallback_models: List[str] = Field(default_factory=list)
+    available_models: List[str] = Field(default_factory=list)
+    checked_at: Optional[datetime] = None
 
 # ---------------------------------------------------------
 # Task Schemas (Updated)

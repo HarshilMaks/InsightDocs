@@ -703,6 +703,7 @@ const ProtectedRoute = ({ children }) => {
 **Features**:
 - BYOK API key input (encrypted storage)
 - BYOK status fetched from `/users/me/byok-status`
+- Live model health, fallback order, and active-model display
 - Enable/disable BYOK toggle
 - Profile editing (name, email)
 - Theme preference (light/dark)

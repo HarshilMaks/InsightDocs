@@ -54,10 +54,18 @@ class BaseAgent(ABC):
             "error_type": type(error).__name__,
             "context": context
         })
+        status_code = getattr(error, "status_code", None)
+        error_code = getattr(error, "error_code", None)
+        attempts = getattr(error, "attempts", None)
+        active_model = getattr(error, "active_model", None)
         return {
             "success": False,
             "error": str(error),
             "error_type": type(error).__name__,
+            "error_code": error_code,
+            "status_code": status_code,
+            "attempts": attempts,
+            "active_model": active_model,
             "agent_id": self.agent_id
         }
 

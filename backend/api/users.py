@@ -1,11 +1,14 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
-import re
 
+from backend.api.schemas import ApiKeyResponse, ByokStatusResponse
+from backend.core.security import get_current_user, encrypt_api_key, decrypt_api_key
 from backend.models.database import get_db
 from backend.models.schemas import User
-from backend.core.security import get_current_user, encrypt_api_key
+from backend.utils.llm_client import probe_gemini_status
 
 router = APIRouter(prefix="/users", tags=["User Settings"])
 
@@ -39,7 +42,7 @@ class APIKeyUpdate(BaseModel):
 class BYOKSettings(BaseModel):
     enabled: bool
 
-@router.put("/me/api-key")
+@router.put("/me/api-key", response_model=ApiKeyResponse)
 def update_api_key(
     key_data: APIKeyUpdate,
     current_user: User = Depends(get_current_user),
@@ -50,14 +53,26 @@ def update_api_key(
     The API key will be encrypted before storage.
     Validation ensures the key matches Gemini's format.
     """
-    # Pydantic validator already checked format
     encrypted = encrypt_api_key(key_data.api_key)
     current_user.gemini_api_key_encrypted = encrypted
-    current_user.byok_enabled = True  # Auto-enable when key is added
+
+    status = probe_gemini_status(key_data.api_key)
+    current_user.byok_enabled = status["status"] in {"healthy", "degraded"}
     db.commit()
+
+    message = status["message"]
+    if current_user.byok_enabled:
+        message = f"API key updated successfully. {message}"
+
     return {
-        "message": "API key updated successfully",
-        "byok_enabled": True
+        "message": message,
+        "byok_enabled": current_user.byok_enabled,
+        "status": status["status"],
+        "model_status": status["model_status"],
+        "active_model": status.get("active_model"),
+        "fallback_models": status.get("fallback_models", []),
+        "available_models": status.get("available_models", []),
+        "checked_at": status.get("checked_at"),
     }
 
 @router.delete("/me/api-key")
@@ -78,21 +93,46 @@ def update_byok_settings(
     db: Session = Depends(get_db)
 ):
     """Toggle BYOK usage on/off."""
-    if settings.enabled and not current_user.gemini_api_key_encrypted:
-        raise HTTPException(400, "Cannot enable BYOK without a saved API key")
-        
+    if settings.enabled:
+        if not current_user.gemini_api_key_encrypted:
+            raise HTTPException(400, "Cannot enable BYOK without a saved API key")
+
+        api_key = decrypt_api_key(current_user.gemini_api_key_encrypted)
+        if not api_key:
+            raise HTTPException(400, "Saved API key could not be decrypted")
+
+        status = probe_gemini_status(api_key)
+        if status["status"] not in {"healthy", "degraded"}:
+            raise HTTPException(400, status["message"])
+
     current_user.byok_enabled = settings.enabled
     db.commit()
     return {"message": f"BYOK {'enabled' if settings.enabled else 'disabled'}"}
 
-@router.get("/me/byok-status")
+@router.get("/me/byok-status", response_model=ByokStatusResponse)
 def get_byok_status(
     current_user: User = Depends(get_current_user)
 ):
     """Get current BYOK configuration status."""
+    status = probe_gemini_status(None)
+    if current_user.gemini_api_key_encrypted:
+        api_key = decrypt_api_key(current_user.gemini_api_key_encrypted)
+        if api_key:
+            status = probe_gemini_status(api_key)
+        else:
+            status = {
+                **status,
+                "status": "invalid",
+                "model_status": "unavailable",
+                "message": "Stored API key could not be decrypted.",
+                "active_model": None,
+                "available_models": [],
+            }
+
     return {
         "byok_enabled": current_user.byok_enabled,
         "has_api_key": bool(current_user.gemini_api_key_encrypted),
         "user_id": current_user.id,
-        "email": current_user.email
+        "email": current_user.email,
+        **status,
     }

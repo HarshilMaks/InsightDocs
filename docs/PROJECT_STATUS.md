@@ -33,7 +33,7 @@
 | Vector DB | Milvus (Hybrid Search: Dense + Sparse) |
 | Cache/Broker | Redis 7 |
 | Object Storage | S3 / MinIO |
-| LLM | Google Gemini 1.5 Pro |
+| LLM | Google Gemini 2.5 Flash + fallback chain |
 | Embeddings | Sentence Transformers (BAAI/bge-base-en-v1.5, 768-dim) |
 | Auth | JWT (python-jose + passlib/bcrypt) |
 | Containerization | Docker + Docker Compose |

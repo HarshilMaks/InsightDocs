@@ -155,11 +155,30 @@ export interface TaskStatusResponse {
   error?: string | null
 }
 
+export type GeminiHealthStatus =
+  | 'missing'
+  | 'healthy'
+  | 'degraded'
+  | 'rate_limited'
+  | 'invalid'
+  | 'expired'
+  | 'unsupported'
+  | 'unknown'
+
+export type GeminiModelStatus = 'primary' | 'fallback' | 'unavailable'
+
 export interface ByokStatus {
   byok_enabled: boolean
   has_api_key: boolean
   user_id: string
   email: string
+  status: GeminiHealthStatus
+  model_status: GeminiModelStatus
+  message: string
+  active_model?: string | null
+  fallback_models: string[]
+  available_models: string[]
+  checked_at?: string | null
 }
 
 export interface ByokSettingsPayload {
@@ -177,6 +196,12 @@ export interface ApiMessageResponse {
 export interface ApiKeyResponse {
   message: string
   byok_enabled: boolean
+  status: GeminiHealthStatus
+  model_status: GeminiModelStatus
+  active_model?: string | null
+  fallback_models: string[]
+  available_models: string[]
+  checked_at?: string | null
 }
 
 export interface DocumentSummaryResponse {

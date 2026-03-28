@@ -9,11 +9,20 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from unittest.mock import patch
 
 from backend.api.main import app
 from backend.core.security import decrypt_api_key, encrypt_api_key
 from backend.models.database import Base, get_db
 from backend.models.schemas import User
+
+
+FALLBACK_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-2.0-pro",
+]
 
 
 TEST_DB_URL = "sqlite:///:memory:"
@@ -45,6 +54,34 @@ def setup_database():
 @pytest.fixture()
 def client(setup_database):
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def mock_gemini_probe():
+    def _probe(api_key, model_candidates=None):
+        if not api_key:
+            return {
+                "status": "missing",
+                "model_status": "unavailable",
+                "message": "No Gemini API key has been saved yet.",
+                "active_model": None,
+                "fallback_models": FALLBACK_MODELS,
+                "available_models": [],
+                "checked_at": "2026-03-28T00:00:00",
+            }
+
+        return {
+            "status": "healthy",
+            "model_status": "primary",
+            "message": "Gemini key is valid. Using gemini-2.5-flash.",
+            "active_model": "gemini-2.5-flash",
+            "fallback_models": FALLBACK_MODELS,
+            "available_models": ["gemini-2.5-flash", "gemini-2.0-flash"],
+            "checked_at": "2026-03-28T00:00:00",
+        }
+
+    with patch("backend.api.users.probe_gemini_status", side_effect=_probe):
+        yield
 
 
 def _register_and_login(client: TestClient, email: str, name: str, password: str = "SecurePass123!"):
@@ -101,12 +138,18 @@ class TestBYOKEndToEnd:
             headers=headers,
         )
         assert r.status_code == 200, r.text
+        save_payload = r.json()
+        assert save_payload["status"] == "healthy"
+        assert save_payload["model_status"] == "primary"
+        assert save_payload["active_model"] == "gemini-2.5-flash"
 
         r = client.get("/api/v1/users/me/byok-status", headers=headers)
         assert r.status_code == 200
         status = r.json()
         assert status["byok_enabled"] is True
         assert status["has_api_key"] is True
+        assert status["status"] == "healthy"
+        assert status["model_status"] == "primary"
         assert status["email"] == "dave@example.com"
 
     def test_remove_api_key(self, client):
@@ -125,6 +168,38 @@ class TestBYOKEndToEnd:
         status = r.json()
         assert status["byok_enabled"] is False
         assert status["has_api_key"] is False
+        assert status["status"] == "missing"
+
+    def test_save_api_key_reports_invalid_status(self, client):
+        token = _register_and_login(client, "ivy@example.com", "Ivy")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        invalid_status = {
+            "status": "invalid",
+            "model_status": "unavailable",
+            "message": "The Gemini API key is invalid or unauthorized.",
+            "active_model": None,
+            "fallback_models": FALLBACK_MODELS,
+            "available_models": [],
+            "checked_at": "2026-03-28T00:00:00",
+        }
+
+        with patch("backend.api.users.probe_gemini_status", return_value=invalid_status):
+            r = client.put(
+                "/api/v1/users/me/api-key",
+                json={"api_key": "AIzaSyC_invalid_status_key_for_testing_123"},
+                headers=headers,
+            )
+
+            assert r.status_code == 200, r.text
+            payload = r.json()
+            assert payload["status"] == "invalid"
+            assert payload["model_status"] == "unavailable"
+            assert payload["byok_enabled"] is False
+
+            status = client.get("/api/v1/users/me/byok-status", headers=headers).json()
+            assert status["status"] == "invalid"
+            assert status["model_status"] == "unavailable"
 
     def test_toggle_byok_settings(self, client):
         token = _register_and_login(client, "grace@example.com", "Grace")

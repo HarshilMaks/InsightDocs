@@ -68,7 +68,10 @@ async def query_documents(
         if not result.get("success"):
             error_msg = result.get("error", "Query processing failed")
             logger.error(f"Query workflow failed for user {current_user.id}: {error_msg}")
-            raise HTTPException(status_code=500, detail=error_msg)
+            raise HTTPException(
+                status_code=int(result.get("status_code") or 500),
+                detail=error_msg,
+            )
         
         answer = result.get("answer", "")
         sources_data = result.get("sources", [])
