@@ -1,7 +1,5 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { PublicShell } from '@/components/PublicShell'
 import { useAuth } from '@/context/auth-context'
