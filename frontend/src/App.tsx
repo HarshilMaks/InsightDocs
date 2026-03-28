@@ -1,17 +1,46 @@
-import React from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { AppShell } from '@/components/AppShell'
+import { GuestOnly, RequireAuth } from '@/components/route-guards'
+import { useAuth } from '@/context/auth-context'
+import DashboardPage from '@/pages/DashboardPage'
+import DocumentPage from '@/pages/DocumentPage'
+import ConversationPage from '@/pages/ConversationPage'
+import LandingPage from '@/pages/LandingPage'
+import LoginPage from '@/pages/LoginPage'
+import NotFoundPage from '@/pages/NotFoundPage'
+import RegisterPage from '@/pages/RegisterPage'
+import SettingsPage from '@/pages/SettingsPage'
 
-function App() {
-  return (
-    <Router>
-      <div className="min-h-screen bg-background text-foreground font-sans antialiased">
-        <div className="container mx-auto py-8">
-          <h1 className="text-4xl font-bold mb-4">InsightDocs</h1>
-          <p className="text-muted-foreground">Frontend setup complete with Shadcn UI.</p>
-        </div>
-      </div>
-    </Router>
-  )
+function HomeRedirect() {
+  const { isAuthenticated } = useAuth()
+
+  if (isAuthenticated) {
+    return <Navigate replace to="/dashboard" />
+  }
+
+  return <LandingPage />
 }
 
-export default App
+export default function App() {
+  return (
+    <Routes>
+      <Route element={<GuestOnly />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+      </Route>
+
+      <Route path="/" element={<HomeRedirect />} />
+
+      <Route element={<RequireAuth />}>
+        <Route element={<AppShell />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/documents/:documentId" element={<DocumentPage />} />
+          <Route path="/conversations/:conversationId" element={<ConversationPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
+      </Route>
+
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  )
+}
