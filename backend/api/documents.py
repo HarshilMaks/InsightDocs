@@ -14,7 +14,7 @@ from backend.models.schemas import User
 from backend.core.security import get_current_user, decrypt_api_key
 from backend.workers.tasks import process_document_task
 from backend.utils.document_processor import SUPPORTED_EXTENSIONS, MAX_FILE_SIZE
-from backend.utils.llm_client import LLMClient
+from backend.utils.llm_client import GeminiAPIError, LLMClient
 from backend.core.limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -208,10 +208,13 @@ async def summarize_document(
     current_user: User = Depends(get_current_user)
 ):
     """Generate an LLM summary of a processed document (user must own it)."""
-    text = _get_document_text(document_id, db, current_user)
-    llm = _get_user_llm_client(current_user)
-    summary = await llm.summarize(text)
-    return {"document_id": document_id, "summary": summary}
+    try:
+        text = _get_document_text(document_id, db, current_user)
+        llm = _get_user_llm_client(current_user)
+        summary = await llm.summarize(text)
+        return {"document_id": document_id, "summary": summary}
+    except GeminiAPIError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.post("/{document_id}/quiz")
@@ -223,10 +226,13 @@ async def generate_quiz(
     current_user: User = Depends(get_current_user)
 ):
     """Generate quiz questions from a processed document (user must own it)."""
-    text = _get_document_text(document_id, db, current_user)
-    llm = _get_user_llm_client(current_user)
-    quiz = await llm.generate_quiz(text)
-    return {"document_id": document_id, "quiz": quiz}
+    try:
+        text = _get_document_text(document_id, db, current_user)
+        llm = _get_user_llm_client(current_user)
+        quiz = await llm.generate_quiz(text)
+        return {"document_id": document_id, "quiz": quiz}
+    except GeminiAPIError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.post("/{document_id}/mindmap")
@@ -238,7 +244,10 @@ async def generate_mindmap(
     current_user: User = Depends(get_current_user)
 ):
     """Generate a mind map (concepts + relationships) from a processed document (user must own it)."""
-    text = _get_document_text(document_id, db, current_user)
-    llm = _get_user_llm_client(current_user)
-    mindmap = await llm.generate_mindmap(text)
-    return {"document_id": document_id, "mindmap": mindmap}
+    try:
+        text = _get_document_text(document_id, db, current_user)
+        llm = _get_user_llm_client(current_user)
+        mindmap = await llm.generate_mindmap(text)
+        return {"document_id": document_id, "mindmap": mindmap}
+    except GeminiAPIError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))

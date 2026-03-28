@@ -33,7 +33,10 @@ class Settings(BaseSettings):
     
     # LLM (Optional for BYOK - Bring Your Own Key mode)
     gemini_api_key: str = Field(None)  # Optional: Users can provide their own keys
-    gemini_model: str = Field("gemini-1.5-pro")
+    gemini_model: str = Field("gemini-2.5-flash")
+    gemini_model_fallbacks: str = Field(
+        "gemini-2.0-flash,gemini-1.5-flash,gemini-1.5-pro,gemini-2.0-pro"
+    )
     gemini_temperature: float = Field(0.7)
     
     # Milvus
@@ -58,6 +61,22 @@ class Settings(BaseSettings):
     def allowed_origins_list(self) -> List[str]:
         """Convert comma-separated origins to list."""
         return [origin.strip() for origin in self.allowed_origins.split(",")]
+
+    @property
+    def gemini_model_chain(self) -> List[str]:
+        """Return the preferred Gemini model order with duplicates removed."""
+        models = [self.gemini_model]
+        models.extend(
+            model.strip()
+            for model in self.gemini_model_fallbacks.split(",")
+            if model.strip()
+        )
+
+        ordered_models: List[str] = []
+        for model in models:
+            if model not in ordered_models:
+                ordered_models.append(model)
+        return ordered_models
 
     model_config = SettingsConfigDict(
         env_file=".env",

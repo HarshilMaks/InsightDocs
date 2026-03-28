@@ -7,6 +7,7 @@ from backend.agents.data_agent import DataAgent
 from backend.agents.analysis_agent import AnalysisAgent
 from backend.agents.planning_agent import PlanningAgent
 from backend.models import get_db, Document, DocumentChunk, Query as QueryModel
+from backend.utils.llm_client import GeminiAPIError
 
 logger = logging.getLogger(__name__)
 
@@ -415,7 +416,19 @@ class OrchestratorAgent(BaseAgent):
                 "conversation_history": conversation_history,
                 "agent_id": self.agent_id
             }
-            
+        except GeminiAPIError as e:
+            logger.warning(f"Gemini query failed for user {user_id}: {e}")
+            return {
+                "success": False,
+                "answer": "",
+                "sources": [],
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "error_code": getattr(e, "error_code", type(e).__name__),
+                "status_code": getattr(e, "status_code", 503),
+                "attempts": getattr(e, "attempts", []),
+                "active_model": getattr(e, "active_model", None),
+            }
         except Exception as e:
             logger.error(f"Error processing query: {e}", exc_info=True)
             return {
