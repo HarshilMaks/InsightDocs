@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     celery_result_backend: str
     
     # LLM (Optional for BYOK - Bring Your Own Key mode)
-    gemini_api_key: str = Field(None)  # Optional: Users can provide their own keys
+    gemini_api_key: str | None = Field(None)  # Optional: Users can provide their own keys
     gemini_model: str = Field("gemini-2.5-flash")
     gemini_model_fallbacks: str = Field(
         "gemini-2.0-flash,gemini-1.5-flash,gemini-1.5-pro,gemini-2.0-pro"
