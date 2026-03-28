@@ -27,37 +27,37 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 16 }}
         >
           <div className="space-y-4 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-lg font-bold text-white mx-auto">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-container text-lg font-bold text-on-primary mx-auto">
               ID
             </div>
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900">InsightDocs</h1>
-              <p className="mt-2 text-gray-600">Ask Your PDF, better</p>
+              <h1 className="text-3xl font-semibold text-on-surface">InsightDocs</h1>
+              <p className="mt-2 text-on-surface-variant">Ask Your PDF, better</p>
             </div>
           </div>
 
           <div className="space-y-3">
             <Link
               to="/register"
-              className="block w-full rounded-lg bg-blue-600 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-700"
+              className="block w-full rounded-lg bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-center text-sm font-semibold text-on-primary transition hover:opacity-95"
             >
               Create account
             </Link>
             <Link
               to="/login"
-              className="block w-full rounded-lg border border-gray-300 bg-white px-5 py-3 text-center text-sm font-semibold text-gray-900 transition hover:bg-gray-50"
+              className="block w-full rounded-lg border border-outline-variant/15 bg-surface-container-low px-5 py-3 text-center text-sm font-semibold text-on-surface transition hover:bg-surface-container-high"
             >
               Sign in with Email
             </Link>
           </div>
 
-          <p className="text-center text-xs text-gray-500">
+          <p className="text-center text-xs text-on-surface-variant">
             By signing in, you agree to our{' '}
-            <a href="#" className="text-blue-600 hover:underline">
+            <a href="#" className="text-primary hover:underline">
               Terms of Service
             </a>{' '}
             and{' '}
-            <a href="#" className="text-blue-600 hover:underline">
+            <a href="#" className="text-primary hover:underline">
               Privacy Policy
             </a>
           </p>
