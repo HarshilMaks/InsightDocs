@@ -126,7 +126,7 @@ export function AuthCard({ mode }: AuthCardProps) {
               <input
                 className="w-full rounded-2xl border border-outline-variant/15 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none ring-0 transition placeholder:text-on-surface-variant focus:border-primary/40"
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Harshil"
+                placeholder="John Doe"
                 value={name}
               />
             </label>
@@ -137,7 +137,7 @@ export function AuthCard({ mode }: AuthCardProps) {
             <input
               className="w-full rounded-2xl border border-outline-variant/15 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none ring-0 transition placeholder:text-on-surface-variant focus:border-primary/40"
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="harshil@example.com"
+              placeholder="[EMAIL_ADDRESS]"
               type="email"
               value={email}
             />
