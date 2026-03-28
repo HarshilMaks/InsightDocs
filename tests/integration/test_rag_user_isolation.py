@@ -186,7 +186,7 @@ class TestRAGSourceFiltering:
 
         mock_orch = AsyncMock()
 
-        async def _side_effect(query_text: str, user_id: str):
+        async def _side_effect(query_text: str, user_id: str, *args, **kwargs):
             if user_id == user_a:
                 return {
                     "success": True,
