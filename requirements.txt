@@ -46,16 +46,16 @@ tenacity==8.2.3
 click==8.1.7
 email-validator==2.1.0
 
-# OCR Support (optional, requires system Tesseract)
-pytesseract>=0.3.10
-Pillow>=10.0.0
-PyMuPDF>=1.23.0
+# OCR Support (optional, requires system Tesseract) - disable for production to save memory
+# pytesseract>=0.3.10
+# Pillow>=10.0.0
+# PyMuPDF>=1.23.0
 
 # Dev Test Requirements
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 httpx>=0.25.0
-pymilvus[model]>=2.4.0
+pymilvus>=2.4.0
 datasets>=2.19.0,<3.0.0
 slowapi
