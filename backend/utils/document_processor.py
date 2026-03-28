@@ -5,7 +5,6 @@ from pathlib import Path
 import re
 
 from backend.utils.ocr_processor import OcrProcessor
-from backend.utils.pdf_parser_enhanced import EnhancedPDFParser
 from backend.utils.format_converters import convert_to_pdf, can_convert, get_supported_extensions
 from backend.utils.table_extractor import extract_text_and_tables
 
@@ -20,7 +19,13 @@ class DocumentProcessor:
     """Handles document parsing and transformation."""
     
     def __init__(self):
-        self.pdf_parser = EnhancedPDFParser()
+        # Lazy import EnhancedPDFParser to avoid loading fitz at startup
+        try:
+            from backend.utils.pdf_parser_enhanced import EnhancedPDFParser
+            self.pdf_parser = EnhancedPDFParser()
+        except ImportError:
+            logger.warning("EnhancedPDFParser not available, will use fallback PDF parsing")
+            self.pdf_parser = None
         self._temp_converted_files = []  # Track temp files for cleanup
 
     async def parse_document(self, file_path: str) -> Dict[str, Any]:
@@ -77,25 +82,45 @@ class DocumentProcessor:
             
             # Check if pdfplumber extraction was successful
             if table_result and table_result.get("combined_text"):
-                # Use enhanced parser for spatial blocks
-                spatial_result = self.pdf_parser.parse_pdf(file_path)
-                
-                # Merge results
-                return {
-                    "text": table_result["combined_text"],
-                    "blocks": spatial_result.get("blocks", []),
-                    "tables": table_result.get("tables", []),
-                    "metadata": {
-                        "type": "pdf",
-                        "is_scanned": spatial_result["metadata"].get("is_scanned", False),
-                        "char_count": len(table_result["combined_text"]),
-                        "has_spatial_data": True,
-                        "table_count": len(table_result.get("tables", [])),
-                        "text_block_count": len(table_result.get("text_blocks", []))
+                # Use enhanced parser for spatial blocks if available
+                if self.pdf_parser:
+                    spatial_result = self.pdf_parser.parse_pdf(file_path)
+                    
+                    # Merge results
+                    return {
+                        "text": table_result["combined_text"],
+                        "blocks": spatial_result.get("blocks", []),
+                        "tables": table_result.get("tables", []),
+                        "metadata": {
+                            "type": "pdf",
+                            "is_scanned": spatial_result["metadata"].get("is_scanned", False),
+                            "char_count": len(table_result["combined_text"]),
+                            "has_spatial_data": True,
+                            "table_count": len(table_result.get("tables", [])),
+                            "text_block_count": len(table_result.get("text_blocks", []))
+                        }
                     }
-                }
+                else:
+                    # Fallback without spatial data
+                    return {
+                        "text": table_result["combined_text"],
+                        "blocks": [],
+                        "tables": table_result.get("tables", []),
+                        "metadata": {
+                            "type": "pdf",
+                            "is_scanned": False,
+                            "char_count": len(table_result["combined_text"]),
+                            "has_spatial_data": False,
+                            "table_count": len(table_result.get("tables", [])),
+                            "text_block_count": len(table_result.get("text_blocks", []))
+                        }
+                    }
             
-            # Fallback to basic PyMuPDF if pdfplumber failed
+            # Fallback to basic PyMuPDF if pdfplumber failed (if available)
+            if not self.pdf_parser:
+                # If neither pdfplumber nor PyMuPDF available, raise error
+                raise RuntimeError("No PDF parser available. Please ensure either pdfplumber or PyMuPDF is installed.")
+            
             result = self.pdf_parser.parse_pdf(file_path)
             
             # Check if it's scanned or very little text extracted
@@ -218,8 +243,8 @@ class DocumentProcessor:
         Returns:
             List of chunk dictionaries (text + optional bbox data)
         """
-        # If we have blocks with spatial data, use enhanced chunking
-        if blocks:
+        # If we have blocks with spatial data, use enhanced chunking if available
+        if blocks and self.pdf_parser:
             return self.pdf_parser.chunk_blocks(blocks, chunk_size, overlap)
         
         # Fallback to simple text chunking
