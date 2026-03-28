@@ -10,6 +10,28 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    // Reduce memory usage during build
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+      },
+    },
+    // Optimize chunk splitting to reduce main bundle
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'query-vendor': ['@tanstack/react-query'],
+          'ui-vendor': ['framer-motion', 'lucide-react', 'react-dropzone'],
+        },
+      },
+    },
+    // Reduce build memory
+    chunkSizeWarningLimit: 1000,
+    reportCompressedSize: false,
+  },
   server: {
     host: '0.0.0.0',
     port: 3000,
