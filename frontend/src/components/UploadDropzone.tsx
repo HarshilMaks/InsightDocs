@@ -32,7 +32,7 @@ export function UploadDropzone({ isUploading = false, onUpload }: UploadDropzone
         isUploading && 'cursor-wait opacity-70',
       )}
     >
-      <input {...getInputProps()} />
+      <input {...getInputProps()} aria-label="Upload document file" />
       <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">

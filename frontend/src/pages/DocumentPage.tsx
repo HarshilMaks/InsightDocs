@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { FileText, RefreshCw } from 'lucide-react'
+import { v4 as uuidv4 } from 'uuid'
 import {
   generateMindmap,
   generateQuiz,
@@ -152,7 +153,7 @@ export default function DocumentPage() {
     }
 
     const userMessage: ChatMessage = {
-      id: `user-${crypto.randomUUID()}`,
+      id: `user-${uuidv4()}`,
       role: 'user',
       content: queryText,
       timestamp: new Date().toISOString(),
@@ -180,7 +181,7 @@ export default function DocumentPage() {
       setMessages((current) => [
         ...current,
         {
-          id: `error-${crypto.randomUUID()}`,
+          id: `error-${uuidv4()}`,
           role: 'assistant',
           content: getApiErrorMessage(error),
           timestamp: new Date().toISOString(),

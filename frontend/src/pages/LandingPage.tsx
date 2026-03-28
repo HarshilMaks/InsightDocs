@@ -52,14 +52,7 @@ export default function LandingPage() {
           </div>
 
           <p className="text-center text-xs text-on-surface-variant">
-            By signing in, you agree to our{' '}
-            <a href="#" className="text-primary hover:underline">
-              Terms of Service
-            </a>{' '}
-            and{' '}
-            <a href="#" className="text-primary hover:underline">
-              Privacy Policy
-            </a>
+            By signing in, you agree to our Terms of Service and Privacy Policy
           </p>
         </motion.div>
       </div>

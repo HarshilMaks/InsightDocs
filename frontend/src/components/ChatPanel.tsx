@@ -180,6 +180,7 @@ export function ChatPanel({
         <div className="rounded-[1.6rem] border border-outline-variant/15 bg-surface-container-low px-4 py-4 shadow-2xl shadow-black/10">
           <textarea
             ref={composerRef}
+            aria-label="Ask a question about your document"
             className="min-h-[110px] w-full resize-none border-0 bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:ring-0"
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
