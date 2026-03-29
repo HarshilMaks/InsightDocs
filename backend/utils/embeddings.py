@@ -4,17 +4,23 @@ from collections import Counter
 import hashlib
 import logging
 import re
-from pymilvus import (
-    connections,
-    Collection,
-    CollectionSchema,
-    FieldSchema,
-    DataType,
-    utility
-)
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
+
+try:
+    from pymilvus import (
+        connections,
+        Collection,
+        CollectionSchema,
+        FieldSchema,
+        DataType,
+        utility
+    )
+    PYMILVUS_AVAILABLE = True
+except ImportError as e:
+    PYMILVUS_AVAILABLE = False
+    logger.warning(f"pymilvus not available: {e}. Vector database will be disabled.")
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -28,6 +34,14 @@ class EmbeddingEngine:
     """Handles embedding generation and vector storage with Milvus."""
     
     def __init__(self):
+        if not PYMILVUS_AVAILABLE:
+            logger.warning("pymilvus not available. EmbeddingEngine cannot initialize.")
+            self.collection = None
+            self.dense_model = None
+            self.sparse_model = None
+            self.has_sparse = False
+            return
+        
         # Default to the newer dense model, but we may swap to the legacy
         # model if the existing Milvus collection still uses the old schema.
         self.dense_model_name = settings.embedding_model_name
