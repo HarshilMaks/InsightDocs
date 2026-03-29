@@ -4,7 +4,6 @@ from collections import Counter
 import hashlib
 import logging
 import re
-from sentence_transformers import SentenceTransformer
 from pymilvus import (
     connections,
     Collection,
@@ -17,6 +16,13 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    logger.warning("sentence-transformers not available. Embeddings will be disabled.")
+
 
 class EmbeddingEngine:
     """Handles embedding generation and vector storage with Milvus."""
@@ -25,7 +31,7 @@ class EmbeddingEngine:
         # Default to the newer dense model, but we may swap to the legacy
         # model if the existing Milvus collection still uses the old schema.
         self.dense_model_name = settings.embedding_model_name
-        self.dense_model = None
+        self.dense_model = None  # Defer loading until needed
         self.dimension = settings.milvus_dim
         self._token_pattern = re.compile(r"[A-Za-z0-9]+")
         self._fallback_sparse_dim = 2**18
@@ -45,9 +51,20 @@ class EmbeddingEngine:
         self.collection = None  # Initialize before connect attempt
         self._connect_milvus()
         self._init_collection()
-        self._configure_dense_model_for_collection()
+        # Defer dense model loading until first use
+        # self._configure_dense_model_for_collection()
 
-    def _load_dense_model(self, model_name: str) -> SentenceTransformer:
+    def _ensure_dense_model_loaded(self):
+        """Lazy load dense model on first use."""
+        if self.dense_model is not None:
+            return  # Already loaded
+        
+        logger.info(f"Lazy-loading dense embedding model: {self.dense_model_name}")
+        self.dense_model = self._load_dense_model(self.dense_model_name)
+
+    def _load_dense_model(self, model_name: str):
+        if not SENTENCE_TRANSFORMERS_AVAILABLE:
+            raise RuntimeError("sentence-transformers is not installed. Cannot load embedding model.")
         logger.info(f"Loading dense embedding model: {model_name}")
         return SentenceTransformer(model_name)
 
@@ -203,6 +220,10 @@ class EmbeddingEngine:
         try:
             if not texts:
                 return {"dense": [], "sparse": []}
+            
+            # Lazy load dense model on first use
+            if self.dense_model is None:
+                self._ensure_dense_model_loaded()
 
             # Generate dense embeddings
             dense_embeddings = self.dense_model.encode(texts, convert_to_numpy=True)

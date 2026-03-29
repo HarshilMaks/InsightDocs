@@ -13,7 +13,7 @@ sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 alembic==1.13.0
 
-# Vector Database (minimal - no model extras)
+# Vector Database (lightweight - no models)
 pymilvus>=2.4.0
 
 # LLM Integration
@@ -27,7 +27,7 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 
-# Document Parsing
+# Document Parsing (minimal)
 PyPDF2==3.0.1
 pdfplumber==0.10.3
 
@@ -39,10 +39,9 @@ tenacity==8.2.3
 email-validator==2.1.0
 slowapi
 
-# REMOVED FOR FREE TIER (512MB limit):
-# sentence-transformers==5.1.2  (1GB+ with models)
-# python-docx==1.1.0
-# python-pptx==0.6.23
-# minio==7.2.0 (use boto3 instead)
-# pytesseract, Pillow, PyMuPDF
-# Dev/test dependencies
+# NOTE: Removed heavy deps for free tier:
+# - sentence-transformers (1GB+ with models)
+# - python-docx, python-pptx (rarely used)
+# - minio (use boto3 for S3)
+# - datasets (test only)
+# - dev dependencies (pytest, etc)

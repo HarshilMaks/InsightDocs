@@ -1,9 +1,15 @@
 """Enhanced table extraction using pdfplumber."""
 import logging
 from typing import List, Dict, Any, Optional
-import pdfplumber
 
 logger = logging.getLogger(__name__)
+
+try:
+    import pdfplumber
+    PDFPLUMBER_AVAILABLE = True
+except ImportError:
+    PDFPLUMBER_AVAILABLE = False
+    logger.warning("pdfplumber not available. Table extraction will be disabled.")
 
 
 class TableExtractor:
@@ -30,6 +36,10 @@ class TableExtractor:
         Returns:
             List of table dictionaries with metadata
         """
+        if not PDFPLUMBER_AVAILABLE:
+            logger.warning("pdfplumber not available, returning empty table list")
+            return []
+        
         tables = []
         
         try:
@@ -124,6 +134,15 @@ class TableExtractor:
         Returns:
             Dictionary with text, tables, and combined content
         """
+        if not PDFPLUMBER_AVAILABLE:
+            logger.warning("pdfplumber not available, returning empty result")
+            return {
+                "text": "",
+                "tables": [],
+                "text_blocks": [],
+                "combined_text": ""
+            }
+        
         all_text_blocks = []
         all_tables = []
         
