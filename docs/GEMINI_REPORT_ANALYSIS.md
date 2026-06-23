@@ -191,9 +191,9 @@ class Settings(BaseSettings):
 ✅ Settings loaded successfully
    - App: InsightDocs
    - API Prefix: /api/v1
-   - Secret Key: bbdf3cf7bb...
-   - Gemini API: AIzaSyCo2N...
-   - Milvus URI: https://in03-77c35e8276c4144.s...
+   - Secret Key: REDACTED
+   - Gemini API: REDACTED
+   - Milvus URI: REDACTED
    - Vector Dim: 384
 
 # Password Hashing

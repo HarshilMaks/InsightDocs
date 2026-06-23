@@ -1,18 +1,40 @@
 """Document processing utilities."""
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import logging
 from pathlib import Path
 import re
 
 from backend.utils.ocr_processor import OcrProcessor
-from backend.utils.format_converters import convert_to_pdf, can_convert, get_supported_extensions
+from backend.utils.format_converters import can_convert, convert_to_pdf
 from backend.utils.table_extractor import extract_text_and_tables
 
 logger = logging.getLogger(__name__)
 
-# Expand supported extensions
-SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".pptx"} | get_supported_extensions()
+# Basic supported extensions always available
+BASIC_SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".pptx"}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+
+# Lazy-loaded extended formats (from format_converters)
+_EXTENDED_EXTENSIONS: Optional[set] = None
+
+def _get_extended_extensions() -> set:
+    """Get extended file format support (lazy-loads format converters on first call)."""
+    global _EXTENDED_EXTENSIONS
+    if _EXTENDED_EXTENSIONS is None:
+        try:
+            from backend.utils.format_converters import get_supported_extensions
+            _EXTENDED_EXTENSIONS = get_supported_extensions()
+        except Exception as e:
+            logger.debug(f"Could not load extended format support: {e}")
+            _EXTENDED_EXTENSIONS = set()
+    return _EXTENDED_EXTENSIONS
+
+def get_supported_extensions() -> set:
+    """Get all supported file extensions (basic + extended)."""
+    return BASIC_SUPPORTED_EXTENSIONS | _get_extended_extensions()
+
+# Export for external use (at module load time, only basic extensions are included)
+SUPPORTED_EXTENSIONS = BASIC_SUPPORTED_EXTENSIONS
 
 
 class DocumentProcessor:

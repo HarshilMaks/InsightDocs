@@ -24,6 +24,11 @@ wheels/
 venv/
 env/
 ENV/
+.venv/
+
+# IDE / AI Tools
+.qodo/
+copilot-session-*.md
 
 # Node dependencies
 node_modules/

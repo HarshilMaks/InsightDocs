@@ -205,17 +205,24 @@ class FormatConverter:
         return cls.OFFICE_FORMATS | cls.IMAGE_FORMATS
 
 
-# Singleton instance
-_converter = FormatConverter()
+# Lazy singleton instance
+_converter: Optional[FormatConverter] = None
+
+def _get_converter() -> FormatConverter:
+    """Get or create the singleton converter instance (lazy-loaded)."""
+    global _converter
+    if _converter is None:
+        _converter = FormatConverter()
+    return _converter
 
 def convert_to_pdf(file_path: str, output_dir: Optional[str] = None) -> Optional[str]:
-    """Convenience function for converting files to PDF."""
-    return _converter.convert_to_pdf(file_path, output_dir)
+    """Convenience function for converting files to PDF (lazy-loads converter on first call)."""
+    return _get_converter().convert_to_pdf(file_path, output_dir)
 
 def can_convert(file_path: str) -> bool:
-    """Check if file can be converted."""
-    return _converter.can_convert(file_path)
+    """Check if file can be converted (lazy-loads converter on first call)."""
+    return _get_converter().can_convert(file_path)
 
 def get_supported_extensions() -> set:
-    """Get supported extensions."""
-    return _converter.get_supported_extensions()
+    """Get supported extensions (lazy-loads converter on first call)."""
+    return _get_converter().get_supported_extensions()

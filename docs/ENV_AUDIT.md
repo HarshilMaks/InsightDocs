@@ -49,15 +49,15 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/1 # Used in celery_app.py ✅
 
 ### AI - Gemini (Required)
 ```bash
-GEMINI_API_KEY=AIzaSyCo2NM...                 # ⚠️ SECRET - Used by LLM client ✅
+GEMINI_API_KEY=<your-gemini-api-key>          # ⚠️ SECRET - Used by LLM client ✅
 GEMINI_MODEL=gemini-2.5-flash                 # Used in settings.py ✅
 GEMINI_TEMPERATURE=0.7                        # Used in settings.py ✅
 ```
 
 ### Vector Database - Milvus/Zilliz (Required)
 ```bash
-MILVUS_URI=https://in03-d183bf...             # ⚠️ SECRET - Used in embeddings.py ✅
-MILVUS_TOKEN=8b813dfcece9a955...              # ⚠️ SECRET - Used in embeddings.py ✅
+MILVUS_URI=<your-milvus-uri>                  # ⚠️ SECRET - Used in embeddings.py ✅
+MILVUS_TOKEN=<your-milvus-token>              # ⚠️ SECRET - Used in embeddings.py ✅
 MILVUS_COLLECTION=insightdocscollection       # Used in settings.py ✅
 MILVUS_DIM=768                                # Used in settings.py ✅
 ```
@@ -71,7 +71,7 @@ VECTOR_DIMENSION=384                          # Used in settings.py (legacy) ✅
 ```bash
 S3_ENDPOINT=http://localhost:9000             # Used in file_storage.py ✅
 AWS_ACCESS_KEY_ID=REDACTED_AWS_ACCESS_KEY_ID       # ⚠️ SECRET - Used in file_storage.py ✅
-AWS_SECRET_ACCESS_KEY=xqYkrIo7ReBBIHTt...    # ⚠️ SECRET - Used in file_storage.py ✅
+AWS_SECRET_ACCESS_KEY=<your-aws-secret-key>   # ⚠️ SECRET - Used in file_storage.py ✅
 S3_BUCKET_NAME=s3insightops                   # Used in file_storage.py ✅
 ```
 
@@ -148,7 +148,7 @@ You're using MinIO locally but have AWS production credentials:
 ```bash
 S3_ENDPOINT=http://localhost:9000              # ← MinIO local
 AWS_ACCESS_KEY_ID=REDACTED_AWS_ACCESS_KEY_ID         # ← AWS production
-AWS_SECRET_ACCESS_KEY=xqYkrIo7ReBBIHTt...      # ← AWS production
+AWS_SECRET_ACCESS_KEY=<your-aws-secret-key>      # ← AWS production
 ```
 
 **Issue:** Mixing local and production storage.

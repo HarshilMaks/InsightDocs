@@ -9,12 +9,17 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-import google.generativeai as genai
-from google.api_core import exceptions as gexc
-
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
+
+try:
+    import google.generativeai as genai
+    from google.api_core import exceptions as gexc
+    GENAI_AVAILABLE = True
+except ImportError:
+    GENAI_AVAILABLE = False
+    logger.warning("google-generativeai not available. LLM features will be disabled.")
 _GENAI_LOCK = threading.RLock()
 
 
@@ -129,6 +134,8 @@ def _make_generation_config(
     temperature: float,
     max_output_tokens: Optional[int] = None,
 ) -> Any:
+    if not GENAI_AVAILABLE:
+        raise GeminiConfigurationError("google-generativeai package is not installed.")
     config_kwargs: Dict[str, Any] = {"temperature": temperature}
     if max_output_tokens is not None:
         config_kwargs["max_output_tokens"] = max_output_tokens
@@ -207,6 +214,8 @@ def _summarize_attempts(attempts: List[Dict[str, Any]]) -> str:
 
 
 def _probe_accessible_models(api_key: str) -> List[str]:
+    if not GENAI_AVAILABLE:
+        return []
     with _GENAI_LOCK:
         genai.configure(api_key=api_key)
         models = list(genai.list_models())
@@ -235,6 +244,8 @@ def _generate_content_with_model(
     prompt: str,
     generation_config: Any,
 ) -> str:
+    if not GENAI_AVAILABLE:
+        raise GeminiConfigurationError("google-generativeai package is not installed.")
     with _GENAI_LOCK:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(model_name)

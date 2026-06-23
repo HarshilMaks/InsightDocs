@@ -2,18 +2,26 @@
 from typing import Optional
 import logging
 from pathlib import Path
-import boto3
-from botocore.client import Config
-from botocore.exceptions import ClientError
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
+
+try:
+    import boto3
+    from botocore.client import Config
+    from botocore.exceptions import ClientError
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
+    logger.warning("boto3 not available. S3 storage will be disabled.")
 
 
 class FileStorage:
     """Handles file storage operations with S3/MinIO."""
     
     def __init__(self):
+        if not BOTO3_AVAILABLE:
+            raise RuntimeError("boto3 is not installed. Cannot initialize FileStorage.")
         self.s3_client = boto3.client(
             's3',
             endpoint_url=settings.s3_endpoint,

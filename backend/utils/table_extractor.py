@@ -4,12 +4,8 @@ from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
-try:
-    import pdfplumber
-    PDFPLUMBER_AVAILABLE = True
-except ImportError:
-    PDFPLUMBER_AVAILABLE = False
-    logger.warning("pdfplumber not available. Table extraction will be disabled.")
+# Do NOT import pdfplumber here — defer until needed
+PDFPLUMBER_AVAILABLE = None  # Will be determined lazily
 
 
 class TableExtractor:
@@ -25,6 +21,24 @@ class TableExtractor:
             "min_words_vertical": 3,
             "min_words_horizontal": 1,
         }
+        self._pdfplumber = None
+        self._pdfplumber_available = None
+    
+    def _ensure_pdfplumber_loaded(self) -> bool:
+        """Lazy-load pdfplumber on first use."""
+        if self._pdfplumber_available is not None:
+            return self._pdfplumber_available
+        
+        try:
+            import pdfplumber
+            self._pdfplumber = pdfplumber
+            self._pdfplumber_available = True
+            logger.debug("pdfplumber loaded successfully")
+            return True
+        except ImportError as e:
+            logger.warning(f"pdfplumber not available: {e}. Table extraction will be disabled.")
+            self._pdfplumber_available = False
+            return False
     
     def extract_tables_from_pdf(self, pdf_path: str) -> List[Dict[str, Any]]:
         """
@@ -36,14 +50,14 @@ class TableExtractor:
         Returns:
             List of table dictionaries with metadata
         """
-        if not PDFPLUMBER_AVAILABLE:
+        if not self._ensure_pdfplumber_loaded():
             logger.warning("pdfplumber not available, returning empty table list")
             return []
         
         tables = []
         
         try:
-            with pdfplumber.open(pdf_path) as pdf:
+            with self._pdfplumber.open(pdf_path) as pdf:
                 for page_num, page in enumerate(pdf.pages, 1):
                     page_tables = self._extract_tables_from_page(page, page_num)
                     tables.extend(page_tables)
@@ -134,7 +148,7 @@ class TableExtractor:
         Returns:
             Dictionary with text, tables, and combined content
         """
-        if not PDFPLUMBER_AVAILABLE:
+        if not self._ensure_pdfplumber_loaded():
             logger.warning("pdfplumber not available, returning empty result")
             return {
                 "text": "",
@@ -147,7 +161,7 @@ class TableExtractor:
         all_tables = []
         
         try:
-            with pdfplumber.open(pdf_path) as pdf:
+            with self._pdfplumber.open(pdf_path) as pdf:
                 for page_num, page in enumerate(pdf.pages, 1):
                     # Extract tables
                     page_tables = self._extract_tables_from_page(page, page_num)
@@ -235,13 +249,20 @@ class TableExtractor:
         return "\n\n".join(combined)
 
 
-# Singleton instance
-_extractor = TableExtractor()
+# Lazy singleton instance
+_extractor: Optional[TableExtractor] = None
+
+def _get_extractor() -> TableExtractor:
+    """Get or create the singleton extractor instance (lazy-loaded)."""
+    global _extractor
+    if _extractor is None:
+        _extractor = TableExtractor()
+    return _extractor
 
 def extract_tables(pdf_path: str) -> List[Dict[str, Any]]:
-    """Extract tables from PDF."""
-    return _extractor.extract_tables_from_pdf(pdf_path)
+    """Extract tables from PDF (lazy-loads extractor on first call)."""
+    return _get_extractor().extract_tables_from_pdf(pdf_path)
 
 def extract_text_and_tables(pdf_path: str) -> Dict[str, Any]:
-    """Extract both text and tables from PDF."""
-    return _extractor.extract_text_and_tables(pdf_path)
+    """Extract both text and tables from PDF (lazy-loads extractor on first call)."""
+    return _get_extractor().extract_text_and_tables(pdf_path)

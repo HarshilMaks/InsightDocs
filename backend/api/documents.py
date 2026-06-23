@@ -13,7 +13,7 @@ from backend.models import get_db, Document, DocumentChunk, Task, TaskStatus
 from backend.models.schemas import User
 from backend.core.security import get_current_user, decrypt_api_key
 from backend.workers.tasks import process_document_task
-from backend.utils.document_processor import SUPPORTED_EXTENSIONS, MAX_FILE_SIZE
+from backend.utils.document_processor import MAX_FILE_SIZE, get_supported_extensions
 from backend.utils.llm_client import GeminiAPIError, LLMClient
 from backend.core.limiter import limiter
 
@@ -24,10 +24,11 @@ router = APIRouter(prefix="/documents", tags=["Documents"])
 def _validate_upload(filename: str, content: bytes):
     """Validate file type and size."""
     ext = Path(filename).suffix.lower()
-    if ext not in SUPPORTED_EXTENSIONS:
+    supported = get_supported_extensions()
+    if ext not in supported:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type: {ext}. Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
+            detail=f"Unsupported file type: {ext}. Supported: {', '.join(sorted(supported))}"
         )
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(

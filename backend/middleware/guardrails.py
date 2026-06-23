@@ -9,7 +9,6 @@ import json
 import logging
 import re
 
-import google.generativeai as genai
 from fastapi import Request, HTTPException, Depends
 
 from backend.config import settings
@@ -18,10 +17,20 @@ from backend.core.security import get_current_user, decrypt_api_key
 
 logger = logging.getLogger(__name__)
 
-# Default global client for system operations (or fallback)
-_system_gemini = genai.GenerativeModel(settings.gemini_model)
-if settings.gemini_api_key:
-    genai.configure(api_key=settings.gemini_api_key)
+_system_gemini = None
+
+def _get_system_gemini():
+    global _system_gemini
+    if _system_gemini is None:
+        try:
+            import google.generativeai as genai
+            if settings.gemini_api_key:
+                genai.configure(api_key=settings.gemini_api_key)
+            _system_gemini = genai.GenerativeModel(settings.gemini_model)
+        except Exception as e:
+            logger.warning("Gemini guardrail unavailable: %s", e)
+            _system_gemini = None
+    return _system_gemini
 
 
 # ---------------------------------------------------------------------------
@@ -75,14 +84,18 @@ clearly NOT supported by or directly contradicted by the context.
 def _get_gemini_client(api_key: str = None):
     """Get a configured Gemini client. Uses user key if provided, else system key."""
     if api_key:
+        import google.generativeai as genai
         genai.configure(api_key=api_key)
         return genai.GenerativeModel(settings.gemini_model)
-    return _system_gemini
+    return _get_system_gemini()
 
 def _call_gemini_guard(prompt: str, api_key: str = None) -> tuple[bool, str]:
     """Call Gemini and parse the JSON guard result."""
     try:
         model = _get_gemini_client(api_key)
+        if model is None:
+            logger.warning("Guardrail unavailable: no Gemini client")
+            return True, ""
         response = model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
