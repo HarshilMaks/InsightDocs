@@ -1,6 +1,11 @@
 """Enhanced table extraction using pdfplumber."""
+from __future__ import annotations
+
 import logging
-from typing import List, Dict, Any, Optional
+from typing import TYPE_CHECKING, List, Dict, Any, Optional
+
+if TYPE_CHECKING:
+    import pdfplumber
 
 logger = logging.getLogger(__name__)
 

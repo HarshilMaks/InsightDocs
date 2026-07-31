@@ -355,6 +355,14 @@ class TestDocumentScopedQuery:
             fake_embedding_engine.search = AsyncMock(return_value=[])
             with patch(
                 "backend.utils.embeddings.get_embedding_engine", return_value=fake_embedding_engine
+            ), patch.object(
+                orchestrator.analysis_agent.llm_client,
+                "generate_rag_response",
+                new=AsyncMock(return_value="an answer with no context"),
+            ), patch.object(
+                orchestrator.planning_agent,
+                "process",
+                new=AsyncMock(return_value={"success": True, "suggestions": []}),
             ):
                 result = await orchestrator.process_query(
                     "hello",

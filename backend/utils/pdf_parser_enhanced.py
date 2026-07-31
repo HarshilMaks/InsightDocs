@@ -1,4 +1,6 @@
 """Enhanced PDF parser using PyMuPDF (fitz) for spatial text extraction."""
+from __future__ import annotations
+
 import logging
 from typing import List, Dict, Any, Tuple, Optional
 
