@@ -390,6 +390,7 @@ class OrchestratorAgent(BaseAgent):
         db: Optional[Session] = None,
         top_k: int = 5,
         history_limit: int = 4,
+        document_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Process a query using RAG pipeline (Hybrid Search + Reranker + LLM).
         
@@ -397,6 +398,10 @@ class OrchestratorAgent(BaseAgent):
         Args:
             query_text: The user's query
             user_id: Required user ID for strict tenant isolation
+            document_id: Optional document ID to scope retrieval to a single
+                document (e.g. the document workspace view). The document
+                must be owned by user_id; otherwise the scope is ignored and
+                retrieval falls back to searching all of the user's documents.
         Returns: {"answer": str, "sources": [{"content": str, "metadata": dict, "score": float}]}
         """
         db_gen = None
@@ -409,13 +414,33 @@ class OrchestratorAgent(BaseAgent):
             if not user_id:
                 raise ValueError("user_id is required for tenant-isolated queries")
 
-            self.log_event("query_start", {"query": query_text, "user_id": user_id})
+            scoped_document_id = None
+            if document_id:
+                owns_document = (
+                    db.query(Document)
+                    .filter(Document.id == document_id, Document.user_id == user_id)
+                    .first()
+                )
+                if owns_document:
+                    scoped_document_id = document_id
+                else:
+                    logger.warning(
+                        f"User {user_id} requested document scope {document_id} "
+                        "they do not own; ignoring scope."
+                    )
+
+            self.log_event("query_start", {"query": query_text, "user_id": user_id, "document_id": scoped_document_id})
             
             # Step 1: Hybrid Vector Search (Dense + Sparse) with user filter
             from backend.utils.embeddings import get_embedding_engine
             embedding_engine = get_embedding_engine()
             search_top_k = max(top_k * 4, 20)
-            search_results = await embedding_engine.search(query_text, top_k=search_top_k, user_id=user_id)
+            search_results = await embedding_engine.search(
+                query_text,
+                top_k=search_top_k,
+                user_id=user_id,
+                document_id=scoped_document_id,
+            )
             
             # Step 2: Rerank top candidates
             from backend.utils.reranker import get_reranker
@@ -507,4 +532,5 @@ class OrchestratorAgent(BaseAgent):
             user_id=user_id,
             conversation_id=message.get("conversation_id"),
             top_k=message.get("top_k", 5),
+            document_id=message.get("document_id"),
         )

@@ -89,6 +89,7 @@ export interface QueryRequest {
   query: string
   top_k?: number
   conversation_id?: string | null
+  document_id?: string | null
 }
 
 export interface QueryResponse {

@@ -64,6 +64,7 @@ async def query_documents(
             conversation_id=conversation_id,
             db=db,
             top_k=max(1, query_request.top_k or 5),
+            document_id=query_request.document_id,
         )
         if not result.get("success"):
             error_msg = result.get("error", "Query processing failed")

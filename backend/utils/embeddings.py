@@ -330,7 +330,8 @@ class EmbeddingEngine:
         self,
         query_text: str,
         top_k: int = 5,
-        user_id: str = None
+        user_id: str = None,
+        document_id: str = None
     ) -> List[Dict[str, Any]]:
         """Search for similar vectors in Milvus using Hybrid Search.
         
@@ -338,6 +339,8 @@ class EmbeddingEngine:
             query_text: Query text to search for
             top_k: Number of results to return
             user_id: Optional user ID to filter results (for multi-tenant isolation)
+            document_id: Optional document ID to restrict results to a single
+                document (e.g. when querying from a document workspace view)
             
         Returns:
             List of search results with text, score, and metadata
@@ -362,8 +365,14 @@ class EmbeddingEngine:
                 "limit": top_k * 3,  # Fetch more candidates for filtering
             }
 
-            # Build filter expression for user isolation
-            expr = f'user_id == "{user_id}"' if user_id else None
+            # Build filter expression for user isolation, optionally scoped
+            # to a single document (e.g. the document workspace view).
+            expr_clauses = []
+            if user_id:
+                expr_clauses.append(f'user_id == "{user_id}"')
+            if document_id:
+                expr_clauses.append(f'document_id == "{document_id}"')
+            expr = " and ".join(expr_clauses) if expr_clauses else None
 
             sparse_query_set = query_embeds.get('sparse')
             if sparse_query_set is not None:
@@ -425,7 +434,10 @@ class EmbeddingEngine:
                         }
                     })
             
-            logger.info(f"Found {len(results)} results for query (user_id filter: {user_id or 'none'})")
+            logger.info(
+                f"Found {len(results)} results for query "
+                f"(user_id filter: {user_id or 'none'}, document_id filter: {document_id or 'none'})"
+            )
             return results
         except Exception as e:
             logger.error(f"Error searching in Milvus: {e}")
