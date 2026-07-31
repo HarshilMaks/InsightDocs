@@ -49,28 +49,34 @@ class DataAgent(BaseAgent):
             return await self.handle_error(e, message)
     
     async def _ingest_document(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        """Ingest a document into the system.
-        
+        """Parse a document that has already been uploaded to object storage.
+
+        The caller (the Celery worker) is responsible for uploading the
+        original file to S3/MinIO and downloading its own local working copy
+        before invoking this workflow. This agent only parses that local
+        copy; it does not perform any object storage upload itself, so a
+        single file is never written to S3 more than once per upload.
+
         Args:
-            message: Message containing file path and metadata
-            
+            message: Message containing the local file path to parse, the
+                filename, and the already-known S3 object key/bucket.
+
         Returns:
-            Ingestion result with document ID
+            Ingestion result with parsed content and echoed storage location
         """
         file_path = message.get("file_path")
         filename = message.get("filename")
-        
-        self.log_event("ingest_start", {"file_path": file_path})
+        stored_path = message.get("s3_key")
 
-        # Store the uploaded file, but parse the local temp copy.
-        stored_path = await self.file_storage.store_file(file_path, filename)
+        self.log_event("ingest_start", {"file_path": file_path, "stored_path": stored_path})
+
         parsed_content = await self.document_processor.parse_document(file_path)
-        
+
         self.log_event("ingest_complete", {
-            "file_path": stored_path,
+            "stored_path": stored_path,
             "content_length": len(parsed_content.get("text", ""))
         })
-        
+
         return {
             "success": True,
             "stored_path": stored_path,

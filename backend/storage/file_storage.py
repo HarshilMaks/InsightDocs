@@ -76,6 +76,41 @@ class FileStorage:
         except Exception as e:
             logger.error(f"Error uploading file: {e}")
             raise
+
+    async def store_bytes(
+        self,
+        content: bytes,
+        filename: str,
+    ) -> str:
+        """Store raw bytes in S3/MinIO without requiring a local file first.
+
+        Used by the upload API so the original file lands in durable object
+        storage immediately, before any Celery task is queued. This avoids
+        depending on a local temp file that a separate worker process or
+        container cannot see.
+
+        Args:
+            content: Raw file bytes
+            filename: Original filename (used to build the object key)
+
+        Returns:
+            S3 object key
+        """
+        try:
+            import io
+            import uuid
+
+            unique_key = f"documents/{uuid.uuid4()}-{Path(filename).name}"
+            self.s3_client.upload_fileobj(
+                io.BytesIO(content),
+                self.bucket_name,
+                unique_key,
+            )
+            logger.info(f"Uploaded {len(content)} bytes to {unique_key}")
+            return unique_key
+        except Exception as e:
+            logger.error(f"Error uploading bytes: {e}")
+            raise
     
     async def retrieve_file(
         self,

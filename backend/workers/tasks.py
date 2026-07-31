@@ -1,5 +1,7 @@
 """Celery tasks for async processing."""
 import asyncio
+import os
+import tempfile
 from typing import Dict, Any, Optional
 import logging
 from backend.workers.celery_app import celery_app
@@ -7,8 +9,8 @@ from backend.agents import OrchestratorAgent, AnalysisAgent
 from backend.models import get_db, Task, Document, TaskStatus
 from backend.models.schemas import User
 from backend.core.security import decrypt_api_key
+from backend.storage.file_storage import FileStorage
 from sqlalchemy.orm import Session
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +87,14 @@ def _get_user_api_key(db: Session, user_id: Optional[str]) -> Optional[str]:
 
 
 @celery_app.task(bind=True, name="insightdocs.process_document")
-def process_document_task(self, document_id: str, file_path: str, filename: str, user_id: str = None):
-    """Async task to process a document through the agent pipeline."""
+def process_document_task(self, document_id: str, s3_key: str, filename: str, user_id: str = None):
+    """Async task to process a document through the agent pipeline.
+
+    The API has already uploaded the original file to S3/MinIO and passes
+    only the object key here. This worker downloads its own local copy into
+    a private temp file, processes it, and always removes that temp file
+    when done, regardless of outcome.
+    """
     logger.info(f"Processing document {document_id}: {filename} (User: {user_id})")
 
     db, db_gen = _create_db_session()
@@ -94,29 +102,39 @@ def process_document_task(self, document_id: str, file_path: str, filename: str,
         error_msg = "user_id is required for process_document_task"
         logger.error(error_msg)
         _update_task(db, self.request.id, status=TaskStatus.FAILED, error=error_msg)
+        _close_db_session(db_gen)
         return {"success": False, "error": error_msg}
 
     if not _get_owned_document(db, document_id, user_id):
         error_msg = f"Document {document_id} not found for user {user_id}"
         logger.error(error_msg)
         _update_task(db, self.request.id, status=TaskStatus.FAILED, error=error_msg)
+        _close_db_session(db_gen)
         return {"success": False, "error": error_msg}
 
     api_key = _get_user_api_key(db, user_id)
-    
+
+    local_path: Optional[str] = None
     try:
         _update_task(db, self.request.id, status=TaskStatus.PROCESSING, progress=10.0)
         _update_document(db, document_id, user_id=user_id, status=TaskStatus.PROCESSING)
 
+        # Download this worker's own local copy of the uploaded object.
+        # The API never shares a local filesystem path with the worker;
+        # the object key in S3/MinIO is the only handoff contract.
+        suffix = os.path.splitext(filename)[1] or ""
+        fd, local_path = tempfile.mkstemp(suffix=suffix, prefix="insightdocs-")
+        os.close(fd)
+
+        file_storage = FileStorage()
+        file_storage.s3_client.download_file(file_storage.bucket_name, s3_key, local_path)
+
         orchestrator = OrchestratorAgent(api_key=api_key)
-        
-        # Ensure file path is absolute
-        if not os.path.isabs(file_path):
-            file_path = os.path.abspath(file_path)
 
         result = _run_async(orchestrator.process({
             "workflow_type": "ingest_and_analyze",
-            "file_path": file_path,
+            "file_path": local_path,
+            "s3_key": s3_key,
             "filename": filename,
             "task_id": self.request.id,
             "document_id": document_id,
@@ -147,6 +165,11 @@ def process_document_task(self, document_id: str, file_path: str, filename: str,
         return {"success": False, "error": str(e)}
     finally:
         _close_db_session(db_gen)
+        if local_path and os.path.exists(local_path):
+            try:
+                os.remove(local_path)
+            except OSError as cleanup_err:
+                logger.warning(f"Failed to remove worker temp file {local_path}: {cleanup_err}")
 
 
 @celery_app.task(bind=True, name="insightdocs.generate_embeddings")

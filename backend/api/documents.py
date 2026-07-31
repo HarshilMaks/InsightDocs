@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from typing import List
 import logging
 from pathlib import Path
-import tempfile
 from backend.api.schemas import (
     DocumentUploadResponse,
     DocumentListResponse,
@@ -16,6 +15,7 @@ from backend.workers.tasks import process_document_task
 from backend.utils.document_processor import MAX_FILE_SIZE, get_supported_extensions
 from backend.utils.llm_client import GeminiAPIError, LLMClient
 from backend.core.limiter import limiter
+from backend.storage.file_storage import FileStorage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -45,22 +45,32 @@ async def upload_document(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Upload a document for processing (authenticated)."""
+    """Upload a document for processing (authenticated).
+
+    The uploaded file is written directly to S3/MinIO before the Celery
+    task is queued. Only the resulting object key is passed to the worker,
+    so processing does not depend on a local temp file that a separate
+    worker process or container cannot see.
+    """
     try:
         content = await file.read()
         _validate_upload(file.filename, content)
 
         suffix = Path(file.filename).suffix
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-            temp_file.write(content)
-            temp_path = temp_file.name
+
+        try:
+            file_storage = FileStorage()
+            s3_key = await file_storage.store_bytes(content, file.filename)
+        except Exception as e:
+            logger.error(f"Error uploading document to object storage: {e}")
+            raise HTTPException(status_code=503, detail="Document storage is unavailable. Please try again.")
 
         document = Document(
             filename=file.filename,
             file_type=suffix,
             file_size=len(content),
-            s3_bucket="temp",
-            s3_key=temp_path,
+            s3_bucket=file_storage.bucket_name,
+            s3_key=s3_key,
             status=TaskStatus.PENDING,
             user_id=current_user.id  # Set to authenticated user
         )
@@ -69,7 +79,7 @@ async def upload_document(
         db.refresh(document)
 
         task = process_document_task.apply_async(
-            args=[document.id, temp_path, file.filename, current_user.id]
+            args=[document.id, s3_key, file.filename, current_user.id]
         )
 
         # Create Task record so the worker can find and update it
@@ -84,7 +94,7 @@ async def upload_document(
         db.add(task_record)
         db.commit()
 
-        logger.info(f"Uploaded document {document.id}, task {task.id}")
+        logger.info(f"Uploaded document {document.id} to {s3_key}, task {task.id}")
 
         return DocumentUploadResponse(
             success=True,
