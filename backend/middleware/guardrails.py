@@ -18,16 +18,26 @@ from backend.core.security import get_current_user, decrypt_api_key
 
 logger = logging.getLogger(__name__)
 
+try:
+    import google.generativeai as genai
+    GENAI_AVAILABLE = True
+except ImportError:
+    GENAI_AVAILABLE = False
+    genai = None  # type: ignore[assignment]
+    logger.warning("google-generativeai not available. Guardrails will be disabled (fail-open).")
+
 _system_gemini = None
 
 def _get_system_gemini():
     global _system_gemini
     if _system_gemini is None:
         try:
-            import google.generativeai as genai
-            if settings.gemini_api_key:
-                genai.configure(api_key=settings.gemini_api_key)
-            _system_gemini = genai.GenerativeModel(settings.gemini_model)
+            if not GENAI_AVAILABLE:
+                _system_gemini = None
+            else:
+                if settings.gemini_api_key:
+                    genai.configure(api_key=settings.gemini_api_key)
+                _system_gemini = genai.GenerativeModel(settings.gemini_model)
         except Exception as e:
             logger.warning("Gemini guardrail unavailable: %s", e)
             _system_gemini = None
@@ -121,8 +131,9 @@ return {{"claims": []}}.
 
 def _get_gemini_client(api_key: str = None):
     """Get a configured Gemini client. Uses user key if provided, else system key."""
+    if not GENAI_AVAILABLE:
+        return None
     if api_key:
-        import google.generativeai as genai
         genai.configure(api_key=api_key)
         return genai.GenerativeModel(settings.gemini_model)
     return _get_system_gemini()
