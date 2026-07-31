@@ -6,29 +6,29 @@ from backend.agents.data_agent import DataAgent
 
 @pytest.mark.asyncio
 @patch("backend.agents.data_agent.DocumentProcessor")
-@patch("backend.agents.data_agent.FileStorage")
-async def test_ingest_document_parses_local_file_before_upload(mock_file_storage_cls, mock_document_processor_cls):
+async def test_ingest_document_parses_already_stored_local_copy(mock_document_processor_cls):
+    """DataAgent only parses a local file; it must not perform any object
+    storage upload itself. The caller (the Celery worker) is responsible for
+    uploading to S3/MinIO and downloading its own local working copy before
+    invoking this workflow, so a file is never written to S3 more than once.
+    """
     processor = MagicMock()
     processor.parse_document = AsyncMock(return_value={"text": "parsed content", "metadata": {"type": "pdf"}})
-
-    storage = MagicMock()
-    storage.store_file = AsyncMock(return_value="documents/sample.pdf")
-    storage.bucket_name = "insightdocs"
-
     mock_document_processor_cls.return_value = processor
-    mock_file_storage_cls.return_value = storage
 
     agent = DataAgent()
+    assert not hasattr(agent, "file_storage")
+
     result = await agent.process(
         {
             "task_type": "ingest",
-            "file_path": "/tmp/uploaded/sample.pdf",
+            "file_path": "/tmp/worker-local/sample.pdf",
             "filename": "sample.pdf",
+            "s3_key": "documents/sample.pdf",
         }
     )
 
-    storage.store_file.assert_awaited_once_with("/tmp/uploaded/sample.pdf", "sample.pdf")
-    processor.parse_document.assert_awaited_once_with("/tmp/uploaded/sample.pdf")
+    processor.parse_document.assert_awaited_once_with("/tmp/worker-local/sample.pdf")
     assert result["success"] is True
     assert result["stored_path"] == "documents/sample.pdf"
     assert result["content"]["text"] == "parsed content"

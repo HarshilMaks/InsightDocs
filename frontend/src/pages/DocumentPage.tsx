@@ -169,6 +169,7 @@ export default function DocumentPage() {
         query: queryText,
         top_k: topK,
         conversation_id: conversationId ?? undefined,
+        document_id: documentId,
       })
 
       setConversationId(response.conversation_id)
