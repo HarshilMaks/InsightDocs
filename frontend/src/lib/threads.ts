@@ -47,6 +47,7 @@ export function responseToAssistantMessage(response: QueryResponse): ChatMessage
     content: response.answer,
     timestamp: new Date().toISOString(),
     sources: response.sources,
+    claimVerifications: response.claim_verifications ?? null,
   }
 }
 

@@ -170,6 +170,26 @@ export function ChatPanel({
                     ))}
                   </div>
                 )}
+                {message.role === 'assistant' && message.claimVerifications && message.claimVerifications.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {message.claimVerifications.map((cv, idx) => (
+                      <span
+                        key={idx}
+                        className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.22em] ${
+                          cv.status === 'supported'
+                            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                            : cv.status === 'unsupported'
+                            ? 'border-rose-500/20 bg-rose-500/10 text-rose-300'
+                            : 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+                        }`}
+                        title={cv.reason || cv.claim}
+                      >
+                        {cv.status === 'supported' ? '✓' : cv.status === 'unsupported' ? '✗' : '?'}{' '}
+                        {cv.claim.length > 40 ? `${cv.claim.slice(0, 40)}…` : cv.claim}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </motion.article>
             ))}
           </div>

@@ -108,6 +108,14 @@ export interface QueryResponse {
   response_time: number
   confidence_score?: number | null
   tokens_used?: number | null
+  claim_verifications?: ClaimVerification[] | null
+}
+
+export interface ClaimVerification {
+  claim: string
+  status: 'supported' | 'unsupported' | 'unverified'
+  supporting_sources: number[]
+  reason?: string | null
 }
 
 export interface QueryHistoryItem {
@@ -131,6 +139,7 @@ export interface ChatMessage {
   content: string
   timestamp: string
   sources?: SourceReference[]
+  claimVerifications?: ClaimVerification[] | null
 }
 
 export interface ThreadSummary {
