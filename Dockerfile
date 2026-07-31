@@ -34,6 +34,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     libgomp1 \
+    tesseract-ocr \
+    libreoffice-nogui \
+    imagemagick \
+    && sed -i 's/domain="coder" rights="none" pattern="PDF"/domain="coder" rights="read|write" pattern="PDF"/g' /etc/ImageMagick-6/policy.xml || true \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

@@ -112,6 +112,23 @@ class OrchestratorAgent(BaseAgent):
         except Exception as e:
             logger.warning(f"Summary generation failed (non-fatal): {e}")
 
+        # Step 5.5: Generate next steps / planning suggestions using PlanningAgent
+        next_steps = []
+        if summary:
+            try:
+                planning_result = await self.planning_agent.process({
+                    "task_type": "suggest_steps",
+                    "current_state": summary[:3000],
+                    "context": {
+                        "filename": message.get("filename"),
+                        "document_id": document_id,
+                    }
+                })
+                if planning_result.get("success"):
+                    next_steps = planning_result.get("suggestions", [])
+            except Exception as e:
+                logger.warning(f"Planning agent suggestions generation failed (non-fatal): {e}")
+
         # Step 6: Track progress
         await self.planning_agent.process({
             "task_type": "track_progress",
@@ -121,6 +138,7 @@ class OrchestratorAgent(BaseAgent):
                 "chunks_processed": transform_result["chunk_count"],
                 "embeddings_created": embed_result["embedding_count"],
                 "summary_generated": bool(summary),
+                "next_steps_generated": len(next_steps),
             },
         })
 
@@ -137,6 +155,7 @@ class OrchestratorAgent(BaseAgent):
             "chunks_processed": transform_result["chunk_count"],
             "vector_ids": vector_ids,
             "summary": summary,
+            "next_steps": next_steps,
             "agent_id": self.agent_id,
         }
 
@@ -406,6 +425,22 @@ class OrchestratorAgent(BaseAgent):
                 context_chunks,
                 conversation_history=conversation_history,
             )
+
+            # Step 4: Generate suggestions / next steps using PlanningAgent
+            next_steps = []
+            if answer:
+                try:
+                    planning_result = await self.planning_agent.process({
+                        "task_type": "suggest_steps",
+                        "current_state": answer[:2000],
+                        "context": {
+                            "query": query_text,
+                        }
+                    })
+                    if planning_result.get("success"):
+                        next_steps = planning_result.get("suggestions", [])
+                except Exception as e:
+                    logger.warning(f"Planning agent query suggestions failed (non-fatal): {e}")
             
             self.log_event("query_complete", {"query": query_text, "sources_count": len(sources)})
             
@@ -414,6 +449,7 @@ class OrchestratorAgent(BaseAgent):
                 "answer": answer,
                 "sources": sources,
                 "conversation_history": conversation_history,
+                "next_steps": next_steps,
                 "agent_id": self.agent_id
             }
         except GeminiAPIError as e:

@@ -211,9 +211,39 @@ async def summarize_document(
     """Generate an LLM summary of a processed document (user must own it)."""
     try:
         text = _get_document_text(document_id, db, current_user)
-        llm = _get_user_llm_client(current_user)
+        
+        # Get decrypted API key if available
+        api_key = None
+        if current_user.byok_enabled and current_user.gemini_api_key_encrypted:
+            try:
+                api_key = decrypt_api_key(current_user.gemini_api_key_encrypted)
+            except Exception:
+                logger.error(f"Failed to decrypt API key for user {current_user.id}")
+                pass
+
+        llm = LLMClient(api_key=api_key)
         summary = await llm.summarize(text)
-        return {"document_id": document_id, "summary": summary}
+
+        # Call PlanningAgent to suggest next steps based on summary
+        from backend.agents.planning_agent import PlanningAgent
+        planning_agent = PlanningAgent(api_key=api_key)
+
+        next_steps = []
+        if summary:
+            try:
+                planning_result = await planning_agent.process({
+                    "task_type": "suggest_steps",
+                    "current_state": summary[:3000],
+                    "context": {
+                        "document_id": document_id,
+                    }
+                })
+                if planning_result.get("success"):
+                    next_steps = planning_result.get("suggestions", [])
+            except Exception as e:
+                logger.warning(f"Planning agent suggestions generation in summary endpoint failed: {e}")
+
+        return {"document_id": document_id, "summary": summary, "next_steps": next_steps}
     except GeminiAPIError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 

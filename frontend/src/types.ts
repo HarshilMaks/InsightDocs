@@ -207,6 +207,7 @@ export interface ApiKeyResponse {
 export interface DocumentSummaryResponse {
   document_id: string
   summary: string
+  next_steps?: string[]
 }
 
 export interface DocumentQuizResponse {

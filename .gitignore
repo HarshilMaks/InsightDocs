@@ -70,3 +70,4 @@ celerybeat.pid
 data/
 uploads/
 *.faiss
+.lock
