@@ -1,455 +1,163 @@
 # InsightDocs
 
+> An enterprise document intelligence platform that lets you ask questions about your documents and get answers backed by **precise, verifiable evidence** — not vague citations.
+
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-green.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-> An AI-driven agent architecture system for transforming unstructured documents into operational intelligence through multi-agent collaboration and RAG (Retrieval-Augmented Generation).
+## What Makes This Different
 
-## 🎯 Overview
+Most RAG systems say "Source: document.pdf" and leave you guessing. InsightDocs shows you the **exact page, paragraph, and pixel region** the answer came from — and **verifies each claim** against the evidence before showing it to you.
 
-InsightDocs is a production-ready platform that combines multi-agent AI architecture with RAG capabilities to process, analyze, and query documents intelligently. Built with modern microservices patterns, it demonstrates best practices for building scalable, maintainable AI applications.
+**The signature interaction:** Ask a question → get an answer → click a sentence → the PDF jumps to and highlights the exact supporting region.
 
-### Key Capabilities
+## Core Capabilities
 
-- **📄 Document Intelligence**: Upload and process PDFs, Word documents, and text files
-- **🔐 Secure BYOK Architecture**: Bring Your Own Key with AES-256 encryption and tenant isolation
-- **🤖 Multi-Agent System**: Coordinated AI agents working together on complex workflows
-- **🔍 Semantic Search**: RAG-powered queries with vector similarity search
-- **⚡ Async Processing**: Background task processing with Celery workers
-- **🎨 REST API**: FastAPI-based high-performance API endpoints
-- **🐳 Docker Ready**: Complete containerized deployment stack
+- **Pixel-level citation grounding** — bounding-box coordinates for every retrieved chunk, rendered as a live highlight overlay on the source PDF
+- **Per-claim verification** — each factual sentence in the answer is independently classified as "supported" or "unsupported" against the retrieved evidence
+- **Section-aware, table-atomic chunking** — headings detected via font-size heuristics, tables kept as atomic units (never split), parent-child chunk hierarchy for precise retrieval + broad LLM context
+- **Hybrid retrieval** — Milvus dense + sparse vector search with cross-encoder reranking and document-scoped filtering
+- **BYOK (Bring Your Own Key)** — user-provided Gemini API keys encrypted with AES-256 (Fernet + PBKDF2HMAC, per-user salt)
+- **Tenant isolation** — user-scoped filtering enforced at both the relational DB and vector DB layers
+- **Evaluation harness** — golden dataset + CI-runnable metrics (Answer Grounding Rate, Source Recall@K, Citation Coverage)
 
-## 🌟 Features
-
-### Multi-Agent Architecture
-
-The system employs four specialized agents coordinated by an orchestrator:
-
-- **Orchestrator Agent**: Central workflow coordinator managing all agents
-- **Data Agent**: Handles document ingestion, storage, and transformation
-- **Analysis Agent**: Generates embeddings, summaries, and entity extraction
-- **Planning Agent**: Provides workflow planning and decision support
-
-### RAG (Retrieval-Augmented Generation)
-
-- Document chunking and intelligent segmentation
-- Vector embedding generation with sentence transformers
-- Milvus-powered similarity search (Hybrid Dense + Sparse)
-- Context-aware response generation using Gemini
-- Source citation and attribution
-
-### Production Infrastructure
-
-- **FastAPI**: High-performance async API framework
-- **PostgreSQL**: Reliable metadata and document storage
-- **Redis**: Message queuing, task broker, and caching
-- **S3/MinIO**: Scalable object storage for files
-- **Celery**: Distributed async task processing
-- **Docker Compose**: Simple deployment orchestration
-
-## 📊 Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        Presentation Layer                    │
-│  CLI Tool  │  FastAPI REST API  │  API Docs (Swagger)      │
+│  React/TypeScript Frontend (Vite)                           │
+│  PDF Viewer + Citation Highlighting + Claim Verification UI │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
-│                      Business Logic Layer                    │
-│  Orchestrator → Data Agent → Analysis Agent → Planning Agent│
+│  FastAPI Backend                                            │
+│  Upload → S3 → Celery Worker → Parse → Chunk → Embed       │
+│  Query → Hybrid Search → Rerank → Generate → Verify        │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
-│                         Data Layer                           │
-│  PostgreSQL (Metadata) ↔ Milvus (Vectors) ↔ Redis (Queue)  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│                       Storage Layer                          │
-│        S3/MinIO (Files) ↔ Local Storage (Temp)            │
+│  PostgreSQL │ Milvus (Vectors) │ Redis (Queue) │ S3/MinIO   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Workflow Example: Document Processing
+### Query Pipeline
 
 ```
-User → API → Document Record (PostgreSQL)
-           → Celery Task → Orchestrator Agent
-                         → Data Agent: Store file in S3, parse content
-                         → Data Agent: Chunk text into segments
-                         → Analysis Agent: Generate embeddings
-                         → Data Agent: Store in Milvus
-           → Task Complete → Document ready for querying
+Query → Document Scope Check → Dense+Sparse Hybrid Search (Milvus)
+      → Cross-Encoder Reranking → Citation Hydration (PostgreSQL)
+      → LLM Generation (Gemini) → Per-Claim Verification
+      → Structured Response with Confidence Badges
 ```
 
-## 🚀 Quick Start
+### Ingestion Pipeline
 
-### Prerequisites
+```
+Upload → S3/MinIO (API uploads directly, never passes local paths to workers)
+       → Celery Worker downloads own temp copy
+       → Parse (PDF/DOCX/PPTX/TXT, OCR for scanned docs)
+       → Section-aware chunking (heading detection, table atomicity, parent-child)
+       → Dense + Sparse embedding → Milvus (with user_id + document_id)
+       → PostgreSQL chunk persistence (with bbox, section_title, parent linkage)
+       → Summary generation → Complete
+```
 
-- Python 3.11 or higher
-- Docker and Docker Compose
-- Gemini API key
-
-### Installation
-
-1. **Clone the repository**
+## Quick Start
 
 ```bash
 git clone https://github.com/HarshilMaks/InsightDocs.git
 cd InsightDocs
-```
-
-2. **Configure environment**
-
-```bash
-cp .env.example .env
-# Edit .env and add your GEMINI_API_KEY
-```
-
-3. **Start with Docker Compose (Recommended)**
-
-```bash
+cp .env.example .env  # Edit and add your GEMINI_API_KEY
 docker-compose up -d
 ```
 
-Services will be available at:
+Services:
 - **API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-- **MinIO Console**: http://localhost:9001 (credentials: minioadmin/minioadmin)
+- **API Docs**: http://localhost:8000/api/v1/docs
+- **MinIO Console**: http://localhost:9001
 
-### Alternative: Manual Setup
-
-```bash
-# Create virtual environment (if not exists)
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-uv pip install -r requirements.txt
-
-# Start services (PostgreSQL, Redis, MinIO separately)
-
-# Initialize database
-python -c "from backend.models import Base, engine; Base.metadata.create_all(bind=engine)"
-
-# Terminal 1: Start API
-uvicorn insightdocs.api.main:app --reload
-
-# Terminal 2: Start Celery worker
-celery -A insightdocs.workers.celery_app worker --loglevel=info
-```
-
-## 💡 Usage Examples
-
-### Using the CLI
+## Evaluation
 
 ```bash
-# Check system health
-python cli.py health
+# Run evaluation harness (mock mode, no services needed):
+python eval/run_eval.py --mode mock
 
-# Upload a document
-python cli.py upload document.pdf
-
-# Query documents
-python cli.py query "What are the key findings?"
-
-# List all documents
-python cli.py list-documents
-
-# Check task status
-python cli.py status <task-id>
+# Against a live backend:
+python eval/run_eval.py --mode live --token <jwt_token>
 ```
 
-### Using the REST API
+Metrics produced: Answer Grounding Rate, Source Recall@K, Citation Coverage.
+Exit code 1 if any metric falls below configurable thresholds (CI gate).
 
-**Upload a document:**
+## Tech Stack
 
-```bash
-curl -X POST "http://localhost:8000/documents/upload" \
-  -F "file=@document.pdf"
-```
+| Layer | Technology |
+|---|---|
+| API | FastAPI, Pydantic, SQLAlchemy |
+| Workers | Celery, Redis |
+| Database | PostgreSQL |
+| Vectors | Milvus (hybrid dense + sparse) |
+| Storage | S3/MinIO |
+| LLM | Google Gemini (BYOK) |
+| Embeddings | Sentence Transformers (BAAI/bge-base-en-v1.5) |
+| Reranking | Cross-Encoder (ms-marco-MiniLM-L-6-v2) |
+| Frontend | React, TypeScript, Vite, Tailwind, react-pdf |
+| Auth | JWT (python-jose, bcrypt) |
+| Logging | Structured JSON (production) / plain text (dev) |
 
-**Query documents:**
-
-```bash
-curl -X POST "http://localhost:8000/query/" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is this about?", "top_k": 5}'
-```
-
-**List documents:**
-
-```bash
-curl "http://localhost:8000/documents/"
-```
-
-### Using Python
-
-```python
-import requests
-
-# Upload document
-with open('document.pdf', 'rb') as f:
-    response = requests.post(
-        'http://localhost:8000/documents/upload',
-        files={'file': f}
-    )
-    result = response.json()
-    print(f"Document ID: {result['document_id']}")
-    print(f"Task ID: {result['task_id']}")
-
-# Query documents
-response = requests.post(
-    'http://localhost:8000/query/',
-    json={'query': 'What are the main topics?', 'top_k': 5}
-)
-answer = response.json()
-print(f"Answer: {answer['answer']}")
-print(f"Sources: {len(answer['sources'])} chunks retrieved")
-```
-
-## 📦 Project Structure
+## Project Structure
 
 ```
 InsightDocs/
-├── insightdocs/           # Main application package
-│   ├── agents/            # Multi-agent system
-│   │   ├── orchestrator.py    # Central coordinator
-│   │   ├── data_agent.py      # Data operations
-│   │   ├── analysis_agent.py  # Analysis & embeddings
-│   │   └── planning_agent.py  # Workflow planning
-│   ├── api/               # FastAPI endpoints
-│   │   ├── main.py            # Application entry
-│   │   ├── documents.py       # Document management
-│   │   ├── query.py           # RAG query endpoint
-│   │   ├── tasks.py           # Task monitoring
-│   │   └── schemas.py         # Pydantic models
-│   ├── core/              # Core framework
-│   │   ├── agent.py           # Base agent class
-│   │   └── message_queue.py   # Message passing
-│   ├── models/            # Database models
-│   │   ├── schemas.py         # SQLAlchemy models
-│   │   └── database.py        # DB connection
-│   ├── utils/             # Utilities
-│   │   ├── document_processor.py  # Document parsing
-│   │   ├── embeddings.py          # Vector operations
-│   │   └── llm_client.py          # Gemini integration
-│   ├── workers/           # Celery workers
-│   │   ├── celery_app.py      # Celery config
-│   │   └── tasks.py           # Background tasks
-│   ├── storage/           # Storage layer
-│   │   └── file_storage.py    # S3/MinIO integration
-│   └── config/            # Configuration
-│       └── settings.py        # App settings
-├── tests/                 # Test suite
-├── docs/                  # Documentation
-├── cli.py                 # Command-line interface
-├── docker-compose.yml     # Docker orchestration
-├── Dockerfile             # Container definition
-├── Makefile               # Development commands
-└── requirements.txt       # Dependencies
+├── backend/
+│   ├── agents/          # Orchestrator + DataAgent + AnalysisAgent
+│   ├── api/             # FastAPI routes (documents, query, auth, users, tasks)
+│   ├── core/            # Security, rate limiting, logging, base agent
+│   ├── middleware/      # Input/output guardrails, claim verification
+│   ├── models/          # SQLAlchemy models, Alembic migrations
+│   ├── storage/         # S3/MinIO file storage
+│   ├── utils/           # LLM client, embeddings, document processor, reranker, OCR
+│   └── workers/         # Celery tasks
+├── frontend/
+│   └── src/
+│       ├── components/  # PdfViewer, ChatPanel, CitationsPanel, etc.
+│       ├── pages/       # DocumentPage, DashboardPage, SettingsPage
+│       └── lib/         # API client, types, utilities
+├── eval/                # Golden dataset + evaluation harness
+├── tests/               # Unit + integration tests (125+ passing)
+├── alembic/             # Database migrations
+└── .lock/               # Project vision & roadmap (local planning, gitignored)
 ```
 
-## 🧪 Testing
+## Testing
 
 ```bash
-# Run all tests
+# Full suite:
 pytest tests/
 
-# Run with coverage
-pytest --cov=insightdocs --cov-report=html
-
-# Run specific test module
-pytest tests/test_core_agent.py -v
+# Current state: 125+ passing, 14 pre-existing env-gap failures
+# (missing optional native deps: sentence-transformers, LibreOffice, ImageMagick)
 ```
 
-## 🛠️ Development
+## Development Status
 
-### Using Make Commands
+### Completed (Verified with tests + static analysis)
+- ✅ Reliable ingestion pipeline (S3-first upload, worker temp-file cleanup)
+- ✅ Section-aware, table-atomic, parent-child chunking with heading detection
+- ✅ Interactive PDF viewer with citation bbox highlighting
+- ✅ Per-claim verification (supported/unsupported per sentence)
+- ✅ Evaluation harness with CI-gate thresholds
+- ✅ Structured JSON logging (production) / plain text (development)
+- ✅ Document-scoped querying (workspace-level retrieval filtering)
+- ✅ BYOK API key encryption + tenant-isolated vector search
+- ✅ Cross-encoder reranking
 
-```bash
-make help           # Show all available commands
-make install        # Install production dependencies
-make install-dev    # Install development dependencies
-make test           # Run test suite
-make test-cov       # Run tests with coverage
-make clean          # Clean cache and temp files
-make run-api        # Start API server
-make run-worker     # Start Celery worker
-make docker-up      # Start all services
-make docker-down    # Stop all services
-make docker-logs    # View service logs
-```
+### Planned (Not yet implemented)
+- ⬜ Knowledge Graph (Neo4j entity extraction + graph-enhanced retrieval)
+- ⬜ RBAC / Organizations / Document sharing
+- ⬜ OpenTelemetry distributed tracing
+- ⬜ Token usage accounting / cost dashboard
 
-### Development Workflow
+## License
 
-1. Create a feature branch
-2. Make changes and test locally
-3. Run tests: `make test`
-4. Clean up: `make clean`
-5. Submit pull request
-
-## 📚 Documentation
-
-- **[Quick Start Guide](docs/QUICKSTART.md)**: Getting started with InsightDocs
-- **[Architecture Guide](ARCHITECTURE.md)**: Deep dive into system design
-- **[API Reference](docs/API.md)**: Complete API endpoint documentation
-- **[Development Guide](docs/DEVELOPMENT.md)**: Contributing and development workflow
-- **[System Overview](docs/SYSTEM_OVERVIEW.md)**: Detailed component breakdown
-
-## ⚙️ Configuration
-
-Environment variables (`.env` file):
-
-```bash
-# Database
-DATABASE_URL=postgresql://insightdocs:insightdocs@localhost:5432/insightdocs
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/1
-
-# Gemini
-GEMINI_API_KEY=sk-your-api-key-here
-
-# Storage (S3/MinIO)
-S3_ENDPOINT=http://localhost:9000
-AWS_ACCESS_KEY_ID=minioadmin
-AWS_SECRET_ACCESS_KEY=minioadmin
-S3_BUCKET_NAME=insightdocs
-
-# Application
-APP_ENV=development
-LOG_LEVEL=INFO
-SECRET_KEY=your-secret-key-here
-
-# Vector Database
-VECTOR_DIMENSION=384
-```
-
-## 🎯 Use Cases
-
-1. **Document Intelligence Platform**: Build Q&A systems over document collections
-2. **Knowledge Base Management**: Create searchable organizational knowledge repositories
-3. **Research Assistant**: Query and analyze across multiple research documents
-4. **Content Analysis**: Extract entities, generate summaries, analyze document content
-5. **Workflow Automation**: Coordinate complex multi-step AI-powered workflows
-
-## 🔒 Security Features
-
-- **BYOK (Bring Your Own Key)**: User keys stored with AES-256 encryption
-- **Tenant Isolation**: Strict DB and Vector DB isolation per user
-- **Rate Limiting**: Authenticated user-based rate limiting
-- **Input Validation**: Pydantic validation on all endpoints
-- **SQL Injection Prevention**: SQLAlchemy ORM usage
-- **Secrets Management**: Environment-based configuration
-
-## 📈 Performance & Scalability
-
-- **Async I/O**: Non-blocking operations throughout the stack
-- **Connection Pooling**: Efficient database connection management
-- **Batch Processing**: Optimized embedding generation
-- **Horizontal Scaling**: Scale API servers and workers independently
-- **Caching**: Redis-based caching for frequently accessed data
-- **Vector Search**: FAISS for fast similarity search at scale
-
-## 🛠️ Technology Stack
-
-| Category | Technology |
-|----------|------------|
-| **Language** | Python 3.11+ |
-| **API Framework** | FastAPI |
-| **Task Queue** | Celery |
-| **Database** | PostgreSQL |
-| **Cache/Queue** | Redis |
-| **Vector DB** | Milvus |
-| **Storage** | S3/MinIO |
-| **LLM** | Gemini GPT |
-| **Embeddings** | Sentence Transformers |
-| **Containerization** | Docker, Docker Compose |
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-Please ensure your code:
-- Follows the existing code style
-- Includes appropriate tests
-- Updates documentation as needed
-- Passes all tests (`make test`)
-
-## 🐛 Troubleshooting
-
-### Services won't start
-
-```bash
-# Check if ports are in use
-lsof -i :8000  # API
-lsof -i :5432  # PostgreSQL
-lsof -i :6379  # Redis
-lsof -i :9000  # MinIO
-
-# Restart services
-docker-compose down
-docker-compose up -d
-```
-
-### Database connection errors
-
-```bash
-# Check PostgreSQL
-docker-compose ps postgres
-docker-compose logs postgres
-
-# Recreate database
-docker-compose down -v
-docker-compose up -d
-```
-
-### Worker not processing tasks
-
-```bash
-# Check worker logs
-docker-compose logs worker
-
-# Check Redis
-docker-compose ps redis
-```
-
-## 📊 Project Statistics
-
-- **29 Python modules** implementing the complete system
-- **2,271 lines of code** in the main application
-- **200+ lines** of test coverage
-- **4 specialized agents** working in coordination
-- **3 API routers** (documents, query, tasks)
-- **5 documentation files** covering all aspects
-
-## 📄 License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Built with modern Python frameworks and best practices
-- Inspired by agent-based architectures and microservices patterns
-- Demonstrates practical implementation of RAG systems
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/HarshilMaks/InsightDocs/issues)
-- **Documentation**: See the `docs/` directory
-- **Examples**: Check out `cli.py` for usage examples
-
----
-
-**Built with ❤️ using Python, FastAPI, Celery, PostgreSQL, Redis, Milvus, and Gemini**
+Apache License 2.0 — see [LICENSE](LICENSE).

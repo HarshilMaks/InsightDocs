@@ -4,21 +4,18 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 # --- Updated Imports ---
-from backend.api import documents, query, tasks, auth, users  # Import the new users router
+from backend.api import documents, query, tasks, auth, users
 from backend.api.schemas import HealthResponse
-from backend.models.schemas import Base  # Import Base from your merged models file
+from backend.models.schemas import Base
 from backend.models.database import engine, get_db
-from backend.config import settings  # Import your new settings
-# from backend.middleware.guardrails import InputGuardrailMiddleware  # Removed
+from backend.config import settings
+from backend.core.logging import configure_logging
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from backend.core.limiter import limiter
 
-# --- Use settings for logging ---
-logging.basicConfig(
-    level=settings.log_level,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# --- Structured logging (JSON in production, plain in development) ---
+configure_logging()
 
 logger = logging.getLogger(__name__)
 

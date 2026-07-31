@@ -1,6 +1,10 @@
 """Celery configuration and tasks."""
 from celery import Celery
 from backend.config import settings
+from backend.core.logging import configure_logging
+
+# Structured logging for worker processes
+configure_logging()
 
 # Initialize Celery app
 celery_app = Celery(
