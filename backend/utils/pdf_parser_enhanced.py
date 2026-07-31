@@ -23,12 +23,14 @@ class PDFBlock:
         text: str,
         page_number: int,
         bbox: Tuple[float, float, float, float],
-        block_type: str = "text"
+        block_type: str = "text",
+        avg_font_size: Optional[float] = None,
     ):
         self.text = text
         self.page_number = page_number
         self.bbox = bbox  # (x0, y0, x1, y1)
         self.block_type = block_type
+        self.avg_font_size = avg_font_size
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -41,7 +43,8 @@ class PDFBlock:
                 "x2": self.bbox[2],
                 "y2": self.bbox[3]
             },
-            "type": self.block_type
+            "type": self.block_type,
+            "avg_font_size": self.avg_font_size,
         }
 
 
