@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 import logging
 from backend.api.schemas import (
     BoundingBox,
+    ClaimVerification,
     QueryHistoryResponse,
     QueryRequest,
     QueryResponse,
@@ -76,7 +77,8 @@ async def query_documents(
         
         answer = result.get("answer", "")
         sources_data = result.get("sources", [])
-        
+        claim_verifications_data = result.get("claim_verifications")
+
         # Output guardrail is handled within Orchestrator/LLM Client potentially, 
         # or can be re-enabled here if check_output is updated to support BYOK.
         
@@ -133,6 +135,18 @@ async def query_documents(
         db.commit()
         db.refresh(query_record)
 
+        claim_verifications = None
+        if claim_verifications_data:
+            claim_verifications = [
+                ClaimVerification(
+                    claim=c.get("claim", ""),
+                    status=c.get("status", "unverified"),
+                    supporting_sources=c.get("supporting_sources") or [],
+                    reason=c.get("reason"),
+                )
+                for c in claim_verifications_data
+            ]
+
         return QueryResponse(
             answer=answer,
             sources=sources,
@@ -143,6 +157,7 @@ async def query_documents(
             response_time=elapsed,
             confidence_score=None,
             next_steps=result.get("next_steps"),
+            claim_verifications=claim_verifications,
         )
 
     except HTTPException:

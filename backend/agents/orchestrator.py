@@ -526,6 +526,24 @@ class OrchestratorAgent(BaseAgent):
                 conversation_history=conversation_history,
             )
 
+            # Step 3.5: Verify each factual claim in the answer against the
+            # retrieved sources. This runs inline (synchronously, before the
+            # response is returned) rather than deferred asynchronously —
+            # a known limitation documented in the roadmap: if verification
+            # is slow, it adds directly to query latency. It fails open
+            # (returns None) rather than blocking or corrupting the answer
+            # if the Gemini call or JSON parsing fails.
+            claim_verifications = None
+            try:
+                from backend.middleware.guardrails import verify_claims
+                claim_verifications = verify_claims(
+                    answer,
+                    context_chunks,
+                    api_key=self.analysis_agent.llm_client.api_key,
+                )
+            except Exception as e:
+                logger.warning(f"Claim verification failed (non-fatal): {e}")
+
             # Step 4: Generate suggestions / next steps using PlanningAgent
             next_steps = []
             if answer:
@@ -550,6 +568,7 @@ class OrchestratorAgent(BaseAgent):
                 "sources": sources,
                 "conversation_history": conversation_history,
                 "next_steps": next_steps,
+                "claim_verifications": claim_verifications,
                 "agent_id": self.agent_id
             }
         except GeminiAPIError as e:

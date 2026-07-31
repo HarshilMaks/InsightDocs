@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from typing import Optional
 
 from fastapi import Request, HTTPException, Depends
 
@@ -238,3 +239,93 @@ def check_output(answer: str, context_chunks: list[str], api_key: str = None) ->
         )
 
     return answer, False
+
+
+# ---------------------------------------------------------------------------
+# Per-claim verification — utility function
+# ---------------------------------------------------------------------------
+
+def _strip_json_code_fences(raw: str) -> str:
+    """Remove markdown code fences Gemini sometimes wraps JSON output in."""
+    cleaned = re.sub(r"^```[a-z]*\n?", "", raw.strip())
+    cleaned = re.sub(r"\n?```$", "", cleaned)
+    return cleaned
+
+
+def verify_claims(
+    answer: str,
+    citation_context: list[dict],
+    api_key: str = None,
+) -> Optional[list[dict]]:
+    """Verify each factual claim in `answer` against the retrieved sources.
+
+    Unlike check_output(), which returns a single whole-answer safe/unsafe
+    verdict, this breaks the answer into individual claims and classifies
+    each one, so the UI can show exactly which sentence is unsupported
+    rather than discarding or blanket-flagging the whole response.
+
+    Args:
+        answer: The generated answer text.
+        citation_context: The same list the orchestrator passes to the LLM
+            for generation — each item has "text" and a "citation" dict
+            with at least "source_number".
+        api_key: The user's decrypted Gemini API key, if BYOK is enabled.
+
+    Returns:
+        A list of claim dicts (claim, status, supporting_sources, reason),
+        or None if verification could not run at all (fails open — callers
+        should treat None as "verification unavailable", not "no claims").
+    """
+    if not answer or not citation_context:
+        return None
+
+    numbered_sources = "\n---\n".join(
+        f"[{item.get('citation', {}).get('source_number', idx + 1)}] {item.get('text', '')}"
+        for idx, item in enumerate(citation_context)
+    )
+
+    try:
+        model = _get_gemini_client(api_key)
+        if model is None:
+            logger.warning("Claim verification unavailable: no Gemini client")
+            return None
+
+        response = model.generate_content(
+            _CLAIM_VERIFICATION_PROMPT.format(sources=numbered_sources, answer=answer),
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.0,
+                max_output_tokens=1024,
+            ),
+        )
+        raw = _strip_json_code_fences(response.text or "")
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning(f"Claim verification returned invalid JSON: {raw[:200]}")
+            return None
+
+        claims = data.get("claims")
+        if not isinstance(claims, list):
+            logger.warning("Claim verification response missing a 'claims' list")
+            return None
+
+        results = []
+        for item in claims:
+            if not isinstance(item, dict) or not item.get("claim"):
+                continue
+            status = item.get("status")
+            if status not in ("supported", "unsupported"):
+                status = "unsupported"
+            supporting = item.get("supporting_sources")
+            results.append({
+                "claim": str(item["claim"]),
+                "status": status,
+                "supporting_sources": [s for s in supporting if isinstance(s, int)] if isinstance(supporting, list) else [],
+                "reason": item.get("reason") if status == "unsupported" else None,
+            })
+        return results
+
+    except Exception as e:
+        logger.warning(f"Claim verification failed (fail-open, no claims returned): {e}")
+        return None
