@@ -143,7 +143,6 @@ class QueryResponse(BaseSchema):
     response_time: float
     confidence_score: Optional[float]
     tokens_used: Optional[int] = None
-    next_steps: Optional[List[str]] = None
     claim_verifications: Optional[List[ClaimVerification]] = Field(
         None,
         description="Per-claim verification results, when verification ran successfully. "

@@ -156,7 +156,6 @@ async def query_documents(
             query=query_request.query,
             response_time=elapsed,
             confidence_score=None,
-            next_steps=result.get("next_steps"),
             claim_verifications=claim_verifications,
         )
 

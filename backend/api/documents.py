@@ -270,26 +270,7 @@ async def summarize_document(
         llm = LLMClient(api_key=api_key)
         summary = await llm.summarize(text)
 
-        # Call PlanningAgent to suggest next steps based on summary
-        from backend.agents.planning_agent import PlanningAgent
-        planning_agent = PlanningAgent(api_key=api_key)
-
-        next_steps = []
-        if summary:
-            try:
-                planning_result = await planning_agent.process({
-                    "task_type": "suggest_steps",
-                    "current_state": summary[:3000],
-                    "context": {
-                        "document_id": document_id,
-                    }
-                })
-                if planning_result.get("success"):
-                    next_steps = planning_result.get("suggestions", [])
-            except Exception as e:
-                logger.warning(f"Planning agent suggestions generation in summary endpoint failed: {e}")
-
-        return {"document_id": document_id, "summary": summary, "next_steps": next_steps}
+        return {"document_id": document_id, "summary": summary}
     except GeminiAPIError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
 

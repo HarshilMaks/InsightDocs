@@ -258,8 +258,6 @@ class TestFatalChunkPersistence:
                 {"success": True, "vector_ids": ["v1"], "embedding_count": 1},
                 {"success": True, "summary": ""},
             ])
-            orchestrator.planning_agent = MagicMock()
-            orchestrator.planning_agent.process = AsyncMock(return_value={"success": True, "suggestions": []})
 
             fake_data_agent = MagicMock()
             fake_data_agent.process = AsyncMock(side_effect=[
@@ -359,10 +357,6 @@ class TestDocumentScopedQuery:
                 orchestrator.analysis_agent.llm_client,
                 "generate_rag_response",
                 new=AsyncMock(return_value="an answer with no context"),
-            ), patch.object(
-                orchestrator.planning_agent,
-                "process",
-                new=AsyncMock(return_value={"success": True, "suggestions": []}),
             ):
                 result = await orchestrator.process_query(
                     "hello",

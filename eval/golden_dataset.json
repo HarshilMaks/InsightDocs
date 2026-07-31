@@ -1,0 +1,67 @@
+[
+  {
+    "id": "eval-001",
+    "query": "What database does InsightDocs use for metadata?",
+    "expected_answer_contains": ["PostgreSQL"],
+    "expected_document_filename": "architecture_doc.pdf",
+    "expected_sources": [
+      {
+        "content_substring": "PostgreSQL",
+        "page_number": null
+      }
+    ],
+    "notes": "Basic factual retrieval about the system's own architecture."
+  },
+  {
+    "id": "eval-002",
+    "query": "How are user API keys stored securely?",
+    "expected_answer_contains": ["AES-256", "encrypt"],
+    "expected_document_filename": null,
+    "expected_sources": [
+      {
+        "content_substring": "Fernet",
+        "page_number": null
+      }
+    ],
+    "notes": "Security-focused retrieval — should surface BYOK encryption details."
+  },
+  {
+    "id": "eval-003",
+    "query": "What happens when a scanned PDF is uploaded?",
+    "expected_answer_contains": ["OCR", "Tesseract"],
+    "expected_document_filename": null,
+    "expected_sources": [
+      {
+        "content_substring": "scanned",
+        "page_number": null
+      }
+    ],
+    "notes": "Tests retrieval of OCR-related processing documentation."
+  },
+  {
+    "id": "eval-004",
+    "query": "How does InsightDocs prevent one user from seeing another user's documents?",
+    "expected_answer_contains": ["user_id", "isolation"],
+    "expected_document_filename": null,
+    "expected_sources": [
+      {
+        "content_substring": "user_id",
+        "page_number": null
+      }
+    ],
+    "notes": "Security isolation — retrieval must surface tenant isolation logic."
+  },
+  {
+    "id": "eval-005",
+    "query": "What embedding model is used for vector search?",
+    "expected_answer_contains": ["bge-base", "768"],
+    "expected_document_filename": null,
+    "expected_sources": [
+      {
+        "content_substring": "BAAI",
+        "page_number": null
+      }
+    ],
+    "notes": "Configuration retrieval — model name and dimension."
+  }
+]

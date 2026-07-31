@@ -83,10 +83,6 @@ class TestOrchestratorClaimVerificationWiring:
                 orchestrator.analysis_agent.llm_client,
                 "generate_rag_response",
                 new=AsyncMock(return_value="Gemini 2.5 Flash is the default model."),
-            ), patch.object(
-                orchestrator.planning_agent,
-                "process",
-                new=AsyncMock(return_value={"success": True, "suggestions": []}),
             ), patch(
                 "backend.middleware.guardrails.verify_claims",
                 return_value=[
@@ -135,10 +131,6 @@ class TestOrchestratorClaimVerificationWiring:
                 orchestrator.analysis_agent.llm_client,
                 "generate_rag_response",
                 new=AsyncMock(return_value="An answer."),
-            ), patch.object(
-                orchestrator.planning_agent,
-                "process",
-                new=AsyncMock(return_value={"success": True, "suggestions": []}),
             ), patch(
                 "backend.middleware.guardrails.verify_claims",
                 side_effect=RuntimeError("verification service unreachable"),

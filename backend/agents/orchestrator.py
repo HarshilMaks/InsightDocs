@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 from backend.core import BaseAgent
 from backend.agents.data_agent import DataAgent
 from backend.agents.analysis_agent import AnalysisAgent
-from backend.agents.planning_agent import PlanningAgent
 from backend.models import get_db, Document, DocumentChunk, Query as QueryModel
 from backend.utils.llm_client import GeminiAPIError
 
@@ -19,7 +18,6 @@ class OrchestratorAgent(BaseAgent):
         super().__init__(agent_id, "OrchestratorAgent")
         self.data_agent = None
         self.analysis_agent = AnalysisAgent(api_key=api_key)
-        self.planning_agent = PlanningAgent(api_key=api_key)
 
     def _get_data_agent(self) -> DataAgent:
         """Lazily initialize DataAgent to avoid unnecessary storage connections."""
@@ -123,35 +121,9 @@ class OrchestratorAgent(BaseAgent):
         except Exception as e:
             logger.warning(f"Summary generation failed (non-fatal): {e}")
 
-        # Step 5.5: Generate next steps / planning suggestions using PlanningAgent
-        next_steps = []
-        if summary:
-            try:
-                planning_result = await self.planning_agent.process({
-                    "task_type": "suggest_steps",
-                    "current_state": summary[:3000],
-                    "context": {
-                        "filename": message.get("filename"),
-                        "document_id": document_id,
-                    }
-                })
-                if planning_result.get("success"):
-                    next_steps = planning_result.get("suggestions", [])
-            except Exception as e:
-                logger.warning(f"Planning agent suggestions generation failed (non-fatal): {e}")
-
-        # Step 6: Track progress
-        await self.planning_agent.process({
-            "task_type": "track_progress",
-            "task_id": message.get("task_id"),
-            "progress_data": {
-                "step": "completed",
-                "chunks_processed": transform_result["chunk_count"],
-                "embeddings_created": embed_result["embedding_count"],
-                "summary_generated": bool(summary),
-                "next_steps_generated": len(next_steps),
-            },
-        })
+        # Step 5.5 + Step 6 (removed): PlanningAgent next-steps and
+        # track_progress calls added a blocking Gemini call per ingestion
+        # for near-zero product value. Removed to reduce processing time.
 
         self.log_event("workflow_complete", {
             "workflow_type": "ingest_and_analyze",
@@ -166,7 +138,6 @@ class OrchestratorAgent(BaseAgent):
             "chunks_processed": transform_result["chunk_count"],
             "vector_ids": vector_ids,
             "summary": summary,
-            "next_steps": next_steps,
             "agent_id": self.agent_id,
         }
 
@@ -544,21 +515,9 @@ class OrchestratorAgent(BaseAgent):
             except Exception as e:
                 logger.warning(f"Claim verification failed (non-fatal): {e}")
 
-            # Step 4: Generate suggestions / next steps using PlanningAgent
-            next_steps = []
-            if answer:
-                try:
-                    planning_result = await self.planning_agent.process({
-                        "task_type": "suggest_steps",
-                        "current_state": answer[:2000],
-                        "context": {
-                            "query": query_text,
-                        }
-                    })
-                    if planning_result.get("success"):
-                        next_steps = planning_result.get("suggestions", [])
-                except Exception as e:
-                    logger.warning(f"Planning agent query suggestions failed (non-fatal): {e}")
+            # Step 4 (removed): PlanningAgent next-steps generation was here
+            # but added a blocking Gemini call per query for near-zero
+            # product value. Removed to reduce query latency and cost.
             
             self.log_event("query_complete", {"query": query_text, "sources_count": len(sources)})
             
@@ -567,7 +526,6 @@ class OrchestratorAgent(BaseAgent):
                 "answer": answer,
                 "sources": sources,
                 "conversation_history": conversation_history,
-                "next_steps": next_steps,
                 "claim_verifications": claim_verifications,
                 "agent_id": self.agent_id
             }

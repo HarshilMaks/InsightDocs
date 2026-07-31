@@ -55,7 +55,6 @@ export default function DocumentPage() {
   const [topK, setTopK] = useState(5)
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('ask')
   const [summary, setSummary] = useState<string | null>(null)
-  const [nextSteps, setNextSteps] = useState<string[] | null>(null)
   const [quiz, setQuiz] = useState<unknown>(null)
   const [mindmap, setMindmap] = useState<unknown>(null)
   const [isQuerying, setIsQuerying] = useState(false)
@@ -140,7 +139,6 @@ export default function DocumentPage() {
     mutationFn: () => summarizeDocument(documentId ?? ''),
     onSuccess: (response) => {
       setSummary(response.summary)
-      setNextSteps(response.next_steps ?? [])
       setActiveTab('summary')
     },
   })
@@ -301,21 +299,6 @@ export default function DocumentPage() {
               <pre className="whitespace-pre-wrap text-sm leading-7 text-on-surface">
                 {renderContent(activeContent)}
               </pre>
-              {activeTab === 'summary' && nextSteps && nextSteps.length > 0 && (
-                <div className="mt-6 border-t border-outline-variant/15 pt-6">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-on-surface-variant mb-3">
-                    Recommended Next Actions
-                  </h3>
-                  <ul className="space-y-2 animate-fade-in">
-                    {nextSteps.map((step, idx) => (
-                      <li key={idx} className="flex gap-2 text-sm text-on-surface">
-                        <span className="text-primary font-bold">{idx + 1}.</span>
-                        <span>{step}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
           )}
         </div>
