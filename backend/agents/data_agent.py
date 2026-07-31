@@ -4,18 +4,16 @@ import logging
 from pathlib import Path
 from backend.core import BaseAgent, AgentMessage
 from backend.utils.document_processor import DocumentProcessor
-from backend.storage.file_storage import FileStorage
 
 logger = logging.getLogger(__name__)
 
 
 class DataAgent(BaseAgent):
-    """Agent responsible for data ingestion and transformation."""
+    """Agent responsible for parsing and transforming already-stored documents."""
     
     def __init__(self, agent_id: str = "data_agent"):
         super().__init__(agent_id, "DataAgent")
         self.document_processor = DocumentProcessor()
-        self.file_storage = FileStorage()
     
     async def process(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Process data-related tasks.

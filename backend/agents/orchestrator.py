@@ -47,21 +47,18 @@ class OrchestratorAgent(BaseAgent):
         })
 
         document_id = message.get("document_id")
+        s3_key = message.get("s3_key")
 
-        # Step 1: Ingest document (upload to S3, parse content)
+        # Step 1: Parse the already-uploaded document (worker downloaded its
+        # own local copy before calling this workflow; see backend/workers/tasks.py)
         ingest_result = await self._get_data_agent().process({
             "task_type": "ingest",
             "file_path": message.get("file_path"),
             "filename": message.get("filename"),
+            "s3_key": s3_key,
         })
         if not ingest_result.get("success"):
             return ingest_result
-
-        await self._update_document_storage_info(
-            document_id,
-            self._get_data_agent().file_storage.bucket_name,
-            ingest_result["stored_path"],
-        )
 
         raw_text = ingest_result["content"].get("text", "")
         metadata = ingest_result["content"].get("metadata", {})
