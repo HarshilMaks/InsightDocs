@@ -93,9 +93,21 @@ class OrchestratorAgent(BaseAgent):
         if not embed_result.get("success"):
             return embed_result
 
-        # Step 4: Persist chunks to PostgreSQL
+        # Step 4: Persist chunks to PostgreSQL. This is fatal: a document
+        # with vectors in Milvus but no corresponding DocumentChunk rows
+        # cannot be cited, so treat the failure as a workflow failure rather
+        # than continuing silently.
         vector_ids = embed_result.get("vector_ids", [])
-        await self._store_chunks_to_db(document_id, chunks, vector_ids)
+        try:
+            await self._store_chunks_to_db(document_id, chunks, vector_ids)
+        except Exception as e:
+            logger.error(f"Fatal: failed to persist chunks for document {document_id}: {e}")
+            return {
+                "success": False,
+                "error": f"Failed to persist document chunks: {e}",
+                "workflow_type": "ingest_and_analyze",
+                "document_id": document_id,
+            }
 
         # Step 5: Generate and store summary
         summary = ""
@@ -157,11 +169,18 @@ class OrchestratorAgent(BaseAgent):
         }
 
     async def _store_chunks_to_db(self, document_id: str, chunks: list, vector_ids: list):
-        """Persist document chunks to PostgreSQL with optional bbox data."""
-        try:
-            from backend.models import get_db, DocumentChunk
+        """Persist document chunks to PostgreSQL with optional bbox data.
 
-            db = next(get_db())
+        Raises on failure instead of swallowing the exception: callers must
+        treat chunk-persistence failure as fatal to the ingestion workflow,
+        since a chunk that exists only as a Milvus vector with no PostgreSQL
+        row can never be hydrated into a citation.
+        """
+        from backend.models import get_db, DocumentChunk
+
+        db_gen = get_db()
+        db = next(db_gen)
+        try:
             for i, chunk_data in enumerate(chunks):
                 # Handle both old format (str) and new format (dict with bbox)
                 if isinstance(chunk_data, str):
@@ -172,7 +191,7 @@ class OrchestratorAgent(BaseAgent):
                     chunk_text = chunk_data.get("text", "")
                     bbox = chunk_data.get("bbox")
                     page_number = chunk_data.get("page_number")
-                
+
                 chunk = DocumentChunk(
                     document_id=document_id,
                     chunk_index=i,
@@ -187,15 +206,19 @@ class OrchestratorAgent(BaseAgent):
                 db.add(chunk)
             db.commit()
             logger.info(f"Stored {len(chunks)} chunks for document {document_id} (with bbox data where available)")
-        except Exception as e:
-            logger.error(f"Failed to store chunks to DB: {e}")
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db_gen.close()
 
     async def _update_document_ocr_info(self, document_id: str, is_scanned: bool, ocr_confidence: float):
         """Update the Document record with OCR information."""
+        from backend.models import get_db, Document
+
+        db_gen = get_db()
+        db = next(db_gen)
         try:
-            from backend.models import get_db, Document
-            
-            db = next(get_db())
             doc = db.query(Document).filter(Document.id == document_id).first()
             if doc:
                 doc.is_scanned = is_scanned
@@ -204,21 +227,8 @@ class OrchestratorAgent(BaseAgent):
                 logger.info(f"Updated document {document_id} OCR info: is_scanned={is_scanned}, conf={ocr_confidence}")
         except Exception as e:
             logger.error(f"Failed to update document OCR info: {e}")
-
-    async def _update_document_storage_info(self, document_id: str, s3_bucket: str, s3_key: str):
-        """Update the Document record with the final object storage location."""
-        try:
-            db = next(get_db())
-            doc = db.query(Document).filter(Document.id == document_id).first()
-            if doc:
-                doc.s3_bucket = s3_bucket
-                doc.s3_key = s3_key
-                db.commit()
-                logger.info(
-                    f"Updated document {document_id} storage info: bucket={s3_bucket}, key={s3_key}"
-                )
-        except Exception as e:
-            logger.error(f"Failed to update document storage info: {e}")
+        finally:
+            db_gen.close()
 
     @staticmethod
     def _build_bbox_payload(chunk: DocumentChunk) -> Optional[Dict[str, float]]:

@@ -113,8 +113,11 @@ class QueryRequest(BaseSchema):
         None,
         description="Conversation thread ID for follow-up questions",
     )
-    # You can add more filters here later, e.g.:
-    # document_ids: Optional[List[str]] = None
+    document_id: Optional[str] = Field(
+        None,
+        description="Restrict retrieval to a single document (e.g. the document workspace view). "
+                     "If omitted, retrieval searches across all of the user's documents.",
+    )
 
 class QueryResponse(BaseSchema):
     answer: str

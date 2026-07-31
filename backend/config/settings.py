@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     aws_secret_access_key: str
     s3_bucket_name: str
     aws_default_region: str = Field("us-east-1")
+
+    # Database connection pool (tune per environment/deployment plan)
+    db_pool_size: int = Field(5)
+    db_max_overflow: int = Field(10)
+    db_pool_timeout: int = Field(30)
+    db_pool_recycle: int = Field(300)
     
     @property
     def allowed_origins_list(self) -> List[str]:
