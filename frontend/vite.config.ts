@@ -25,6 +25,7 @@ export default defineConfig({
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'query-vendor': ['@tanstack/react-query'],
           'ui-vendor': ['framer-motion', 'lucide-react', 'react-dropzone'],
+          'pdf-vendor': ['react-pdf'],
         },
       },
     },

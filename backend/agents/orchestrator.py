@@ -68,10 +68,12 @@ class OrchestratorAgent(BaseAgent):
         ocr_confidence = metadata.get("ocr_confidence")
         await self._update_document_ocr_info(document_id, is_scanned, ocr_confidence)
 
-        # Step 2: Chunk text
+        # Step 2: Chunk text (pass the full parsed content, not just raw
+        # text, so spatial blocks and tables reach the chunker and enable
+        # section-aware, table-atomic chunking with parent-child linkage)
         transform_result = await self._get_data_agent().process({
             "task_type": "transform",
-            "content": raw_text,
+            "content": ingest_result["content"],
             "chunk_size": message.get("chunk_size", 1000),
         })
         if not transform_result.get("success"):
@@ -169,7 +171,15 @@ class OrchestratorAgent(BaseAgent):
         }
 
     async def _store_chunks_to_db(self, document_id: str, chunks: list, vector_ids: list):
-        """Persist document chunks to PostgreSQL with optional bbox data.
+        """Persist document chunks to PostgreSQL with optional bbox and
+        structural metadata (section title, chunk type, parent linkage).
+
+        Chunks produced by the section/table-aware chunker
+        (EnhancedPDFParser.chunk_blocks) may reference a parent chunk by its
+        position in the `chunks` list via `parent_chunk_index`. Since
+        PostgreSQL parent_chunk_id is a foreign key to a real row id (not a
+        list position), parent chunks are inserted first so their generated
+        ids are known before child rows are created.
 
         Raises on failure instead of swallowing the exception: callers must
         treat chunk-persistence failure as fatal to the ingestion workflow,
@@ -181,31 +191,89 @@ class OrchestratorAgent(BaseAgent):
         db_gen = get_db()
         db = next(db_gen)
         try:
-            for i, chunk_data in enumerate(chunks):
-                # Handle both old format (str) and new format (dict with bbox)
-                if isinstance(chunk_data, str):
-                    chunk_text = chunk_data
-                    bbox = None
-                    page_number = None
-                else:
-                    chunk_text = chunk_data.get("text", "")
-                    bbox = chunk_data.get("bbox")
-                    page_number = chunk_data.get("page_number")
+            # Resolve each chunk's parent_chunk_index (a position in
+            # `chunks`) to the DB row id of that parent, once it has been
+            # inserted. Parents are recognized by is_parent=True and have no
+            # parent of their own (parent_chunk_index is always None for a
+            # parent chunk itself, by construction in chunk_blocks()).
+            index_to_db_id: Dict[int, str] = {}
 
+            def _extract_fields(chunk_data):
+                if isinstance(chunk_data, str):
+                    return {
+                        "text": chunk_data,
+                        "bbox": None,
+                        "page_number": None,
+                        "section_title": None,
+                        "chunk_type": None,
+                        "parent_chunk_index": None,
+                        "is_parent": False,
+                    }
+                return {
+                    "text": chunk_data.get("text", ""),
+                    "bbox": chunk_data.get("bbox"),
+                    "page_number": chunk_data.get("page_number"),
+                    "section_title": chunk_data.get("section_title"),
+                    "chunk_type": chunk_data.get("chunk_type"),
+                    "parent_chunk_index": chunk_data.get("parent_chunk_index"),
+                    "is_parent": bool(chunk_data.get("is_parent", False)),
+                }
+
+            parsed = [_extract_fields(c) for c in chunks]
+
+            # Pass 1: insert parent chunks (and any chunk with no parent
+            # reference) so they receive real ids before children are created.
+            for i, fields in enumerate(parsed):
+                if not fields["is_parent"]:
+                    continue
+                bbox = fields["bbox"]
                 chunk = DocumentChunk(
                     document_id=document_id,
                     chunk_index=i,
-                    content=chunk_text,
+                    content=fields["text"],
                     milvus_id=vector_ids[i] if i < len(vector_ids) else None,
-                    page_number=page_number,
+                    page_number=fields["page_number"],
                     bbox_x1=bbox["x1"] if bbox else None,
                     bbox_y1=bbox["y1"] if bbox else None,
                     bbox_x2=bbox["x2"] if bbox else None,
                     bbox_y2=bbox["y2"] if bbox else None,
+                    section_title=fields["section_title"],
+                    chunk_type=fields["chunk_type"] or "text",
+                    parent_chunk_id=None,
                 )
                 db.add(chunk)
+                db.flush()  # assign chunk.id without committing the transaction
+                index_to_db_id[i] = chunk.id
+
+            # Pass 2: insert every remaining (non-parent) chunk, resolving
+            # its parent_chunk_index to the parent's real DB id if present.
+            for i, fields in enumerate(parsed):
+                if fields["is_parent"]:
+                    continue
+                bbox = fields["bbox"]
+                parent_idx = fields["parent_chunk_index"]
+                parent_db_id = index_to_db_id.get(parent_idx) if parent_idx is not None else None
+                chunk = DocumentChunk(
+                    document_id=document_id,
+                    chunk_index=i,
+                    content=fields["text"],
+                    milvus_id=vector_ids[i] if i < len(vector_ids) else None,
+                    page_number=fields["page_number"],
+                    bbox_x1=bbox["x1"] if bbox else None,
+                    bbox_y1=bbox["y1"] if bbox else None,
+                    bbox_x2=bbox["x2"] if bbox else None,
+                    bbox_y2=bbox["y2"] if bbox else None,
+                    section_title=fields["section_title"],
+                    chunk_type=fields["chunk_type"] or "text",
+                    parent_chunk_id=parent_db_id,
+                )
+                db.add(chunk)
+
             db.commit()
-            logger.info(f"Stored {len(chunks)} chunks for document {document_id} (with bbox data where available)")
+            logger.info(
+                f"Stored {len(chunks)} chunks for document {document_id} "
+                f"(with bbox/section/table data where available)"
+            )
         except Exception:
             db.rollback()
             raise

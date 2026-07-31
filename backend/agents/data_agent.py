@@ -96,12 +96,13 @@ class DataAgent(BaseAgent):
         
         self.log_event("transform_start", {"chunk_size": chunk_size})
         
-        # Extract text and blocks from content
+        # Extract text, spatial blocks, and tables from content
         text = content if isinstance(content, str) else content.get("text", "")
         blocks = content.get("blocks", []) if isinstance(content, dict) else []
+        tables = content.get("tables", []) if isinstance(content, dict) else []
         
-        # Chunk content (with or without spatial data)
-        chunks = await self.document_processor.chunk_text(text, chunk_size, blocks=blocks)
+        # Chunk content (section/table-aware when spatial data is available)
+        chunks = await self.document_processor.chunk_text(text, chunk_size, blocks=blocks, tables=tables)
         
         self.log_event("transform_complete", {"chunk_count": len(chunks)})
         

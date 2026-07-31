@@ -9,6 +9,7 @@ import type {
   DocumentMindmapResponse,
   DocumentQuizResponse,
   DocumentResponse,
+  DocumentFileUrlResponse,
   DocumentSummaryResponse,
   DocumentUploadResponse,
   LoginPayload,
@@ -117,6 +118,11 @@ export async function listDocuments(): Promise<DocumentListResponse> {
 
 export async function getDocument(documentId: string): Promise<DocumentResponse> {
   const { data } = await api.get<DocumentResponse>(`/documents/${documentId}`)
+  return data
+}
+
+export async function getDocumentFileUrl(documentId: string): Promise<DocumentFileUrlResponse> {
+  const { data } = await api.get<DocumentFileUrlResponse>(`/documents/${documentId}/file-url`)
   return data
 }
 

@@ -251,7 +251,8 @@ class DocumentProcessor:
         text: str,
         chunk_size: int = 1000,
         overlap: int = 200,
-        blocks: List[Dict[str, Any]] = None
+        blocks: List[Dict[str, Any]] = None,
+        tables: List[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Split text into overlapping chunks.
@@ -261,13 +262,16 @@ class DocumentProcessor:
             chunk_size: Target chunk size in characters
             overlap: Overlap between chunks
             blocks: Optional list of block dictionaries with bbox data
+            tables: Optional list of table dictionaries (from TableExtractor).
+                When provided alongside blocks, each table is emitted as one
+                atomic chunk and its text is excluded from prose chunking.
             
         Returns:
-            List of chunk dictionaries (text + optional bbox data)
+            List of chunk dictionaries (text + optional bbox/section/table data)
         """
         # If we have blocks with spatial data, use enhanced chunking if available
         if blocks and self.pdf_parser:
-            return self.pdf_parser.chunk_blocks(blocks, chunk_size, overlap)
+            return self.pdf_parser.chunk_blocks(blocks, chunk_size, overlap, tables=tables)
         
         # Fallback to simple text chunking
         if not text:

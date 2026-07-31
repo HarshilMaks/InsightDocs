@@ -129,12 +129,21 @@ class DocumentChunk(Base, TimestampMixin):
     bbox_x2 = Column(Float, nullable=True)  # Right coordinate
     bbox_y2 = Column(Float, nullable=True)  # Bottom coordinate
 
+    # Structural metadata (section-aware, table-atomic chunking)
+    section_title = Column(String(500), nullable=True)
+    chunk_type = Column(String(20), nullable=True)  # "text" | "table" | None (legacy chunks)
+    parent_chunk_id = Column(
+        String, ForeignKey("document_chunks.id", ondelete="SET NULL"), nullable=True
+    )
+
     # Relationships
     document = relationship("Document", back_populates="chunks")
+    parent_chunk = relationship("DocumentChunk", remote_side=[id])
 
     __table_args__ = (
         Index("ix_chunks_document_index", "document_id", "chunk_index"),
         Index("ix_chunks_doc_milvus", "document_id", "milvus_id"),
+        Index("ix_chunks_parent", "parent_chunk_id"),
     )
 
     def __repr__(self):

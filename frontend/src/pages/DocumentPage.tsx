@@ -8,6 +8,7 @@ import {
   generateQuiz,
   getApiErrorMessage,
   getDocument,
+  getDocumentFileUrl,
   getQueryHistory,
   getTaskStatus,
   sendQuery,
@@ -16,6 +17,7 @@ import {
 import { historyToMessages, responseToAssistantMessage } from '@/lib/threads'
 import { ChatPanel } from '@/components/ChatPanel'
 import { CitationsPanel } from '@/components/CitationsPanel'
+import { PdfViewer } from '@/components/PdfViewer'
 import { formatBytes, formatStatus } from '@/lib/format'
 import type { ChatMessage, SourceReference, WorkspaceTab } from '@/types'
 import { cn } from '@/lib/utils'
@@ -82,6 +84,16 @@ export default function DocumentPage() {
     queryFn: () => getQueryHistory(conversationId),
     enabled: Boolean(conversationId),
     staleTime: 0,
+  })
+
+  const isPdf = documentQuery.data?.file_type?.toLowerCase() === '.pdf'
+  const fileUrlQuery = useQuery({
+    queryKey: ['document-file-url', documentId],
+    queryFn: () => getDocumentFileUrl(documentId ?? ''),
+    enabled: Boolean(documentId) && isPdf && documentQuery.data?.status === 'completed',
+    // Presigned URLs expire in 10 minutes server-side; refetch a little
+    // before that so a long-open tab doesn't end up with a dead link.
+    staleTime: 8 * 60 * 1000,
   })
 
   useEffect(() => {
@@ -198,6 +210,7 @@ export default function DocumentPage() {
 
   const isReady = documentQuery.data?.status === 'completed'
   const currentDocument = documentQuery.data ?? null
+  const selectedSource = sources.find((source) => source.chunk_id === selectedSourceId) ?? sources[0] ?? null
   const title = documentQuery.data?.filename ?? 'Document workspace'
 
   if (documentQuery.isError) {
@@ -409,6 +422,21 @@ export default function DocumentPage() {
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
+          {fileUrlQuery.data?.url && (
+            <div className="rounded-[2rem] border border-outline-variant/15 bg-surface-container-low/70 p-5 shadow-xl shadow-black/10">
+              <p className="text-xs uppercase tracking-[0.28em] text-on-surface-variant">Source document</p>
+              <h2 className="mt-2 text-lg font-semibold text-on-surface">
+                Click a citation to jump to its exact page and highlighted region
+              </h2>
+              <div className="mt-4">
+                <PdfViewer
+                  fileUrl={fileUrlQuery.data.url}
+                  pageNumber={selectedSource?.page_number ?? undefined}
+                  highlightBbox={selectedSource?.bbox ?? null}
+                />
+              </div>
+            </div>
+          )}
           {renderWorkspaceContent()}
         </div>
 

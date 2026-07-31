@@ -136,10 +136,22 @@ BaseAgent
 -- All tables use UUID primary keys with TimestampMixin
 users: id, email, hashed_password, is_active, created_at, updated_at
 documents: id, user_id, filename, file_path, status, summary, created_at, updated_at
-document_chunks: id, document_id, content, chunk_index, created_at, updated_at
+document_chunks: id, document_id, content, chunk_index, milvus_id,
+                  page_number, bbox_x1, bbox_y1, bbox_x2, bbox_y2,
+                  section_title, chunk_type, parent_chunk_id,
+                  created_at, updated_at
 tasks: id, task_type, status, result, created_at, updated_at
 queries: id, user_id, query_text, response, created_at, updated_at
 ```
+
+Chunking is section-aware and table-atomic when spatial PDF data is
+available: headings are detected via a font-size heuristic and recorded as
+`section_title`; a detected table is always emitted as a single chunk
+(`chunk_type = "table"`) rather than fragmented into prose; and each
+section's chunks link to a synthetic parent chunk via `parent_chunk_id` so
+retrieval can hydrate wider context around a precisely-matched child
+chunk. Documents with no extractable font metadata (e.g. OCR text) fall
+back to plain sentence-based chunking with no section/parent structure.
 
 **Milvus Vector Database**
 ```python

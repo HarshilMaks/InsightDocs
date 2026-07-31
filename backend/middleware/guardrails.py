@@ -77,6 +77,43 @@ Mark as UNSAFE only if the answer makes confident factual claims that are
 clearly NOT supported by or directly contradicted by the context.
 """.strip()
 
+_CLAIM_VERIFICATION_PROMPT = """
+You are a factual verification classifier for a RAG system. You are given
+the numbered source passages that were retrieved, and an answer generated
+from them. Break the answer into its individual factual claims (roughly
+one claim per sentence; skip purely conversational filler such as
+greetings) and classify each claim against the sources.
+
+Sources:
+\"\"\"
+{sources}
+\"\"\"
+
+Answer:
+\"\"\"
+{answer}
+\"\"\"
+
+Respond with ONLY a JSON object of this exact shape, no markdown, no
+explanation outside the JSON:
+
+{{
+  "claims": [
+    {{
+      "claim": "<the exact claim text, verbatim from the answer>",
+      "status": "supported" | "unsupported",
+      "supporting_sources": [<source numbers that support this claim, e.g. 1, 2>],
+      "reason": "<one short sentence, required only when status is unsupported>"
+    }}
+  ]
+}}
+
+Mark a claim "unsupported" only if it is not backed by any of the source
+passages, or directly contradicts them. If the answer contains no
+verifiable factual claims (e.g. it is a clarifying question or a refusal),
+return {{"claims": []}}.
+""".strip()
+
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------

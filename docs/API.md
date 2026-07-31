@@ -147,6 +147,24 @@ Get full document details
 }
 ```
 
+### GET /api/v1/documents/{document_id}/file-url
+Get a short-lived presigned URL for the original document file (user must
+own it). Used by the frontend document viewer to render the source PDF for
+citation highlighting.
+
+**Response:**
+```json
+{
+  "document_id": "uuid",
+  "url": "https://storage.example.com/documents/....pdf?X-Amz-Signature=...",
+  "expires_in": 600
+}
+```
+
+Returns `404` if the document does not exist or is not owned by the
+authenticated user, and `409` if the document has not finished uploading
+to object storage yet.
+
 ### DELETE /api/v1/documents/{document_id}
 ...
       {

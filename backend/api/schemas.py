@@ -106,6 +106,20 @@ class SourceReference(BaseSchema):
     similarity_score: float
     citation_label: str
 
+class ClaimVerification(BaseSchema):
+    """Verification result for a single claim (sentence) in the generated answer."""
+    claim: str = Field(..., description="The claim/sentence being verified")
+    status: str = Field(
+        ...,
+        description='One of "supported", "unsupported", or "unverified" '
+                     '("unverified" means the verification check itself could not run)',
+    )
+    supporting_sources: List[int] = Field(
+        default_factory=list,
+        description="source_number values (from QueryResponse.sources) that support this claim, if any",
+    )
+    reason: Optional[str] = Field(None, description="Short explanation, mainly populated for unsupported claims")
+
 class QueryRequest(BaseSchema):
     query: str = Field(..., description="Query text")
     top_k: Optional[int] = Field(5, description="Number of results to retrieve")
@@ -130,6 +144,11 @@ class QueryResponse(BaseSchema):
     confidence_score: Optional[float]
     tokens_used: Optional[int] = None
     next_steps: Optional[List[str]] = None
+    claim_verifications: Optional[List[ClaimVerification]] = Field(
+        None,
+        description="Per-claim verification results, when verification ran successfully. "
+                     "None if verification did not run (e.g. no context or a transient failure).",
+    )
 
 class QueryHistoryItem(BaseSchema):
     id: str

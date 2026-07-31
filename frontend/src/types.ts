@@ -64,6 +64,12 @@ export interface DocumentUploadResponse {
   message: string
 }
 
+export interface DocumentFileUrlResponse {
+  document_id: string
+  url: string
+  expires_in: number
+}
+
 export interface BoundingBox {
   x1: number
   y1: number

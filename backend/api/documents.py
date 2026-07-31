@@ -152,6 +152,42 @@ async def get_document(
     return document
 
 
+@router.get("/{document_id}/file-url")
+@limiter.limit("60/minute")
+async def get_document_file_url(
+    request: Request,
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Return a short-lived, presigned URL for viewing the original document
+    file (user must own it). The frontend document viewer uses this to
+    render the source PDF for citation highlighting.
+
+    A presigned URL is returned rather than proxying file bytes through
+    this API: ownership is verified once per request here, the URL itself
+    expires quickly (10 minutes), and the API process is not burdened with
+    streaming potentially large files.
+    """
+    document = db.query(Document).filter(
+        Document.id == document_id,
+        Document.user_id == current_user.id
+    ).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not document.s3_key or not document.s3_bucket:
+        raise HTTPException(status_code=409, detail="Document file is not yet available.")
+
+    try:
+        file_storage = FileStorage()
+        url = file_storage.get_file_url(document.s3_key, expires_in=600)
+    except Exception as e:
+        logger.error(f"Error generating file URL for document {document_id}: {e}")
+        raise HTTPException(status_code=503, detail="Unable to generate document file URL right now.")
+
+    return {"document_id": document_id, "url": url, "expires_in": 600}
+
+
 @router.delete("/{document_id}")
 @limiter.limit("10/minute")
 async def delete_document(
