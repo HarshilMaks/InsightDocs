@@ -245,9 +245,15 @@ Ask follow-up questions about your uploaded documents using RAG
 {
   "query": "What are the key findings?",
   "top_k": 5,
-  "conversation_id": "conv_uuid_optional"
+  "conversation_id": "conv_uuid_optional",
+  "document_id": "doc_uuid_optional"
 }
 ```
+
+`document_id` is optional. When provided, retrieval is restricted to that
+single document (e.g. the document workspace view). The document must be
+owned by the authenticated user; otherwise the scope is silently ignored
+and the query falls back to searching all of the user's documents.
 
 **Example:**
 ```bash

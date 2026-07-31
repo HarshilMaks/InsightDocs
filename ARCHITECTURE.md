@@ -199,30 +199,46 @@ class EmbeddingEngine:
 ```
 1. Upload Request
    │
-   ├── FastAPI endpoint receives file
+   ├── FastAPI endpoint receives file (in-memory)
    │
-2. Document Record Creation
+2. Object Storage Upload (before queuing)
    │
-   ├── Store metadata in PostgreSQL
-   ├── Save file to S3/MinIO
+   ├── API uploads the file bytes directly to S3/MinIO
+   ├── API creates the Document record in PostgreSQL with the
+   │   resulting S3 bucket/object key already set
    │
 3. Celery Task: process_document
    │
-   ├── Orchestrator coordinates workflow
+   ├── API queues (document_id, s3_key, filename, user_id) —
+   │   never a local filesystem path, since the worker may run
+   │   in a separate process or container from the API
    │
-4. DataAgent Processing
+4. Worker Downloads Its Own Local Copy
    │
-   ├── Parse document content
-   ├── Chunk text into segments
-   ├── Store chunks in PostgreSQL
+   ├── Worker verifies task ownership (document belongs to user_id)
+   ├── Worker downloads the S3 object to a private local temp file
    │
-5. AnalysisAgent Processing
+5. Orchestrator Coordinates Workflow
    │
-   ├── Generate 768-dim embeddings
-   ├── Store vectors in Milvus
+   ├── DataAgent parses the local temp copy (it does not upload —
+   │   the file is already in object storage)
+   ├── DataAgent chunks text into segments
+   │
+6. AnalysisAgent Processing
+   │
+   ├── Generate dense + sparse embeddings
+   ├── Store vectors in Milvus (tagged with user_id and document_id)
+   ├── Persist chunks to PostgreSQL — this step is fatal to the
+   │   workflow if it fails, since a vector with no matching
+   │   DocumentChunk row can never be hydrated into a citation
    ├── Auto-generate document summary
    │
-6. Complete
+7. Cleanup
+   │
+   ├── Worker deletes its local temp file in a finally block,
+   │   regardless of whether processing succeeded or failed
+   │
+8. Complete
    │
    └── Document ready for querying
 ```
@@ -232,18 +248,24 @@ class EmbeddingEngine:
 ```
 1. Query Request
    │
-   ├── User submits natural language query
+   ├── User submits natural language query, optionally scoped to a
+   │   single document_id (e.g. from the document workspace view)
    ├── API validates JWT & Rate Limit (User-scoped)
    │
 2. Orchestrator Processing
    │
    ├── Fetch User's decrypted API Key (BYOK)
+   ├── If document_id was supplied, verify the user owns that
+   │   document; otherwise the scope is silently ignored and
+   │   retrieval falls back to searching all of the user's documents
    ├── Generate Query Embedding (Dense + Sparse)
    │
 3. Vector Search (Hybrid)
    │
    ├── Milvus Hybrid Search (Dense + Sparse)
-   ├── Filter: `user_id == current_user.id` (Strict Isolation)
+   ├── Filter: `user_id == current_user.id` (Strict Isolation),
+   │   AND `document_id == <scoped_document_id>` when a verified
+   │   document scope is present
    ├── Retrieve top-k candidates
    │
 4. Context Assembly
