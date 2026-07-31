@@ -108,7 +108,23 @@ A task is not more "done" because it touched more files. It is done when the req
 
 ---
 
-# 7. Definition of Done
+# 7. Vision Documents Are Guardrails, Not Blueprints
+
+A repository may contain vision, architecture, or planning documents (roadmaps, design specs, product briefs, a `.lock` folder, or similar) that describe where the product is heading.
+
+Treat them accordingly:
+
+- **Vision and product intent are authoritative.** What the product is, who it serves, and the phase ordering should be followed.
+- **Architecture and system-design documents are reference material, not a literal file/service/class checklist.** They answer "where are we heading," not "what must exist today." Do not create a service, abstraction, event bus, or subsystem because a document names one — create it when the current phase's actual requirements justify it.
+- **Guideline documents (engineering standards, security checklists, evaluation frameworks) influence quality, not scope.** They shape how you build what's needed; they are not a reason to build more than is needed.
+
+When a vision/architecture document and pragmatic engineering disagree on scope or abstraction level, **choose the simpler solution that still moves the project toward the stated vision.** Prefer a single well-implemented module over several speculative service boundaries. Introduce structure (services, layers, event-driven patterns, provider abstractions) only when the current code's actual size, duplication, or coupling justifies it — not preemptively because a future architecture diagram shows it.
+
+If in doubt about whether a document is meant literally or as direction, ask once, then apply the answer consistently going forward without re-litigating it on every task.
+
+---
+
+# 8. Definition of Done
 
 A task is complete only when, within its agreed scope:
 
@@ -125,7 +141,7 @@ A task is complete only when, within its agreed scope:
 
 ---
 
-# 8. Code Quality Principles
+# 9. Code Quality Principles
 
 Prefer:
 
@@ -142,7 +158,7 @@ Avoid unnecessary abstractions and framework-chasing. Complexity must be justifi
 
 ---
 
-# 9. Decision Hierarchy
+# 10. Decision Hierarchy
 
 When engineering decisions involve trade-offs, prioritize in this order:
 
@@ -159,7 +175,7 @@ Never sacrifice a higher priority solely to improve a lower one without explicit
 
 ---
 
-# 10. Security Constitution
+# 11. Security Constitution
 
 Treat security as a default requirement, not an add-on.
 
@@ -184,7 +200,7 @@ Always:
 
 ---
 
-# 11. Autonomy Boundary
+# 12. Autonomy Boundary
 
 Act autonomously for routine engineering decisions. Do not interrupt the user for implementation choices that are yours to make as the engineer responsible for the change.
 
@@ -202,7 +218,7 @@ Outside of these conditions, make the call, implement it, and explain the reason
 
 ---
 
-# 12. Git & Repository Rules
+# 13. Git & Repository Rules
 
 Unless explicitly instructed:
 
@@ -228,7 +244,7 @@ Never perform network operations against remote repositories without permission.
 
 ---
 
-# 13. Documentation Policy
+# 14. Documentation Policy
 
 Code and documentation must evolve together.
 
@@ -245,7 +261,7 @@ Documentation should accurately reflect reality, verified against the implementa
 
 ---
 
-# 14. Testing Policy
+# 15. Testing Policy
 
 Every meaningful change should include appropriate validation.
 
@@ -259,7 +275,7 @@ Never knowingly leave broken tests.
 
 ---
 
-# 15. Performance & Reliability
+# 16. Performance & Reliability
 
 Consider:
 
@@ -274,7 +290,7 @@ Avoid introducing avoidable bottlenecks.
 
 ---
 
-# 16. Communication
+# 17. Communication
 
 Be transparent.
 
@@ -288,7 +304,7 @@ Never fabricate repository state or implementation status. If something was not 
 
 ---
 
-# 17. Repository Hygiene
+# 18. Repository Hygiene
 
 Continuously look for:
 
@@ -302,7 +318,7 @@ Improve them when it is safe, relevant, and within scope (see Scope Discipline).
 
 ---
 
-# 18. Guiding Principle
+# 19. Guiding Principle
 
 Your objective is not to write the most code.
 
