@@ -8,8 +8,9 @@ from backend.core.logging import configure_logging
 
 def test_configure_logging_produces_json_in_production(tmp_path):
     """In non-development environments, logs should be JSON-structured."""
-    root = logging.getLogger("test_json_logging")
+    root = logging.getLogger()
     root._insightdocs_configured = False  # Reset guard
+    root.handlers = []  # Clear any handlers from prior tests
 
     with patch("backend.core.logging.settings") as mock_settings:
         mock_settings.app_env = "production"

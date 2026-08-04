@@ -335,17 +335,18 @@ class TestOrchestratorCitationEnrichment:
 
         mock_analysis = MagicMock()
         mock_analysis.llm_client.generate_rag_response = AsyncMock(return_value="Answer with citations")
+        mock_analysis.llm_client.api_key = None
         mock_analysis.process = AsyncMock()
-        mock_planning = MagicMock()
-        mock_planning.process = AsyncMock(return_value={"success": True})
 
         request_db = TestingSessionLocal()
         try:
             with patch("backend.agents.orchestrator.AnalysisAgent", return_value=mock_analysis), patch(
-                "backend.agents.orchestrator.PlanningAgent", return_value=mock_planning
-            ), patch("backend.utils.embeddings.get_embedding_engine") as mock_engine_factory, patch(
+                "backend.utils.embeddings.get_embedding_engine"
+            ) as mock_engine_factory, patch(
                 "backend.utils.reranker.get_reranker"
-            ) as mock_reranker_factory:
+            ) as mock_reranker_factory, patch(
+                "backend.middleware.guardrails.verify_claims", return_value=None
+            ):
                 mock_engine = MagicMock()
                 mock_engine.search = AsyncMock(
                     return_value=[
