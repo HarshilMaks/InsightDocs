@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     app_env: str = Field("development")
     app_port: int = Field(8000)
     api_prefix: str = Field("/api/v1")
-    debug: bool = Field(True)
+    debug: bool = Field(False)
     log_level: str = Field("INFO")
     
     # Security

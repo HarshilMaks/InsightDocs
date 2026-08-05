@@ -3,4 +3,4 @@
 set -o errexit
 
 echo "=== Starting Celery Worker ==="
-celery -A backend.workers worker --loglevel=info
+celery -A backend.workers.celery_app worker --loglevel=info --concurrency=2
