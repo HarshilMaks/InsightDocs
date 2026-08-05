@@ -15,6 +15,7 @@ alembic==1.13.0
 
 # Vector Database (minimal - no model extras)
 pymilvus>=2.4.0
+setuptools>=69.0.0  # Required by pymilvus for pkg_resources
 
 # LLM Integration
 google-generativeai==0.8.0
