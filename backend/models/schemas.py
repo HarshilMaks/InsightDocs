@@ -53,6 +53,7 @@ class User(Base, TimestampMixin):
     name = Column(String(100), nullable=False)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    role = Column(String(20), default="member", nullable=False)  # "admin" or "member"
 
     # BYOK Fields
     gemini_api_key_encrypted = Column(String(500), nullable=True)
@@ -63,8 +64,12 @@ class User(Base, TimestampMixin):
     queries = relationship("Query", back_populates="user", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="user", cascade="all, delete-orphan")
 
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
+
     def __repr__(self):
-        return f"<User(id='{self.id}', email='{self.email}')>"
+        return f"<User(id='{self.id}', email='{self.email}', role='{self.role}')>"
 
 
 class Document(Base, TimestampMixin):

@@ -18,22 +18,35 @@ import { historyToMessages, responseToAssistantMessage } from '@/lib/threads'
 import { ChatPanel } from '@/components/ChatPanel'
 import { CitationsPanel } from '@/components/CitationsPanel'
 import { PdfViewer } from '@/components/PdfViewer'
+import { MarkdownContent, QuizView, MindmapView } from '@/components/ContentRenderers'
 import { formatBytes, formatStatus } from '@/lib/format'
 import type { ChatMessage, SourceReference, WorkspaceTab } from '@/types'
 import { cn } from '@/lib/utils'
 
 const STORAGE_PREFIX = 'insightdocs:document-thread:'
 
-function renderContent(value: unknown) {
+function renderContent(value: unknown, tab: string) {
   if (value == null) {
-    return 'No content available yet.'
+    return <p className="text-sm text-on-surface-variant">No content available yet.</p>
+  }
+
+  if (tab === 'summary' && typeof value === 'string') {
+    return <MarkdownContent content={value} />
+  }
+
+  if (tab === 'quiz') {
+    return <QuizView data={value} />
+  }
+
+  if (tab === 'mindmap') {
+    return <MindmapView data={value} />
   }
 
   if (typeof value === 'string') {
-    return value
+    return <MarkdownContent content={value} />
   }
 
-  return JSON.stringify(value, null, 2)
+  return <MindmapView data={value} />
 }
 
 export default function DocumentPage() {
@@ -296,9 +309,7 @@ export default function DocumentPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              <pre className="whitespace-pre-wrap text-sm leading-7 text-on-surface">
-                {renderContent(activeContent)}
-              </pre>
+              {renderContent(activeContent, activeTab)}
             </div>
           )}
         </div>

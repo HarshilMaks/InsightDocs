@@ -58,7 +58,7 @@ export function Sidebar({
   const displayedThreads = threads.slice(0, 8)
 
   return (
-    <aside className="fixed left-0 top-16 z-40 hidden h-[calc(100vh-4rem)] w-72 flex-col border-r border-outline-variant/15 bg-surface-container-low/90 backdrop-blur-xl lg:flex">
+    <aside className="flex h-full flex-col border-r border-outline-variant/15 bg-surface-container-low/90 backdrop-blur-xl">
       <div className="flex items-center justify-between border-b border-outline-variant/10 px-5 py-4">
         <div>
           <p className="text-xs uppercase tracking-[0.28em] text-on-surface-variant">Workspace</p>
@@ -206,10 +206,10 @@ export function Sidebar({
       <div className="border-t border-outline-variant/10 px-4 py-4">
         <Link
           className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-4 py-3 text-sm font-semibold text-on-primary shadow-lg shadow-primary/15 transition hover:opacity-95"
-          to="/conversations/new"
+          to="/dashboard"
         >
           <Plus className="h-4 w-4" />
-          New conversation
+          New document
         </Link>
       </div>
     </aside>

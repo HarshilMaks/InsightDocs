@@ -9,7 +9,12 @@ interface UploadDropzoneProps {
 
 export function UploadDropzone({ isUploading = false, onUpload }: UploadDropzoneProps) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: undefined,
+    accept: {
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+      'text/plain': ['.txt'],
+    },
     disabled: isUploading,
     maxFiles: 1,
     multiple: false,
@@ -43,7 +48,7 @@ export function UploadDropzone({ isUploading = false, onUpload }: UploadDropzone
               {isDragActive ? 'Drop your file here' : 'Drag and drop a document'}
             </p>
             <p className="mt-1 text-sm text-on-surface-variant">
-              PDF, DOCX, XLSX, CSV, images, and text files are supported.
+              PDF, DOCX, PPTX, and TXT files are supported (max 50MB).
             </p>
           </div>
         </div>
