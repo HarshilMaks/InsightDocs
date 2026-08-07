@@ -71,3 +71,4 @@ data/
 uploads/
 *.faiss
 .lock
+.agents
