@@ -33,10 +33,15 @@ def register_user(
     
     hashed_password = get_password_hash(user_in.password)
     
+    # First user in the system becomes admin automatically
+    user_count = db.query(User).count()
+    role = "admin" if user_count == 0 else "member"
+    
     db_user = User(
         email=user_in.email,
         name=user_in.name,
         hashed_password=hashed_password,
+        role=role,
     )
     
     db.add(db_user)

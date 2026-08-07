@@ -37,6 +37,7 @@ class UserResponse(UserBase):
     created_at: datetime
     updated_at: datetime
     is_active: bool = True
+    role: str = "member"
 
 class Token(BaseSchema):
     access_token: str

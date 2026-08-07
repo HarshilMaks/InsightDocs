@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 # --- Updated Imports ---
-from backend.api import documents, query, tasks, auth, users
+from backend.api import documents, query, tasks, auth, users, admin
 from backend.api.schemas import HealthResponse
 from backend.models.schemas import Base
 from backend.models.database import engine, get_db
@@ -58,6 +58,7 @@ app.include_router(documents.router, prefix=settings.api_prefix)
 app.include_router(query.router, prefix=settings.api_prefix)
 app.include_router(tasks.router, prefix=settings.api_prefix)
 app.include_router(users.router, prefix=settings.api_prefix)
+app.include_router(admin.router, prefix=settings.api_prefix)
 
 
 @app.get("/", response_model=HealthResponse, tags=["System"])

@@ -59,7 +59,6 @@ docker-compose.yml
 # Session & Temporary Files
 # ============================================
 .copilot/
-scripts/
 *.log
 *.tmp
 .env.example

@@ -48,10 +48,14 @@ COPY --from=builder /opt/venv /opt/venv
 COPY backend ./backend
 COPY alembic ./alembic
 COPY alembic.ini .
+COPY scripts ./scripts
 
 # Set Python path and use venv
 ENV PYTHONPATH=/app
 ENV PATH="/opt/venv/bin:$PATH"
+
+# Make scripts executable
+RUN chmod +x scripts/*.sh
 
 # Run as non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
@@ -64,5 +68,6 @@ EXPOSE 10000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD sh -c 'curl -f http://localhost:${PORT:-10000}/api/v1/health || exit 1'
 
-# Default command
-CMD ["sh", "-c", "uvicorn backend.api.main:app --host 0.0.0.0 --port ${PORT:-10000}"]
+# Default: run migrations then start API (same behavior in Docker, Render, and local)
+# For the worker service, override this with: bash scripts/start_worker.sh
+CMD ["bash", "scripts/start_api.sh"]
