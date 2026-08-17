@@ -72,3 +72,4 @@ uploads/
 *.faiss
 .lock
 .agents
+stitch_insightdocs_ai_dashboard.zip

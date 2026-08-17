@@ -479,20 +479,28 @@ class LLMClient:
             for i, chunk in enumerate(context_chunks, start=1):
                 if isinstance(chunk, dict):
                     text = chunk.get("text", "")
+                    parent_context = chunk.get("parent_context")
                     citation = chunk.get("citation", {}) or {}
                     label = citation.get("citation_label") or f"Source {i}"
                     document_name = citation.get("document_name", "Document")
                     page_number = citation.get("page_number")
                     chunk_index = citation.get("chunk_index")
+                    section_title = citation.get("section_title")
                     location_bits = []
+                    if section_title:
+                        location_bits.append(f"section \"{section_title}\"")
                     if page_number is not None:
                         location_bits.append(f"page {page_number}")
                     if chunk_index is not None:
                         location_bits.append(f"chunk {chunk_index}")
                     location_text = ", ".join(location_bits) if location_bits else "location unavailable"
-                    context_sections.append(
-                        f"Source {i} — {label} | {document_name} ({location_text})\n{text}"
-                    )
+                    source_block = f"Source {i} — {label} | {document_name} ({location_text})\n{text}"
+                    # When parent context is available, append it to give
+                    # the LLM a wider section view for generation while the
+                    # citation still points at the precise child passage.
+                    if parent_context and parent_context != text:
+                        source_block += f"\n[Broader section context for Source {i}:]\n{parent_context[:3000]}"
+                    context_sections.append(source_block)
                 else:
                     context_sections.append(f"Source {i}\n{chunk}")
 

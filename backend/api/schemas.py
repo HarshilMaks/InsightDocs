@@ -103,6 +103,8 @@ class SourceReference(BaseSchema):
     chunk_index: int
     page_number: Optional[int] = None
     bbox: Optional[BoundingBox] = Field(None, description="Bounding box for precise citation")
+    section_title: Optional[str] = Field(None, description="Section heading this chunk belongs to")
+    chunk_type: str = Field("text", description="Type of chunk: 'text' or 'table'")
     content_preview: str
     similarity_score: float
     citation_label: str
@@ -193,7 +195,12 @@ class ApiKeyResponse(BaseSchema):
 class TaskStatusResponse(BaseSchema):
     task_id: str
     status: TaskStatus
-    progress: float
+    progress: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Task completion fraction. 0.0 = not started, 1.0 = complete.",
+    )
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 

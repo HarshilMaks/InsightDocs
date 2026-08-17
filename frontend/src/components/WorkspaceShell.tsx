@@ -1,23 +1,30 @@
 import { useCallback, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/context/auth-context'
 import { useWorkspace } from '@/context/workspace-context'
-import { listDocuments, uploadDocument, getApiErrorMessage } from '@/lib/api'
+import { deleteDocument, listDocuments, uploadDocument, getApiErrorMessage } from '@/lib/api'
 import { WorkspaceNavbar } from '@/components/WorkspaceNavbar'
 import { DocumentSidebar } from '@/components/DocumentSidebar'
 import { AuthGateModal } from '@/components/AuthGateModal'
 import { HomeEmptyState } from '@/components/HomeEmptyState'
 import { DocumentWorkspace } from '@/components/DocumentWorkspace'
 import { UploadDropzone } from '@/components/UploadDropzone'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { cn } from '@/lib/utils'
+import { useState } from 'react'
 
 export function WorkspaceShell() {
   const navigate = useNavigate()
   const { documentId } = useParams<{ documentId: string }>()
+  const [searchParams] = useSearchParams()
   const { isAuthenticated } = useAuth()
   const queryClient = useQueryClient()
-  const { sidebarCollapsed, authGateOpen, setAuthGateOpen, pendingIntent, setPendingIntent } = useWorkspace()
+  const { sidebarCollapsed, setAuthGateOpen, pendingIntent, setPendingIntent } = useWorkspace()
+
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   // Only fetch documents when authenticated
   const documentsQuery = useQuery({
@@ -37,6 +44,18 @@ export function WorkspaceShell() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteDocument,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['documents'] })
+      // If the deleted document is currently open, go home
+      if (pendingDeleteId === documentId) {
+        navigate('/')
+      }
+      setPendingDeleteId(null)
+    },
+  })
+
   // Handle upload click - gate behind auth if not authenticated
   const handleUploadClick = useCallback(() => {
     if (!isAuthenticated) {
@@ -44,32 +63,43 @@ export function WorkspaceShell() {
       setAuthGateOpen(true)
       return
     }
-    // If authenticated, trigger file input (handled by dropzone in the content area)
-    // Navigate to home with upload=true param to show dropzone
     navigate('/?upload=true')
   }, [isAuthenticated, setPendingIntent, setAuthGateOpen, navigate])
 
+  // Handle document delete
+  const handleDeleteDocument = useCallback((docId: string) => {
+    setPendingDeleteId(docId)
+    setDeleteDialogOpen(true)
+  }, [])
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return
+    try {
+      await deleteMutation.mutateAsync(pendingDeleteId)
+    } catch {
+      // Error handled by mutation state
+    }
+    setDeleteDialogOpen(false)
+  }
+
   // Resume intent after auth
   useEffect(() => {
-    if (isAuthenticated && pendingIntent && !authGateOpen) {
+    if (isAuthenticated && pendingIntent && !searchParams.has('upload')) {
       if (pendingIntent.type === 'upload') {
         navigate('/?upload=true')
+      } else if (pendingIntent.type === 'ask' && pendingIntent.documentId) {
+        navigate(`/documents/${pendingIntent.documentId}`)
       }
       setPendingIntent(null)
     }
-  }, [isAuthenticated, pendingIntent, authGateOpen, navigate, setPendingIntent])
+  }, [isAuthenticated, pendingIntent, navigate, setPendingIntent, searchParams])
 
   const handleUpload = async (file: File) => {
-    try {
-      await uploadMutation.mutateAsync(file)
-    } catch (error) {
-      // Let it throw so UploadDropzone shows error state
-      throw error
-    }
+    await uploadMutation.mutateAsync(file)
   }
 
-  // Determine what content to render
-  const showUploadOverlay = !documentId && isAuthenticated && (new URLSearchParams(window.location.search).get('upload') === 'true')
+  // Determine what content to render using reactive searchParams
+  const showUploadOverlay = !documentId && isAuthenticated && searchParams.get('upload') === 'true'
 
   return (
     <div className="flex h-screen flex-col bg-[hsl(226,46%,5%)]">
@@ -88,7 +118,10 @@ export function WorkspaceShell() {
         {/* Main content */}
         <main className="flex flex-1 flex-col overflow-hidden">
           {documentId ? (
-            <DocumentWorkspace documentId={documentId} />
+            <DocumentWorkspace
+              documentId={documentId}
+              onDelete={handleDeleteDocument}
+            />
           ) : showUploadOverlay ? (
             <div className="flex h-full flex-col items-center justify-center px-6">
               <div className="w-full max-w-lg space-y-4">
@@ -113,6 +146,20 @@ export function WorkspaceShell() {
       </div>
 
       <AuthGateModal />
+
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        title="Delete document?"
+        message="This will permanently delete the document and all its indexed chunks. This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        isDangerous
+        onConfirm={() => void handleConfirmDelete()}
+        onCancel={() => {
+          setDeleteDialogOpen(false)
+          setPendingDeleteId(null)
+        }}
+      />
     </div>
   )
 }

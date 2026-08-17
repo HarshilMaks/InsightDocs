@@ -116,7 +116,7 @@ def process_document_task(self, document_id: str, s3_key: str, filename: str, us
 
     local_path: Optional[str] = None
     try:
-        _update_task(db, self.request.id, status=TaskStatus.PROCESSING, progress=10.0)
+        _update_task(db, self.request.id, status=TaskStatus.PROCESSING, progress=0.1)
         _update_document(db, document_id, user_id=user_id, status=TaskStatus.PROCESSING)
 
         # Download this worker's own local copy of the uploaded object.
@@ -143,7 +143,7 @@ def process_document_task(self, document_id: str, s3_key: str, filename: str, us
 
         if result.get("success"):
             _update_task(db, self.request.id,
-                         status=TaskStatus.COMPLETED, result=result, progress=100.0)
+                         status=TaskStatus.COMPLETED, result=result, progress=1.0)
             _update_document(db, document_id, user_id=user_id, status=TaskStatus.COMPLETED)
         else:
             error_msg = result.get("error", "Unknown processing error")
@@ -207,7 +207,7 @@ def generate_embeddings_task(self, document_id: str, chunks: list, user_id: str 
 
         if result.get("success"):
             _update_task(db, self.request.id,
-                         status=TaskStatus.COMPLETED, result=result, progress=100.0)
+                         status=TaskStatus.COMPLETED, result=result, progress=1.0)
         else:
             _update_task(db, self.request.id,
                          status=TaskStatus.FAILED, error=result.get("error", "Unknown error"))

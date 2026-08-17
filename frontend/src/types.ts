@@ -86,6 +86,8 @@ export interface SourceReference {
   chunk_index: number
   page_number?: number | null
   bbox?: BoundingBox | null
+  section_title?: string | null
+  chunk_type: string
   content_preview: string
   similarity_score: number
   citation_label: string

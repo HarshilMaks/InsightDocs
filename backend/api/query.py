@@ -18,7 +18,7 @@ from backend.models.schemas import User
 from backend.core.security import get_current_user, decrypt_api_key
 from backend.agents.orchestrator import OrchestratorAgent
 from backend.core.limiter import limiter
-from backend.middleware.guardrails import check_input_guardrail
+from backend.middleware.guardrails import check_input_guardrail, check_output
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/query", tags=["Query"])
@@ -79,8 +79,20 @@ async def query_documents(
         sources_data = result.get("sources", [])
         claim_verifications_data = result.get("claim_verifications")
 
-        # Output guardrail is handled within Orchestrator/LLM Client potentially, 
-        # or can be re-enabled here if check_output is updated to support BYOK.
+        # Output guardrail: check generated answer against context for
+        # hallucination. Uses user's API key when BYOK is enabled.
+        # Fails open (returns original answer) if the check cannot run.
+        output_api_key = None
+        if current_user.byok_enabled and current_user.gemini_api_key_encrypted:
+            try:
+                output_api_key = decrypt_api_key(current_user.gemini_api_key_encrypted)
+            except Exception:
+                pass
+        context_texts = [s.get("content", "") for s in sources_data if s.get("content")]
+        if answer and context_texts:
+            answer, was_flagged = check_output(answer, context_texts, api_key=output_api_key)
+            if was_flagged:
+                logger.warning(f"Output guardrail flagged response for user {current_user.id}")
         
         elapsed = round(time.time() - start, 3)
 
@@ -116,6 +128,8 @@ async def query_documents(
                 chunk_index=int(citation.get("chunk_index") or source_number),
                 page_number=citation.get("page_number"),
                 bbox=bbox,
+                section_title=citation.get("section_title"),
+                chunk_type=citation.get("chunk_type", "text"),
                 content_preview=s.get("content", "")[:200],
                 similarity_score=s.get("score", 0.0),
                 citation_label=citation.get("citation_label") or f"Source {source_number}",

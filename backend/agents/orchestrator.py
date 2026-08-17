@@ -293,6 +293,31 @@ class OrchestratorAgent(BaseAgent):
             parts.append(f"Chunk {chunk_index}")
         return " · ".join(parts) if parts else "Source"
 
+    @staticmethod
+    def _get_parent_context(
+        chunk: Optional['DocumentChunk'],
+        parent_chunks: Dict[str, 'DocumentChunk'],
+    ) -> Optional[str]:
+        """Return the parent chunk's content if it provides meaningfully
+        wider context than the child chunk alone.
+
+        The parent's text is the concatenation of an entire section, so
+        feeding it alongside the child gives the LLM broader context for
+        generation while the citation still points at the precise child.
+        Returns None when no parent exists or the parent adds negligible
+        extra content (less than 1.5x the child's length).
+        """
+        if chunk is None or not chunk.parent_chunk_id:
+            return None
+        parent = parent_chunks.get(chunk.parent_chunk_id)
+        if parent is None or not parent.content:
+            return None
+        # Only include parent context if it is meaningfully larger than
+        # the child chunk itself (avoids redundant duplication).
+        if len(parent.content) < len(chunk.content) * 1.5:
+            return None
+        return parent.content
+
     def _hydrate_citations(
         self,
         reranked_results: List[Dict[str, Any]],
@@ -333,6 +358,22 @@ class OrchestratorAgent(BaseAgent):
                 )
                 chunks = {chunk.milvus_id: chunk for chunk in chunk_rows}
 
+            # Batch-fetch parent chunks so we can provide wider section
+            # context to the LLM while citing the precise child chunk.
+            parent_ids = {
+                chunk.parent_chunk_id
+                for chunk in chunks.values()
+                if chunk.parent_chunk_id
+            }
+            parent_chunks: Dict[str, DocumentChunk] = {}
+            if parent_ids:
+                parent_rows = (
+                    db.query(DocumentChunk)
+                    .filter(DocumentChunk.id.in_(parent_ids))
+                    .all()
+                )
+                parent_chunks = {p.id: p for p in parent_rows}
+
             citation_context: List[Dict[str, Any]] = []
             enriched_sources: List[Dict[str, Any]] = []
 
@@ -349,6 +390,8 @@ class OrchestratorAgent(BaseAgent):
                     chunk_id = chunk.id
                     bbox = self._build_bbox_payload(chunk)
                     document_id = chunk.document_id
+                    section_title = chunk.section_title
+                    chunk_type = chunk.chunk_type or "text"
                 else:
                     document_name = metadata.get("document_name") or (document.filename if document else "Document")
                     page_number = metadata.get("page_number")
@@ -357,6 +400,8 @@ class OrchestratorAgent(BaseAgent):
                     chunk_id = str(result.get("id", ""))
                     bbox = metadata.get("bbox")
                     document_id = metadata.get("document_id", "")
+                    section_title = metadata.get("section_title")
+                    chunk_type = metadata.get("chunk_type", "text")
 
                 citation = {
                     "source_number": source_number,
@@ -366,12 +411,15 @@ class OrchestratorAgent(BaseAgent):
                     "chunk_index": chunk_index,
                     "page_number": page_number,
                     "bbox": bbox,
+                    "section_title": section_title,
+                    "chunk_type": chunk_type,
                     "citation_label": self._build_citation_label(document_name, page_number, chunk_index),
                 }
 
                 citation_context.append({
                     "text": result.get("text", ""),
                     "citation": citation,
+                    "parent_context": self._get_parent_context(chunk, parent_chunks) if chunk else None,
                 })
                 enriched_sources.append({
                     "content": result.get("text", ""),

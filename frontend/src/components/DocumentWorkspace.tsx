@@ -27,12 +27,13 @@ const STORAGE_PREFIX = 'insightdocs:document-thread:'
 
 interface DocumentWorkspaceProps {
   documentId: string
+  onDelete?: (documentId: string) => void
 }
 
-export function DocumentWorkspace({ documentId }: DocumentWorkspaceProps) {
+export function DocumentWorkspace({ documentId, onDelete }: DocumentWorkspaceProps) {
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const { setActiveDocument, selectedSource, setSelectedSource, setSources, sourcePaneOpen, setSourcePaneOpen } = useWorkspace()
+  const { setActiveDocument, selectedSource, setSelectedSource, sources, setSources, sourcePaneOpen, setSourcePaneOpen } = useWorkspace()
 
   const [conversationId, setConversationId] = useState<string | null>(() => {
     return searchParams.get('conversationId') ?? window.localStorage.getItem(`${STORAGE_PREFIX}${documentId}`) ?? null
@@ -195,14 +196,14 @@ export function DocumentWorkspace({ documentId }: DocumentWorkspaceProps) {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="hidden items-center gap-1 sm:flex">
+          {/* Tabs - visible at all sizes, scrollable on mobile */}
+          <div className="flex items-center gap-1 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
                 className={cn(
-                  'rounded-md px-2.5 py-1 text-xs transition',
+                  'shrink-0 rounded-md px-2.5 py-1 text-xs transition',
                   activeTab === tab.key
                     ? 'bg-sky-500/15 text-sky-300'
                     : 'text-white/40 hover:bg-white/[0.04] hover:text-white/60',
@@ -217,6 +218,15 @@ export function DocumentWorkspace({ documentId }: DocumentWorkspaceProps) {
                 {tab.label}
               </button>
             ))}
+            {onDelete && (
+              <button
+                type="button"
+                className="ml-auto shrink-0 rounded-md px-2 py-1 text-xs text-rose-400/60 transition hover:bg-rose-500/10 hover:text-rose-300"
+                onClick={() => onDelete(documentId)}
+              >
+                Delete
+              </button>
+            )}
           </div>
         </div>
 
@@ -233,6 +243,19 @@ export function DocumentWorkspace({ documentId }: DocumentWorkspaceProps) {
                 style={{ width: `${Math.max(3, taskProgress * 100)}%` }}
               />
             </div>
+          </div>
+        )}
+
+        {/* Mobile: show sources button when sources exist */}
+        {selectedSource && !sourcePaneOpen && (
+          <div className="flex items-center justify-end border-b border-white/[0.06] px-4 py-1.5 lg:hidden">
+            <button
+              type="button"
+              className="rounded-md bg-sky-500/10 px-2.5 py-1 text-[11px] font-medium text-sky-300 transition hover:bg-sky-500/20"
+              onClick={() => setSourcePaneOpen(true)}
+            >
+              View sources ({sources.length})
+            </button>
           </div>
         )}
 
@@ -338,26 +361,43 @@ function SourceList() {
   if (sources.length === 0) return null
 
   return (
-    <div className="border-t border-white/[0.06] px-3 py-2">
-      <p className="px-1 text-[11px] font-medium text-white/30">All sources</p>
-      <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-1">
+    <div className="border-t border-white/[0.06] overflow-y-auto max-h-60 px-3 py-2">
+      <p className="px-1 text-[11px] font-medium text-white/30">
+        All sources ({sources.length})
+      </p>
+      <div className="mt-1.5 space-y-1.5">
         {sources.map((source) => (
           <button
             key={source.chunk_id}
             type="button"
             className={cn(
-              'shrink-0 rounded-md border px-2.5 py-1.5 text-left transition',
+              'w-full rounded-lg border p-2.5 text-left transition',
               selectedSource?.chunk_id === source.chunk_id
-                ? 'border-sky-500/30 bg-sky-500/10 text-sky-300'
-                : 'border-white/[0.06] bg-white/[0.02] text-white/50 hover:bg-white/[0.04] hover:text-white/70',
+                ? 'border-sky-500/30 bg-sky-500/10'
+                : 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]',
             )}
             onClick={() => {
               setSelectedSource(source)
               setSourcePaneOpen(true)
             }}
           >
-            <p className="text-[11px] font-medium">{source.citation_label}</p>
-            <p className="text-[10px] opacity-60">Page {source.page_number ?? '-'}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className={cn(
+                'text-xs font-medium',
+                selectedSource?.chunk_id === source.chunk_id ? 'text-sky-300' : 'text-white/60',
+              )}>
+                {source.citation_label}
+              </p>
+              <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-white/30">
+                {(source.similarity_score * 100).toFixed(0)}%
+              </span>
+            </div>
+            {source.section_title && (
+              <p className="mt-0.5 text-[10px] text-white/25">Section: {source.section_title}</p>
+            )}
+            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-white/40">
+              {source.content_preview}
+            </p>
           </button>
         ))}
       </div>
