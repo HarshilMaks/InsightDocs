@@ -603,64 +603,6 @@ class LLMClient:
             logger.error(f"Error generating mindmap: {e}")
             return {"central_topic": "Error", "nodes": [], "edges": []}
 
-    # ------------------------------------------------------------------
-    # Planning agent support
-    # ------------------------------------------------------------------
-
-    async def generate_suggestions(
-        self, current_state: str, context: Dict[str, Any]
-    ) -> List[str]:
-        """Generate next step suggestions based on current state."""
-        try:
-            prompt = (
-                "Based on the current state and context, suggest 3-5 logical next steps.\n\n"
-                f"Current State: {current_state}\nContext: {context}\n\n"
-                "Return suggestions as a numbered list."
-            )
-            raw = await asyncio.to_thread(
-                self._run_prompt,
-                prompt,
-                temperature=settings.gemini_temperature,
-                max_output_tokens=512,
-            )
-            suggestions = []
-            for line in raw.split("\n"):
-                line = line.strip()
-                if line and (line[0].isdigit() or line.startswith('-') or line.startswith('•')):
-                    suggestion = line.lstrip('0123456789.-•) ').strip()
-                    if suggestion:
-                        suggestions.append(suggestion)
-            return suggestions[:5]
-        except GeminiAPIError:
-            raise
-        except Exception as e:
-            logger.error(f"Error generating suggestions: {e}")
-            return []
-
-    async def recommend_option(
-        self, context: Dict[str, Any], options: List[str]
-    ) -> Dict[str, Any]:
-        """Provide recommendation for decision making."""
-        try:
-            options_text = "\n".join(f"{i + 1}. {opt}" for i, opt in enumerate(options))
-            prompt = (
-                "Analyze the following options and provide a recommendation.\n\n"
-                f"Context: {context}\n\nOptions:\n{options_text}\n\n"
-                "Provide your recommendation with reasoning."
-            )
-            raw = await asyncio.to_thread(
-                self._run_prompt,
-                prompt,
-                temperature=settings.gemini_temperature,
-                max_output_tokens=512,
-            )
-            return {"recommendation": raw, "options_analyzed": len(options)}
-        except GeminiAPIError:
-            raise
-        except Exception as e:
-            logger.error(f"Error generating recommendation: {e}")
-            return {"recommendation": "Unable to generate recommendation", "error": str(e)}
-
 
 # ---------------------------------------------------------------------------
 # Public helpers

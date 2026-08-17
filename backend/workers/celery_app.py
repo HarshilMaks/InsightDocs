@@ -31,6 +31,12 @@ celery_app.conf.update(
     task_soft_time_limit=3300,
     broker_use_ssl=_redis_ssl_options if _redis_ssl_options else None,
     redis_backend_use_ssl=_redis_ssl_options if _redis_ssl_options else None,
+    beat_schedule={
+        'cleanup-old-tasks-daily': {
+            'task': 'insightdocs.cleanup_old_tasks',
+            'schedule': 86400.0,  # Run once per day (24h in seconds)
+        },
+    },
 )
 
 # Auto-discover tasks

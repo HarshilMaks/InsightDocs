@@ -2,7 +2,7 @@
 from typing import Dict, Any, List
 import logging
 from pathlib import Path
-from backend.core import BaseAgent, AgentMessage
+from backend.core import BaseAgent
 from backend.utils.document_processor import DocumentProcessor
 
 logger = logging.getLogger(__name__)
@@ -36,8 +36,6 @@ class DataAgent(BaseAgent):
                 return await self._ingest_document(message)
             elif task_type == "transform":
                 return await self._transform_data(message)
-            elif task_type == "store":
-                return await self._store_data(message)
             else:
                 return {
                     "success": False,
@@ -110,25 +108,5 @@ class DataAgent(BaseAgent):
             "success": True,
             "chunks": chunks,
             "chunk_count": len(chunks),
-            "agent_id": self.agent_id
-        }
-    
-    async def _store_data(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        """Store processed data.
-        
-        Args:
-            message: Message with data to store
-            
-        Returns:
-            Storage result
-        """
-        self.log_event("store_start", message)
-        
-        # In a real implementation, this would save to database
-        # For now, we'll just acknowledge the storage request
-        
-        return {
-            "success": True,
-            "stored": True,
             "agent_id": self.agent_id
         }

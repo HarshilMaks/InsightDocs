@@ -40,24 +40,6 @@ class OcrProcessor:
     OCR processor for extracting text from scanned PDFs and images.
     """
 
-    # OCR confidence threshold (0-100). Below this, text is considered scanned.
-    SCANNED_THRESHOLD = 0.3  # 30% of text detected = likely scanned
-    
-    # Confidence score threshold for individual OCR results
-    CONFIDENCE_THRESHOLD = 0.5  # 50% confidence minimum
-
-    @staticmethod
-    def is_pytesseract_available() -> bool:
-        """Check if Tesseract OCR is available."""
-        if not PYTESSERACT_AVAILABLE:
-            return False
-        try:
-            pytesseract.get_tesseract_version()
-            return True
-        except Exception as e:
-            logger.warning(f"Tesseract not available: {e}")
-            return False
-
     @staticmethod
     def detect_scanned_pdf(pdf_path: str) -> Tuple[bool, float]:
         """

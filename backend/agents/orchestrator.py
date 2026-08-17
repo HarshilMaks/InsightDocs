@@ -194,6 +194,7 @@ class OrchestratorAgent(BaseAgent):
 
             # Pass 1: insert parent chunks (and any chunk with no parent
             # reference) so they receive real ids before children are created.
+            from backend.config import settings as app_settings
             for i, fields in enumerate(parsed):
                 if not fields["is_parent"]:
                     continue
@@ -211,6 +212,8 @@ class OrchestratorAgent(BaseAgent):
                     section_title=fields["section_title"],
                     chunk_type=fields["chunk_type"] or "text",
                     parent_chunk_id=None,
+                    embedding_model=app_settings.embedding_model_name,
+                    embedding_dimension=768,
                 )
                 db.add(chunk)
                 db.flush()  # assign chunk.id without committing the transaction
@@ -237,6 +240,8 @@ class OrchestratorAgent(BaseAgent):
                     section_title=fields["section_title"],
                     chunk_type=fields["chunk_type"] or "text",
                     parent_chunk_id=parent_db_id,
+                    embedding_model=app_settings.embedding_model_name,
+                    embedding_dimension=768,
                 )
                 db.add(chunk)
 

@@ -1,0 +1,511 @@
+<!DOCTYPE html><html class="dark" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>InsightDocs - Documents Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "surface-container": "#eee9e0",
+                "outline-variant": "#d0cbc3",
+                "surface-tint": "#1a1a1a",
+                "outline": "#1a1a1a",
+                "tertiary-fixed": "#d6e3ff",
+                "on-secondary": "#1a1a1a",
+                "surface-variant": "#e8e3da",
+                "surface-container-low": "#f2ede5",
+                "surface-dim": "#d6d1c9",
+                "tertiary-container": "#d6e3ff",
+                "on-secondary-fixed-variant": "#1a1a1a",
+                "secondary": "#e63b2e",
+                "on-primary-fixed-variant": "#1a1a1a",
+                "on-tertiary-fixed": "#1a1a1a",
+                "primary": "#1a1a1a",
+                "surface-container-lowest": "#ffffff",
+                "surface-bright": "#faf7f2",
+                "secondary-fixed": "#ffdad6",
+                "primary-fixed-dim": "#e6b800",
+                "on-secondary-container": "#1a1a1a",
+                "on-secondary-fixed": "#1a1a1a",
+                "surface-container-highest": "#e2ddd4",
+                "secondary-fixed-dim": "#ffb3ab",
+                "tertiary": "#0055ff",
+                "tertiary-fixed-dim": "#a8c6ff",
+                "surface-container-high": "#e8e3da",
+                "secondary-container": "#ffdad6",
+                "on-surface-variant": "#4a4a4a",
+                "on-primary": "#ffffff",
+                "primary-fixed": "#ffcc00",
+                "on-surface": "#1a1a1a",
+                "on-tertiary-fixed-variant": "#1a1a1a",
+                "background": "#f5f0e8",
+                "on-tertiary": "#ffffff",
+                "on-error-container": "#93000a",
+                "error": "#cc0000",
+                "on-tertiary-container": "#1a1a1a",
+                "on-primary-fixed": "#1a1a1a",
+                "inverse-on-surface": "#f5f0e8",
+                "on-primary-container": "#1a1a1a",
+                "surface": "#f5f0e8",
+                "primary-container": "#ffcc00",
+                "inverse-primary": "#f5f0e8",
+                "on-error": "#ffffff",
+                "inverse-surface": "#1a1a1a",
+                "on-background": "#1a1a1a",
+                "error-container": "#ffdad6",
+                "status-failed": "#ffb4ab",
+                "status-pending": "#e6b800",
+                "highlight-overlay": "rgba(255, 204, 0, 0.15)",
+                "border": "#d0cbc3"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem"
+        },
+        "spacing": {
+            "sidebar-width": "280px",
+            "gutter": "16px",
+            "base": "4px",
+            "panel-gap": "1px",
+            "container-margin": "24px"
+        },
+        "fontFamily": {
+                "headline": [
+                        "Space Grotesk"
+                ],
+                "display": [
+                        "Space Grotesk"
+                ],
+                "body": [
+                        "Inter"
+                ],
+                "label": [
+                        "Space Grotesk"
+                ],
+                "mono-label": ["JetBrains Mono"],
+                "body-lg": ["Inter"],
+                "display-lg": ["Space Grotesk"],
+                "headline-sm": ["Space Grotesk"],
+                "caption": ["Space Grotesk"],
+                "headline-md": ["Space Grotesk"],
+                "body-sm": ["Inter"]
+        },
+        "fontSize": {
+            "mono-label": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+            "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+            "headline-sm": ["18px", { "lineHeight": "28px", "fontWeight": "600" }],
+            "caption": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+            "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+        },
+        "animation": {
+            "border-beam": "border-beam calc(var(--duration)*1s) infinite linear",
+            "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+        },
+        "keyframes": {
+            "border-beam": {
+                "100%": {
+                    "offset-distance": "100%"
+                }
+            }
+        }
+},
+    },
+  }
+</script>
+<style>
+        body {
+            background-color: #0c0c0e; /* Dark fallback */
+            color: #e5e1e4;
+        }
+
+        .dark .bg-surface { background-color: rgba(18, 18, 20, 0.6); }
+        .dark .bg-surface-container { background-color: rgba(28, 27, 29, 0.6); }
+        .dark .bg-surface-container-highest { background-color: rgba(42, 42, 44, 0.6); }
+        .dark .bg-surface-container-lowest { background-color: rgba(14, 14, 16, 0.8); }
+        .dark .border-border { border-color: rgba(255, 255, 255, 0.1); }
+        .dark .text-on-surface { color: #f5f0e8; }
+        .dark .text-on-surface-variant { color: #a1a1aa; }
+        .dark .text-primary { color: #ffcc00; }
+        
+        .shader-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .glass-panel {
+            background: rgba(24, 24, 27, 0.4);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Premium Button Glow */
+        .btn-glow {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-glow::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .btn-glow:hover::before {
+            left: 100%;
+        }
+        
+        .btn-glow:hover {
+            box-shadow: 0 0 20px rgba(255, 204, 0, 0.3);
+            transform: translateY(-1px);
+        }
+
+        /* Border Beam Animation */
+        .border-beam-container {
+            position: relative;
+            border-radius: inherit;
+        }
+        
+        .border-beam-container::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            padding: 2px;
+            background: linear-gradient(90deg, transparent 50%, #ffcc00 50%);
+            background-size: 200% 100%;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: borderBeam 4s linear infinite;
+            opacity: 0.5;
+            transition: opacity 0.3s ease;
+        }
+        
+        .border-beam-container:hover::after {
+            opacity: 1;
+            animation-duration: 2s;
+        }
+
+        @keyframes borderBeam {
+            0% { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+
+        /* Retro Grid Upload Zone */
+        .retro-grid {
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-position: center center;
+        }
+
+        /* Staggered Row Animation */
+        .stagger-item {
+            opacity: 0;
+            transform: translateY(15px) scale(0.98);
+            animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideUpFade {
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Status Badge Inner Glow */
+        .status-badge {
+            box-shadow: inset 0 0 10px rgba(255,255,255,0.1);
+        }
+        
+        /* Typography Overrides for Dark Theme */
+        h1, h2, h3, .font-display-lg, .font-headline-md, .font-headline-sm {
+            font-family: 'Space Grotesk', sans-serif;
+            letter-spacing: -0.02em;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-sm min-h-screen flex overflow-hidden dark">
+<!-- Shader Background -->
+<canvas class="shader-bg" id="glcanvas" width="1280" height="1024"></canvas>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-screen w-sidebar-width bg-surface/40 backdrop-blur-md border-r border-border flex flex-col py-container-margin z-40 glass-panel">
+
+<div class="px-4 mb-6">
+<button class="w-full flex items-center justify-center gap-2 bg-primary text-on-primary-container font-headline-sm text-headline-sm py-2.5 rounded-xl transition-all duration-300 btn-glow border-beam-container hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                New Analysis
+            </button>
+</div>
+<nav class="flex-1 px-2 space-y-1.5">
+<a class="flex items-center gap-3 px-4 py-2.5 bg-highlight-overlay text-primary border-l-2 border-primary rounded-r-lg transition-all duration-300 relative overflow-hidden group text-white font-bold" href="#">
+<div class="absolute inset-0 bg-primary/5 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-300 ease-out"></div>
+<span class="material-symbols-outlined relative z-10" data-weight="fill" style="font-variation-settings: 'FILL' 1;">description</span>
+<span class="font-headline-sm text-headline-sm relative z-10">Documents</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-all duration-300 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform duration-300">history</span>
+<span class="font-headline-sm text-headline-sm">Chat History</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-all duration-300 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform duration-300">settings</span>
+<span class="font-headline-sm text-headline-sm">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-all duration-300 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform duration-300">key</span>
+<span class="font-headline-sm text-headline-sm">BYOK Config</span>
+</a>
+</nav>
+<div class="mt-auto px-2 space-y-1.5">
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-all duration-300 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform duration-300">help</span>
+<span class="font-headline-sm text-headline-sm">Help</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-all duration-300 rounded-lg group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform duration-300">logout</span>
+<span class="font-headline-sm text-headline-sm">Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-sidebar-width flex-1 flex flex-col h-screen relative">
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 w-[calc(100%-280px)] z-50 bg-surface/30 backdrop-blur-xl border-b border-border flex justify-between items-center h-16 px-gutter glass-panel">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative w-96 focus-within:ring-1 focus-within:ring-primary rounded-lg transition-all duration-300 group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">search</span>
+<input class="w-full bg-surface-container/50 border border-border text-on-surface placeholder-on-surface-variant pl-10 pr-4 py-2 rounded-lg focus:border-primary focus:bg-surface-container-highest/80 focus:ring-0 font-body-sm text-body-sm transition-all duration-300" placeholder="Search documents, entities, or insights..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-4"><div class="flex items-center gap-3 mr-4"><img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvrxQu7l__KY7iiZQDhsucDOST32NAbZb-aznL619noI_TSeiDOGV7Q3qBYgrdDSsYdDUqsOxX4KiXLyVCw9GODC8bXDyRNIsB_dKy4J2sVf6g1ut3zdrXGbPIT11sBOjJlUOj5APotxQ3c5YSSXf61nNbo3ZR3YVct7PSXlP3sQoKMx52kUzvfOgtjeKT5vnJD2CfIiAsao83PeipjDBbffNGe0ois7A3Koc54txEnT1o0F13dgmGKCOG4dEnJvY" alt="InsightDocs" class="w-8 h-8 object-contain"><span class="font-bold text-white text-headline-sm">InsightDocs</span></div>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200 relative p-2 rounded-full hover:bg-surface-variant/50 hover:scale-105 transition-transform">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-primary rounded-full border-2 border-surface animate-pulse-slow"></span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200 p-2 rounded-full hover:bg-surface-variant/50">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="h-6 w-px bg-border mx-2"></div>
+<img alt="User Avatar" class="w-9 h-9 rounded-full border border-border object-cover ring-2 ring-transparent hover:ring-primary/50 transition-all cursor-pointer" data-alt="A futuristic, high-tech user profile avatar set against a dark void background. The avatar features abstract geometric light patterns in cyan and neon green, giving a high-performance developer tool vibe. Soft volumetric lighting highlights the digital identity concept." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtqYWE3L3xL0hf5IRTXakW7ipzEd73qm8xDJRC_IDUfu2Td7J_NlRzBuOiQwt_57pyDY-ZLU0ODM01hnRvhJDGHncQ-1uuthlBGrUdW3zO2OPHZPPFCLoDVBr0y-MA1zMV0VMZwaOH-Xwodx4Ve3iTJlM4slEhMdDFphZQeLcJ8VoBHjzhQBsX2txltj4to6ewWszklLyGpfvPsdelUetxKSb0pJQYDgfoJ83E2is0-VEmkAC3Vw">
+</div>
+</header>
+<!-- Scrollable Content -->
+<div class="flex-1 overflow-y-auto pt-24 px-container-margin pb-container-margin">
+<div class="max-w-6xl mx-auto space-y-8">
+<!-- Header & Actions -->
+<div class="flex justify-between items-end mb-8">
+<div>
+<h2 class="text-4xl font-bold text-white tracking-tight">Document Library</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mt-2 max-w-xl">Manage and analyze your verified source documents through our advanced neural processing pipeline.</p>
+</div>
+<div class="flex gap-4">
+<button class="px-5 py-2.5 border border-border bg-surface-container/30 text-on-surface rounded-xl hover:bg-surface-container-highest transition-all duration-300 flex items-center gap-2 font-headline-sm text-headline-sm glass-panel">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                            Filter
+                        </button>
+<button class="px-5 py-2.5 bg-primary text-on-primary-fixed font-headline-sm text-headline-sm rounded-xl hover:bg-primary-fixed transition-all duration-300 flex items-center gap-2 btn-glow border-beam-container hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[18px]">cloud_upload</span>
+                            Upload Files
+                        </button>
+</div>
+</div>
+<!-- Drag & Drop Zone -->
+<div class="relative overflow-hidden border border-border rounded-2xl p-10 flex flex-col items-center justify-center text-center cursor-pointer glass-panel group retro-grid transition-all duration-500 hover:border-primary/50">
+<div class="absolute inset-0 bg-gradient-to-b from-transparent to-surface-container-lowest/80 pointer-events-none"></div>
+<div class="w-16 h-16 rounded-2xl bg-surface-container-highest/80 flex items-center justify-center mb-5 group-hover:scale-110 group-hover:bg-primary/10 transition-all duration-500 border border-border group-hover:border-primary/30 relative z-10">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-3xl transition-colors duration-300">upload_file</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface relative z-10 group-hover:text-primary transition-colors">Initialize Data Upload</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-2 relative z-10">Drag &amp; drop neural weights, .pdf, .docx, or .txt (Max 50MB)</p>
+</div>
+<!-- Document Table -->
+<div class="glass-panel rounded-2xl border border-border overflow-hidden shadow-2xl">
+<div class="grid grid-cols-12 gap-4 px-6 py-4 border-b border-border bg-surface-container-lowest/60 font-mono-label text-mono-label text-on-surface-variant uppercase tracking-wider text-[11px]">
+<div class="col-span-5">Filename</div>
+<div class="col-span-2">Type</div>
+<div class="col-span-2">Size</div>
+<div class="col-span-2">Status</div>
+<div class="col-span-1 text-right">Actions</div>
+</div>
+<div class="divide-y divide-border/50 bg-surface-container-lowest/30 backdrop-blur-sm" id="document-list"><div class="grid grid-cols-12 gap-4 px-6 py-4 items-center backdrop-blur-md bg-white/5 rounded-xl mb-2 hover:bg-white/10 transition-all duration-300 group cursor-pointer"><div class="col-span-5 flex items-center gap-4 overflow-hidden"><div class="w-8 h-8 flex items-center justify-center"><span class="material-symbols-outlined text-primary">description</span></div><span class="font-bold text-white truncate">Q3_Financial_Audit_2024.pdf</span></div><div class="col-span-2 text-zinc-400">PDF Document</div><div class="col-span-2 font-mono-label text-zinc-400 text-[11px]">2.4 MB</div><div class="col-span-2"><span class="text-primary text-[11px] uppercase">Completed</span></div><div class="col-span-1 text-right"><span class="material-symbols-outlined text-zinc-400">more_vert</span></div></div><div class="grid grid-cols-12 gap-4 px-6 py-4 items-center backdrop-blur-md bg-white/5 rounded-xl mb-2 hover:bg-white/10 transition-all duration-300 group cursor-pointer"><div class="col-span-5 flex items-center gap-4 overflow-hidden"><div class="w-8 h-8 flex items-center justify-center"><span class="material-symbols-outlined text-primary">article</span></div><span class="font-bold text-white truncate">Market_Analysis_APAC.docx</span></div><div class="col-span-2 text-zinc-400">Word Document</div><div class="col-span-2 font-mono-label text-zinc-400 text-[11px]">1.1 MB</div><div class="col-span-2"><span class="text-status-pending text-[11px] uppercase">Processing</span></div><div class="col-span-1 text-right"><span class="material-symbols-outlined text-zinc-400">more_vert</span></div></div><div class="grid grid-cols-12 gap-4 px-6 py-4 items-center backdrop-blur-md bg-white/5 rounded-xl mb-2 hover:bg-white/10 transition-all duration-300 group cursor-pointer"><div class="col-span-5 flex items-center gap-4 overflow-hidden"><div class="w-8 h-8 flex items-center justify-center"><span class="material-symbols-outlined text-primary">folder_zip</span></div><span class="font-bold text-white truncate">Vendor_Contracts_Bundle.zip</span></div><div class="col-span-2 text-zinc-400">Archive</div><div class="col-span-2 font-mono-label text-zinc-400 text-[11px]">14.2 MB</div><div class="col-span-2"><span class="text-primary text-[11px] uppercase">Completed</span></div><div class="col-span-1 text-right"><span class="material-symbols-outlined text-zinc-400">more_vert</span></div></div></div>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // WebGL Shader Setup for Background
+        const canvas = document.getElementById('glcanvas');
+        const gl = canvas.getContext('webgl');
+
+        if (gl) {
+            const vertexShaderSource = `
+                attribute vec2 position;
+                varying vec2 v_texCoord;
+                void main() {
+                    gl_Position = vec4(position, 0.0, 1.0);
+                    v_texCoord = position * 0.5 + 0.5;
+                }
+            `;
+
+            // Provided shader string with minor adjustments for WebGL 1.0 compatibility if needed, but keeping it mostly as requested
+            const fragmentShaderSource = `
+                precision highp float;
+                uniform float u_time;
+                uniform vec2 u_resolution;
+                varying vec2 v_texCoord;
+
+                void main() {
+                    vec2 uv = v_texCoord;
+                    float noise = sin(uv.x * 10.0 + u_time) * cos(uv.y * 10.0 - u_time) * 0.1;
+                    vec3 color = vec3(0.05, 0.05, 0.07); // Base dark
+                    float beam = smoothstep(0.45, 0.5, uv.x + noise) * smoothstep(0.55, 0.5, uv.x + noise);
+                    color += beam * vec3(0.0, 0.6, 1.0) * 0.15; // Subtle scanner beam
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            `;
+
+            function compileShader(gl, type, source) {
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+                    gl.deleteShader(shader);
+                    return null;
+                }
+                return shader;
+            }
+
+            const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+            const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+
+            const positionBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            const positions = [
+                -1.0, -1.0,
+                 1.0, -1.0,
+                -1.0,  1.0,
+                -1.0,  1.0,
+                 1.0, -1.0,
+                 1.0,  1.0,
+            ];
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+            const positionLocation = gl.getAttribLocation(program, "position");
+            gl.enableVertexAttribArray(positionLocation);
+            gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+            const timeLocation = gl.getUniformLocation(program, "u_time");
+            const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                gl.viewport(0, 0, canvas.width, canvas.height);
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            let startTime = Date.now();
+            function render() {
+                let time = (Date.now() - startTime) * 0.001;
+                
+                gl.useProgram(program);
+                gl.uniform1f(timeLocation, time);
+                gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+                
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+                requestAnimationFrame(render);
+            }
+            render();
+        }
+
+        // Document List Population
+        const documents = [
+            { id: 1, name: 'Q3_Financial_Audit_2024.pdf', type: 'PDF Document', size: '2.4 MB', status: 'completed', date: 'Oct 24' },
+            { id: 2, name: 'Market_Analysis_APAC.docx', type: 'Word Document', size: '1.1 MB', status: 'processing', date: 'Oct 24' },
+            { id: 3, name: 'Employee_Handbook_v2.pdf', type: 'PDF Document', size: '5.7 MB', status: 'pending', date: 'Oct 23' },
+            { id: 4, name: 'Vendor_Contracts_Bundle.zip', type: 'Archive', size: '14.2 MB', status: 'completed', date: 'Oct 20' },
+            { id: 5, name: 'System_Architecture_Specs.txt', type: 'Text Document', size: '45 KB', status: 'completed', date: 'Oct 18' }
+        ];
+
+        function getStatusBadge(status) {
+            switch(status) {
+                case 'completed':
+                    return `<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-mono-label bg-tertiary/10 text-tertiary border border-tertiary/20 status-badge">
+                                <span class="w-1.5 h-1.5 rounded-full bg-tertiary mr-2 shadow-[0_0_5px_currentColor]"></span> Completed
+                            </span>`;
+                case 'processing':
+                    return `<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-mono-label bg-status-pending/10 text-status-pending border border-status-pending/20 status-badge">
+                                <span class="w-1.5 h-1.5 rounded-full bg-status-pending mr-2 animate-pulse shadow-[0_0_5px_currentColor]"></span> Processing
+                            </span>`;
+                case 'pending':
+                    return `<span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-mono-label bg-surface-variant/30 text-on-surface-variant border border-border/50 status-badge">
+                                <span class="w-1.5 h-1.5 rounded-full bg-on-surface-variant mr-2"></span> Pending
+                            </span>`;
+                default: return '';
+            }
+        }
+
+        function getFileIcon(filename) {
+            if(filename.endsWith('.pdf')) return 'picture_as_pdf';
+            if(filename.endsWith('.docx')) return 'description';
+            if(filename.endsWith('.zip')) return 'folder_zip';
+            return 'draft';
+        }
+
+        const listContainer = document.getElementById('document-list');
+        
+        documents.forEach((doc, index) => {
+            const delay = index * 0.1;
+            const html = `
+                <div class="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-surface-container-high/40 transition-all duration-300 group stagger-item cursor-pointer" style="animation-delay: ${delay}s">
+                    <div class="col-span-5 flex items-center gap-4 overflow-hidden">
+                        <div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center border border-border/50 group-hover:border-primary/30 group-hover:bg-primary/5 transition-all">
+                            <span class="material-symbols-outlined text-[18px] text-on-surface-variant group-hover:text-primary transition-colors">${getFileIcon(doc.name)}</span>
+                        </div>
+                        <span class="font-headline-sm text-headline-sm text-on-surface truncate group-hover:text-primary transition-colors">${doc.name}</span>
+                    </div>
+                    <div class="col-span-2 font-body-sm text-body-sm text-on-surface-variant">${doc.type}</div>
+                    <div class="col-span-2 font-mono-label text-mono-label text-on-surface-variant/70 text-[11px]">${doc.size}</div>
+                    <div class="col-span-2">${getStatusBadge(doc.status)}</div>
+                    <div class="col-span-1 text-right flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <button class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"><span class="material-symbols-outlined text-[18px]">download</span></button>
+                        <button class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-status-failed hover:bg-status-failed/10 transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                    </div>
+                </div>
+            `;
+            listContainer.insertAdjacentHTML('beforeend', html);
+        });
+    </script>
+
+
+</body></html>
