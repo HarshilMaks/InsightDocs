@@ -1,0 +1,6 @@
+{
+  "name": "InsightDocs",
+  "description": "AI-powered document intelligence and auditing platform with neural claim verification, interactive document viewer, and BYOK model configuration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
