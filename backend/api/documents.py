@@ -11,11 +11,9 @@ from backend.api.schemas import (
 from backend.models import get_db, Document, DocumentChunk, Task, TaskStatus
 from backend.models.schemas import User
 from backend.core.security import get_current_user, decrypt_api_key
-from backend.workers.tasks import process_document_task
 from backend.utils.document_processor import MAX_FILE_SIZE, get_supported_extensions
 from backend.utils.llm_client import GeminiAPIError, LLMClient
 from backend.core.limiter import limiter
-from backend.storage.file_storage import FileStorage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -59,6 +57,7 @@ async def upload_document(
         suffix = Path(file.filename).suffix
 
         try:
+            from backend.storage.file_storage import FileStorage
             file_storage = FileStorage()
             s3_key = await file_storage.store_bytes(content, file.filename)
         except Exception as e:
@@ -78,6 +77,7 @@ async def upload_document(
         db.commit()
         db.refresh(document)
 
+        from backend.workers.tasks import process_document_task
         task = process_document_task.apply_async(
             args=[document.id, s3_key, file.filename, current_user.id]
         )
@@ -179,6 +179,7 @@ async def get_document_file_url(
         raise HTTPException(status_code=409, detail="Document file is not yet available.")
 
     try:
+        from backend.storage.file_storage import FileStorage
         file_storage = FileStorage()
         url = file_storage.get_file_url(document.s3_key, expires_in=600)
     except Exception as e:

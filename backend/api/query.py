@@ -16,15 +16,15 @@ from backend.api.schemas import (
 from backend.models import get_db, Query as QueryModel, Document
 from backend.models.schemas import User
 from backend.core.security import get_current_user, decrypt_api_key
-from backend.agents.orchestrator import OrchestratorAgent
 from backend.core.limiter import limiter
 from backend.middleware.guardrails import check_input_guardrail, check_output
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/query", tags=["Query"])
 
-def _get_user_orchestrator(current_user: User) -> OrchestratorAgent:
+def _get_user_orchestrator(current_user: User) -> "OrchestratorAgent":
     """Helper to initialize OrchestratorAgent with user's API key if present."""
+    from backend.agents.orchestrator import OrchestratorAgent
     api_key = None
     if current_user.byok_enabled and current_user.gemini_api_key_encrypted:
         try:
