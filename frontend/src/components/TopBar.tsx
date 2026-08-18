@@ -97,14 +97,15 @@ export function TopBar({ searchQuery, onSearchChange, onRequireAuth }: TopBarPro
 
         {isAuthenticated ? (
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label="Account menu">
-                <Avatar className="size-8">
-                  <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">
-                    {initials(user?.name ?? '')}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
+            <DropdownMenuTrigger
+              aria-label="Account menu"
+              className="rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            >
+              <Avatar className="size-8">
+                <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">
+                  {initials(user?.name ?? '')}
+                </AvatarFallback>
+              </Avatar>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel className="font-normal">

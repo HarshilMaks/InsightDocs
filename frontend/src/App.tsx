@@ -1,142 +1,126 @@
-import { useState } from 'react'
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Sidebar } from './components/Sidebar'
+import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from '@/components/ui/sonner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { AppSidebar } from './components/Sidebar'
 import { TopBar } from './components/TopBar'
 import { DocumentLibraryView } from './components/DocumentLibraryView'
-import { AuditAssistantView } from './components/AuditAssistantView'
-import { ByokConfigView } from './components/ByokConfigView'
-import { ChatHistoryView } from './components/ChatHistoryView'
-import { SettingsView } from './components/SettingsView'
-import { HelpView } from './components/HelpView'
 import { AuthModal } from './components/AuthModal'
-import { ShaderCanvas } from './components/ShaderCanvas'
 import { useAuth } from '@/context/auth-context'
-import { listDocuments, getByokStatus } from '@/lib/api'
-import type { NavView, ByokConfig } from './types'
+
+// The workspace pulls in react-pdf and the markdown renderer, so it is loaded
+// on demand rather than in the initial bundle.
+const AuditAssistantView = lazy(() =>
+  import('./components/AuditAssistantView').then((m) => ({ default: m.AuditAssistantView })),
+)
+const ByokConfigView = lazy(() =>
+  import('./components/ByokConfigView').then((m) => ({ default: m.ByokConfigView })),
+)
+const ChatHistoryView = lazy(() =>
+  import('./components/ChatHistoryView').then((m) => ({ default: m.ChatHistoryView })),
+)
+const SettingsView = lazy(() =>
+  import('./components/SettingsView').then((m) => ({ default: m.SettingsView })),
+)
+const HelpView = lazy(() => import('./components/HelpView').then((m) => ({ default: m.HelpView })))
+
+/** Scroll container for standard pages. The workspace manages its own panes. */
+function Scrollable({ children }: { children: ReactNode }) {
+  return <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+}
+
+function RouteFallback() {
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-4 p-4 md:p-6">
+      <Skeleton className="h-8 w-56" />
+      <Skeleton className="h-4 w-80" />
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-32 w-full" />
+    </div>
+  )
+}
 
 export default function App() {
-  const { isAuthenticated, user, logout } = useAuth()
-  const navigate = useNavigate()
-  const location = useLocation()
-
+  const { isAuthenticated } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isAuthOpen, setIsAuthOpen] = useState(false)
 
-  // Real document count for sidebar
-  const documentsQuery = useQuery({
-    queryKey: ['documents'],
-    queryFn: listDocuments,
-    enabled: isAuthenticated,
-    staleTime: 30_000,
-  })
+  const openAuth = () => setIsAuthOpen(true)
 
-  // Real BYOK status for topbar indicator
-  const byokQuery = useQuery({
-    queryKey: ['byok-status'],
-    queryFn: getByokStatus,
-    enabled: isAuthenticated,
-    staleTime: 60_000,
-  })
-
-  const documentsCount = documentsQuery.data?.documents?.length ?? 0
-  const byokConfig: ByokConfig = {
-    enabled: byokQuery.data?.byok_enabled ?? false,
-    apiKey: '',
-    selectedModel: byokQuery.data?.active_model ?? '',
-    connectionStatus: (byokQuery.data?.status === 'healthy' || byokQuery.data?.status === 'degraded') ? 'healthy' : byokQuery.data?.status === 'missing' ? 'untested' : 'error',
-    pingMs: 0,
-    temperature: 0.2,
-    maxTokens: 4096,
-    strictness: 'balanced',
-    autoAuditOnUpload: false,
-  }
-
-  // Derive current nav view from URL
-  const getNavView = (): NavView => {
-    if (location.pathname.startsWith('/documents/')) return 'audit'
-    if (location.pathname === '/settings') return 'settings'
-    if (location.pathname === '/byok') return 'byok'
-    if (location.pathname === '/history') return 'chat-history'
-    if (location.pathname === '/help') return 'help'
-    return 'documents'
-  }
-
-  const handleNavigate = (view: NavView) => {
-    setIsMobileMenuOpen(false)
-    switch (view) {
-      case 'documents': navigate('/'); break
-      case 'settings': navigate('/settings'); break
-      case 'byok': navigate('/byok'); break
-      case 'chat-history': navigate('/history'); break
-      case 'help': navigate('/help'); break
-      default: navigate('/')
-    }
-  }
-
-  const handleSignOut = () => {
-    logout()
-    navigate('/')
-  }
-
-  // Gate protected actions behind auth
-  const requireAuth = (action: () => void) => {
-    if (!isAuthenticated) {
-      setIsAuthModalOpen(true)
-      return
-    }
-    action()
-  }
-
-  const userSession = isAuthenticated
-    ? { isAuthenticated: true, email: user?.email || '', name: user?.name || '', role: user?.role || '', avatar: '' }
-    : { isAuthenticated: false, email: '', name: 'Guest', role: 'Guest', avatar: '' }
+  /** Signed-out visitors are sent home, where the auth dialog can be opened. */
+  const guarded = (element: ReactNode) => (isAuthenticated ? element : <Navigate to="/" replace />)
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#09090b] text-white selection:bg-[#ffcc00] selection:text-black relative font-sans">
-      <ShaderCanvas />
+    <TooltipProvider>
+      <SidebarProvider className="app-backdrop h-svh overflow-hidden">
+        <AppSidebar onRequireAuth={openAuth} />
 
-      <Sidebar
-        currentView={getNavView()}
-        onNavigate={handleNavigate}
-        onNewAnalysis={() => requireAuth(() => navigate('/'))}
-        user={userSession}
-        onSignOut={handleSignOut}
-        onOpenAuth={() => setIsAuthModalOpen(true)}
-        documentsCount={documentsCount}
-        isOpenMobile={isMobileMenuOpen}
-        onCloseMobile={() => setIsMobileMenuOpen(false)}
-      />
+        <SidebarInset className="min-w-0 overflow-hidden">
+          <TopBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onRequireAuth={openAuth}
+          />
 
-      <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0 md:ml-[280px] relative">
-        <TopBar
-          currentView={getNavView()}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          byokConfig={byokConfig}
-          user={userSession}
-          onOpenAuth={() => setIsAuthModalOpen(true)}
-          onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        />
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <Scrollable>
+                      <DocumentLibraryView searchQuery={searchQuery} onRequireAuth={openAuth} />
+                    </Scrollable>
+                  }
+                />
+                <Route path="/documents/:documentId" element={guarded(<AuditAssistantView />)} />
+                <Route
+                  path="/byok"
+                  element={guarded(
+                    <Scrollable>
+                      <ByokConfigView />
+                    </Scrollable>,
+                  )}
+                />
+                <Route
+                  path="/history"
+                  element={guarded(
+                    <Scrollable>
+                      <ChatHistoryView />
+                    </Scrollable>,
+                  )}
+                />
+                <Route
+                  path="/settings"
+                  element={guarded(
+                    <Scrollable>
+                      <SettingsView />
+                    </Scrollable>,
+                  )}
+                />
+                <Route
+                  path="/help"
+                  element={
+                    <Scrollable>
+                      <HelpView />
+                    </Scrollable>
+                  }
+                />
+                {/* Legacy paths from the previous frontend */}
+                <Route path="/dashboard" element={<Navigate to="/" replace />} />
+                <Route path="/login" element={<Navigate to="/" replace />} />
+                <Route path="/register" element={<Navigate to="/" replace />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
 
-        <main className="flex-1 flex overflow-hidden pt-16">
-          <Routes>
-            <Route path="/" element={<DocumentLibraryView searchQuery={searchQuery} onRequireAuth={() => setIsAuthModalOpen(true)} />} />
-            <Route path="/documents/:documentId" element={isAuthenticated ? <AuditAssistantView /> : <Navigate to="/" replace />} />
-            <Route path="/settings" element={isAuthenticated ? <SettingsView /> : <Navigate to="/" replace />} />
-            <Route path="/byok" element={isAuthenticated ? <ByokConfigView /> : <Navigate to="/" replace />} />
-            <Route path="/history" element={isAuthenticated ? <ChatHistoryView /> : <Navigate to="/" replace />} />
-            <Route path="/help" element={<HelpView />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-      </div>
-
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-      />
-    </div>
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      <Toaster position="bottom-right" theme="dark" />
+    </TooltipProvider>
   )
 }
