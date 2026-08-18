@@ -47,3 +47,4 @@ slowapi
 marshmallow==3.20.1
 
 
+google-auth

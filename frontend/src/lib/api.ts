@@ -61,7 +61,19 @@ export async function registerUser(payload: { name: string; email: string; passw
 }
 
 export async function loginUser(payload: { email: string; password: string }) {
-  const { data } = await api.post('/auth/login', payload)
+  // Backend uses OAuth2PasswordRequestForm which expects form-urlencoded
+  // data with a 'username' field (not 'email')
+  const formData = new URLSearchParams()
+  formData.append('username', payload.email)
+  formData.append('password', payload.password)
+  const { data } = await api.post('/auth/login', formData, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  })
+  return data
+}
+
+export async function googleLogin(credential: string) {
+  const { data } = await api.post('/auth/google', { credential })
   return data
 }
 

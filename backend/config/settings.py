@@ -38,6 +38,10 @@ class Settings(BaseSettings):
         "gemini-2.0-flash,gemini-1.5-flash,gemini-1.5-pro,gemini-2.0-pro"
     )
     gemini_temperature: float = Field(0.7)
+
+    # Google OAuth (free, for "Sign in with Google")
+    google_client_id: str | None = Field(None)
+    google_client_secret: str | None = Field(None)
     
     # Milvus
     milvus_uri: str
