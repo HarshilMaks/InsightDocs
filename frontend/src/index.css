@@ -50,10 +50,14 @@
 }
 
 /* ---------------------------------------------------------------
-   InsightDocs brand theme
-   Primary  = signal yellow  (#ffcc00) -> actions, evidence highlight
-   Success  = emerald                  -> supported claims
-   Destructive = rose                  -> unsupported claims, delete
+   InsightDocs brand theme — derived from the logo mark
+   Primary  = #f0008c magenta (logo), paired with near-black text.
+              White text on this magenta measures 4.13:1 and fails AA,
+              so the contrast is flipped: dark-on-magenta is 4.82:1.
+              The same value also passes as accent text on the page bg.
+   Violet   = #6618f0, the logo's second gradient stop.
+   Amber    = evidence highlight only. It reads as "marked text", a
+              highlighter convention, and is deliberately not a brand colour.
    The app is dark-only; :root mirrors .dark so there is no flash.
    --------------------------------------------------------------- */
 :root,
@@ -67,8 +71,10 @@
   --popover: #18181b;
   --popover-foreground: #fafafa;
 
-  --primary: #ffcc00;
+  --primary: #f0008c;
   --primary-foreground: #09090b;
+
+  --brand-violet: #6618f0;
 
   --secondary: #27272a;
   --secondary-foreground: #fafafa;
@@ -79,30 +85,31 @@
   --accent: #27272a;
   --accent-foreground: #fafafa;
 
-  --destructive: #f43f5e;
+  /* Pure red, kept clearly distinct from the magenta primary */
+  --destructive: #dc2626;
   --success: #34d399;
   --warning: #fbbf24;
 
   --border: rgb(255 255 255 / 8%);
   --input: rgb(255 255 255 / 12%);
-  --ring: #ffcc00;
+  --ring: #f0008c;
 
-  --chart-1: #ffcc00;
-  --chart-2: #34d399;
-  --chart-3: #60a5fa;
-  --chart-4: #f43f5e;
+  --chart-1: #f0008c;
+  --chart-2: #6618f0;
+  --chart-3: #34d399;
+  --chart-4: #60a5fa;
   --chart-5: #a1a1aa;
 
   --radius: 0.5rem;
 
   --sidebar: #0c0c0e;
   --sidebar-foreground: #e4e4e7;
-  --sidebar-primary: #ffcc00;
+  --sidebar-primary: #f0008c;
   --sidebar-primary-foreground: #09090b;
   --sidebar-accent: rgb(255 255 255 / 6%);
   --sidebar-accent-foreground: #fafafa;
   --sidebar-border: rgb(255 255 255 / 8%);
-  --sidebar-ring: #ffcc00;
+  --sidebar-ring: #f0008c;
 }
 
 @layer base {
@@ -153,17 +160,19 @@
   }
 
   /* Static page backdrop. Replaces the old WebGL shader canvas, which
-     ran a requestAnimationFrame loop for the lifetime of the app. */
+     ran a requestAnimationFrame loop for the lifetime of the app.
+     Tinted with the logo's two gradient stops. */
   .app-backdrop {
     background-image:
-      radial-gradient(60rem 60rem at 12% -10%, rgb(255 204 0 / 6%), transparent 60%),
-      radial-gradient(50rem 50rem at 100% 0%, rgb(96 165 250 / 5%), transparent 60%);
+      radial-gradient(60rem 60rem at 12% -10%, rgb(240 0 140 / 7%), transparent 60%),
+      radial-gradient(50rem 50rem at 100% 0%, rgb(102 24 240 / 7%), transparent 60%);
   }
 
-  /* Citation highlight drawn over the rendered PDF page */
+  /* Citation highlight drawn over the rendered PDF page. Amber on purpose:
+     it reads as highlighted text rather than as a clickable brand element. */
   .evidence-highlight {
-    background: rgb(255 204 0 / 18%);
-    outline: 2px solid #ffcc00;
+    background: rgb(251 191 36 / 22%);
+    outline: 2px solid #fbbf24;
     outline-offset: 0;
   }
 }
