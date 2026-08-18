@@ -1,4 +1,17 @@
 import { useState } from 'react'
+import { Loader2, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useAuth } from '@/context/auth-context'
 import { getApiErrorMessage } from '@/lib/api'
 import { BrandLogo } from './BrandLogo'
@@ -8,27 +21,28 @@ interface AuthModalProps {
   onClose: () => void
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
+type Mode = 'login' | 'register'
+
+export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const { login, register } = useAuth()
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login')
+  const [mode, setMode] = useState<Mode>('login')
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  if (!isOpen) return null
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
     setError(null)
     setIsSubmitting(true)
-
     try {
-      if (activeTab === 'register') {
+      if (mode === 'register') {
         await register({ name, email, password })
       }
       await login({ email, password })
+      toast.success(mode === 'register' ? 'Account created' : 'Signed in')
+      setPassword('')
       onClose()
     } catch (err) {
       setError(getApiErrorMessage(err))
@@ -37,118 +51,101 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     }
   }
 
+  const switchMode = (next: Mode) => {
+    setMode(next)
+    setError(null)
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <main className="w-full max-w-md flex flex-col items-center z-10">
-        {/* Branding */}
-        <div className="flex flex-col items-center mb-6 gap-3 text-center">
-          <div className="p-2 border-4 border-[#ffcc00] brutal-shadow bg-zinc-900">
-            <BrandLogo size={56} />
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader className="items-center text-center">
+          <div className="mb-1 flex size-11 items-center justify-center rounded-lg border bg-card">
+            <BrandLogo size={26} />
           </div>
-          <h1 className="font-black text-3xl sm:text-4xl uppercase tracking-tighter text-white" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-            InsightDocs
-          </h1>
-          <p className="font-bold text-sm text-[#ffcc00] uppercase tracking-widest bg-zinc-900 px-3 py-1 brutal-shadow border-2 border-[#ffcc00]" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-            Provable RAG
-          </p>
-        </div>
+          <DialogTitle>
+            {mode === 'login' ? 'Sign in to InsightDocs' : 'Create your account'}
+          </DialogTitle>
+          <DialogDescription>
+            Upload documents and get answers backed by verifiable evidence.
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Auth Card */}
-        <div className="w-full bg-zinc-900 border-4 border-[#ffcc00] brutal-shadow p-6 sm:p-8 flex flex-col gap-6 relative overflow-hidden text-white">
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 text-white/60 hover:text-white p-1 hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            ✕
-          </button>
+        <Tabs value={mode} onValueChange={(v) => switchMode(v as Mode)}>
+          <TabsList className="w-full">
+            <TabsTrigger value="login" className="flex-1">Sign in</TabsTrigger>
+            <TabsTrigger value="register" className="flex-1">Create account</TabsTrigger>
+          </TabsList>
 
-          {/* Tabs */}
-          <div className="flex border-b-4 border-[#ffcc00]">
-            <button
-              type="button"
-              onClick={() => { setActiveTab('login'); setError(null) }}
-              className={`flex-1 py-3 font-bold uppercase text-sm tracking-wider transition-colors border-r-4 border-[#ffcc00] border-t-4 border-l-4 cursor-pointer ${
-                activeTab === 'login' ? 'bg-[#ffcc00] text-black' : 'text-white hover:bg-zinc-800'
-              }`}
-              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={() => { setActiveTab('register'); setError(null) }}
-              className={`flex-1 py-3 font-bold uppercase text-sm tracking-wider transition-colors border-t-4 border-r-4 border-[#ffcc00] cursor-pointer ${
-                activeTab === 'register' ? 'bg-[#ffcc00] text-black' : 'text-white hover:bg-zinc-800'
-              }`}
-              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-            >
-              Register
-            </button>
-          </div>
+          {/* One form, rendered per tab so inputs keep their values on switch */}
+          {(['login', 'register'] as Mode[]).map((tab) => (
+            <TabsContent key={tab} value={tab}>
+              <form onSubmit={(e) => void submit(e)} className="grid gap-4">
+                {tab === 'register' && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="auth-name">Name</Label>
+                    <Input
+                      id="auth-name"
+                      required
+                      autoComplete="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Your name"
+                    />
+                  </div>
+                )}
 
-          {/* Form */}
-          <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-5">
-            {activeTab === 'register' && (
-              <div className="flex flex-col gap-1.5">
-                <label className="font-bold uppercase text-xs tracking-wide text-white" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="YOUR NAME"
-                  className="w-full bg-zinc-950 border-4 border-[#ffcc00] text-white px-4 py-2.5 focus:ring-0 focus:border-[#ffcc00] font-medium placeholder-zinc-500 text-sm"
-                />
-              </div>
-            )}
+                <div className="grid gap-2">
+                  <Label htmlFor={`auth-email-${tab}`}>Email</Label>
+                  <Input
+                    id={`auth-email-${tab}`}
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    aria-invalid={Boolean(error)}
+                  />
+                </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="font-bold uppercase text-xs tracking-wide text-white" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="ENTER EMAIL"
-                className="w-full bg-zinc-950 border-4 border-[#ffcc00] text-white px-4 py-2.5 focus:ring-0 focus:border-[#ffcc00] font-medium placeholder-zinc-500 text-sm"
-              />
-            </div>
+                <div className="grid gap-2">
+                  <Label htmlFor={`auth-password-${tab}`}>Password</Label>
+                  <Input
+                    id={`auth-password-${tab}`}
+                    type="password"
+                    required
+                    autoComplete={tab === 'register' ? 'new-password' : 'current-password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    aria-invalid={Boolean(error)}
+                  />
+                  {tab === 'register' && (
+                    <p className="text-xs text-muted-foreground">Use at least 8 characters.</p>
+                  )}
+                </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="font-bold uppercase text-xs tracking-wide text-white" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="ENTER PASSWORD"
-                className="w-full bg-zinc-950 border-4 border-[#ffcc00] text-white px-4 py-2.5 focus:ring-0 focus:border-[#ffcc00] font-medium placeholder-zinc-500 text-sm"
-              />
-            </div>
+                {error && (
+                  <div
+                    role="alert"
+                    aria-live="polite"
+                    className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                  >
+                    <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
 
-            {error && (
-              <div className="bg-red-900/30 border-2 border-red-500 px-4 py-2 text-sm text-red-300">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-[#ffcc00] text-black border-4 border-black py-3.5 px-6 font-black text-lg uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-[#e6b800] transition-all brutal-shadow disabled:opacity-50 cursor-pointer"
-              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-            >
-              {isSubmitting ? 'Loading...' : activeTab === 'login' ? 'Sign In →' : 'Create Account →'}
-            </button>
-          </form>
-        </div>
-      </main>
-    </div>
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="size-4 animate-spin" />}
+                  {tab === 'login' ? 'Sign in' : 'Create account'}
+                </Button>
+              </form>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   )
 }
