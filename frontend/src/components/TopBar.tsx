@@ -1,111 +1,147 @@
-import React from 'react';
-import { NavView, ByokConfig, UserSession } from '../types';
-import { BrandLogo } from './BrandLogo';
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { Search, KeyRound, LogOut, Settings, User as UserIcon } from 'lucide-react'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useAuth } from '@/context/auth-context'
+import { getByokStatus } from '@/lib/api'
 
 interface TopBarProps {
-  currentView: NavView;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  byokConfig: ByokConfig;
-  user: UserSession;
-  onOpenAuth: () => void;
-  onToggleMobileMenu?: () => void;
+  searchQuery: string
+  onSearchChange: (value: string) => void
+  onRequireAuth: () => void
 }
 
-export const TopBar: React.FC<TopBarProps> = ({
-  currentView,
-  searchQuery,
-  onSearchChange,
-  byokConfig,
-  user,
-  onOpenAuth,
-  onToggleMobileMenu,
-}) => {
-  return (
-    <header 
-      id="app-topbar"
-      className="fixed top-0 right-0 w-full md:w-[calc(100%-280px)] z-30 bg-[#121214]/40 backdrop-blur-xl border-b border-white/10 flex justify-between items-center h-16 px-6 glass-panel select-none"
-    >
-      <div className="flex items-center gap-4 flex-1">
-        {/* Mobile menu hamburger */}
-        {onToggleMobileMenu && (
-          <button
-            onClick={onToggleMobileMenu}
-            className="md:hidden p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-            title="Toggle Navigation Menu"
-          >
-            <span className="material-symbols-outlined text-[22px]">menu</span>
-          </button>
-        )}
+const titles: Record<string, string> = {
+  '/': 'Documents',
+  '/history': 'History',
+  '/byok': 'API key',
+  '/settings': 'Settings',
+  '/help': 'Help',
+}
 
-        {/* Global Search Input Bar matching exact reference */}
-        <div className="relative w-full max-w-sm sm:max-w-md focus-within:ring-1 focus-within:ring-[#ffcc00] rounded-lg transition-all duration-300 group">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/70 group-focus-within:text-[#ffcc00] transition-colors text-[18px]">
-            search
-          </span>
-          <input 
-            type="text"
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? '')
+      .join('') || 'U'
+  )
+}
+
+export function TopBar({ searchQuery, onSearchChange, onRequireAuth }: TopBarProps) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { isAuthenticated, user, logout } = useAuth()
+
+  const byokQuery = useQuery({
+    queryKey: ['byok-status'],
+    queryFn: getByokStatus,
+    enabled: isAuthenticated,
+    staleTime: 60_000,
+  })
+
+  const title = location.pathname.startsWith('/documents/')
+    ? 'Workspace'
+    : titles[location.pathname] ?? 'InsightDocs'
+
+  const byok = byokQuery.data
+  const byokActive = Boolean(byok?.byok_enabled && byok?.has_api_key)
+
+  return (
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur-xl md:px-4">
+      <SidebarTrigger className="-ml-1" />
+      <Separator orientation="vertical" className="mr-1 !h-4" />
+
+      <h1 className="text-sm font-medium">{title}</h1>
+
+      {/* Search only applies to the document library */}
+      {location.pathname === '/' && (
+        <div className="relative ml-auto w-full max-w-xs">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search documents, entities, or insights..."
-            className="w-full bg-white/5 border border-white/10 text-white placeholder-white/50 pl-10 pr-4 py-2 rounded-lg focus:border-[#ffcc00] focus:bg-white/10 focus:ring-0 text-sm transition-all duration-300 font-sans outline-none"
+            placeholder="Search documents"
+            aria-label="Search documents"
+            className="h-9 pl-8"
           />
-          {searchQuery && (
-            <button
-              onClick={() => onSearchChange('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-mono text-white/50 hover:text-[#ffcc00] cursor-pointer"
-            >
-              ESC
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
-      {/* Right Brand Badge matching reference image */}
-      <div className="flex items-center gap-4">
-        {/* BYOK / Model Status Pill */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/80">
-          <span className={`w-2 h-2 rounded-full ${byokConfig.enabled ? 'bg-green-400 shadow-[0_0_6px_#4ade80]' : 'bg-[#ffcc00]'}`} />
-          <span className="font-mono text-[11px]">
-            {byokConfig.enabled ? byokConfig.selectedModel : 'Gemini 3.7 Flash'}
-          </span>
-          <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
-            byokConfig.enabled ? 'bg-green-500/20 text-green-300' : 'bg-amber-400/20 text-[#ffcc00]'
-          }`}>
-            {byokConfig.enabled ? 'BYOK' : 'PRO'}
-          </span>
-        </div>
-
-        {/* InsightDocs Brand Asset badge with custom 3D Hexagon ribbon logo */}
-        <div className="flex items-center gap-2.5 mr-2">
-          <BrandLogo size={32} />
-          <span className="font-bold text-white text-base tracking-tight hidden sm:inline" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-            InsightDocs
-          </span>
-        </div>
-
-        {/* User / Sign In Button */}
-        {!user.isAuthenticated ? (
-          <button
-            id="btn-topbar-login"
-            onClick={onOpenAuth}
-            className="text-xs font-bold text-black bg-[#ffcc00] hover:bg-[#e6b800] px-3.5 py-1.5 rounded-lg transition-all duration-300 cursor-pointer btn-glow font-headline"
-            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+      <div className={location.pathname === '/' ? 'flex items-center gap-2' : 'ml-auto flex items-center gap-2'}>
+        {isAuthenticated && (
+          <Badge
+            variant="outline"
+            className="hidden gap-1.5 font-normal sm:inline-flex"
+            title={byok?.message ?? 'Using the platform key'}
           >
-            Sign In
-          </button>
+            <KeyRound className="size-3" />
+            {byokActive ? byok?.active_model || 'Your key' : 'Platform key'}
+          </Badge>
+        )}
+
+        {isAuthenticated ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label="Account menu">
+                <Avatar className="size-8">
+                  <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">
+                    {initials(user?.name ?? '')}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="font-normal">
+                <div className="grid gap-0.5">
+                  <span className="truncate text-sm font-medium">{user?.name}</span>
+                  <span className="truncate text-xs text-muted-foreground">{user?.email}</span>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/byok')}>
+                <KeyRound className="size-4" />
+                API key
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/settings')}>
+                <Settings className="size-4" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => {
+                  logout()
+                  navigate('/')
+                }}
+              >
+                <LogOut className="size-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : (
-          <button
-            onClick={onOpenAuth}
-            className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer text-xs"
-          >
-            <div className="w-6 h-6 rounded-full bg-[#ffcc00] text-black font-bold flex items-center justify-center text-[10px] font-mono">
-              {user.name.slice(0, 2).toUpperCase()}
-            </div>
-            <span className="font-semibold text-white hidden md:inline">{user.name}</span>
-          </button>
+          <Button size="sm" onClick={onRequireAuth}>
+            <UserIcon className="size-4" />
+            Sign in
+          </Button>
         )}
       </div>
     </header>
-  );
-};
+  )
+}
