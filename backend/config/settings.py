@@ -69,8 +69,18 @@ class Settings(BaseSettings):
     
     @property
     def allowed_origins_list(self) -> List[str]:
-        """Convert comma-separated origins to list."""
-        return [origin.strip() for origin in self.allowed_origins.split(",")]
+        """Return normalized, unique origins from one comma-separated env value.
+
+        Browsers omit a trailing slash from the Origin header. Normalizing it here
+        lets deployments safely use one ALLOWED_ORIGINS variable for Vercel and
+        local Vite origins without an exact-string mismatch.
+        """
+        origins: List[str] = []
+        for value in self.allowed_origins.split(","):
+            origin = value.strip().rstrip("/")
+            if origin and origin not in origins:
+                origins.append(origin)
+        return origins
 
     @property
     def gemini_model_chain(self) -> List[str]:

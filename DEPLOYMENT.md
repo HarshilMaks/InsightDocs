@@ -61,7 +61,8 @@ You need accounts/instances for these services:
 APP_ENV=production
 DEBUG=false
 SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_urlsafe(64))">
-ALLOWED_ORIGINS=https://your-app.vercel.app
+# One variable, with every permitted browser origin separated by commas.
+ALLOWED_ORIGINS=https://insightdocs.vercel.app,http://localhost:3000,http://127.0.0.1:3000
 DATABASE_URL=<your postgres URL>
 REDIS_URL=<your redis URL>
 CELERY_BROKER_URL=<same as REDIS_URL>

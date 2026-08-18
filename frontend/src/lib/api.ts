@@ -1,9 +1,21 @@
 import axios from 'axios'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://insightdocs-api-vlbl.onrender.com'
+const DEFAULT_API_ORIGIN = 'https://insightdocs-api-vlbl.onrender.com'
+
+function withoutTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, '')
+}
+
+// Prefer the full API base URL documented for Vercel. Keep VITE_API_URL as a
+// backwards-compatible origin-only setting for existing deployments.
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL
+const configuredApiOrigin = import.meta.env.VITE_API_URL
+export const API_BASE_URL = configuredBaseUrl
+  ? withoutTrailingSlash(configuredBaseUrl)
+  : `${withoutTrailingSlash(configuredApiOrigin || DEFAULT_API_ORIGIN)}/api/v1`
 
 const api = axios.create({
-  baseURL: `${API_BASE}/api/v1`,
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 })
 
