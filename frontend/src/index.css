@@ -51,13 +51,12 @@
 
 /* ---------------------------------------------------------------
    InsightDocs brand theme — derived from the logo mark
-   Primary  = #f0008c magenta (logo), paired with near-black text.
-              White text on this magenta measures 4.13:1 and fails AA,
-              so the contrast is flipped: dark-on-magenta is 4.82:1.
-              The same value also passes as accent text on the page bg.
-   Violet   = #6618f0, the logo's second gradient stop.
-   Amber    = evidence highlight only. It reads as "marked text", a
-              highlighter convention, and is deliberately not a brand colour.
+   Primary  = #a78bfa soft violet. Harmonizes with the logo's
+              magenta-to-violet gradient without being the same hue,
+              so the logo mark remains visually distinct. Passes
+              WCAG AA at 7.31:1 against the page bg, and 6.88:1
+              against card surfaces. Dark text on violet fill: 7.31:1.
+   Evidence = amber #fbbf24 (highlighted text convention, not brand).
    The app is dark-only; :root mirrors .dark so there is no flash.
    --------------------------------------------------------------- */
 :root,
@@ -71,10 +70,8 @@
   --popover: #18181b;
   --popover-foreground: #fafafa;
 
-  --primary: #f0008c;
+  --primary: #a78bfa;
   --primary-foreground: #09090b;
-
-  --brand-violet: #6618f0;
 
   --secondary: #27272a;
   --secondary-foreground: #fafafa;
@@ -85,17 +82,16 @@
   --accent: #27272a;
   --accent-foreground: #fafafa;
 
-  /* Pure red, kept clearly distinct from the magenta primary */
   --destructive: #dc2626;
   --success: #34d399;
   --warning: #fbbf24;
 
   --border: rgb(255 255 255 / 8%);
   --input: rgb(255 255 255 / 12%);
-  --ring: #f0008c;
+  --ring: #a78bfa;
 
-  --chart-1: #f0008c;
-  --chart-2: #6618f0;
+  --chart-1: #a78bfa;
+  --chart-2: #f0008c;
   --chart-3: #34d399;
   --chart-4: #60a5fa;
   --chart-5: #a1a1aa;
@@ -104,12 +100,12 @@
 
   --sidebar: #0c0c0e;
   --sidebar-foreground: #e4e4e7;
-  --sidebar-primary: #f0008c;
+  --sidebar-primary: #a78bfa;
   --sidebar-primary-foreground: #09090b;
   --sidebar-accent: rgb(255 255 255 / 6%);
   --sidebar-accent-foreground: #fafafa;
   --sidebar-border: rgb(255 255 255 / 8%);
-  --sidebar-ring: #f0008c;
+  --sidebar-ring: #a78bfa;
 }
 
 @layer base {
@@ -164,8 +160,8 @@
      Tinted with the logo's two gradient stops. */
   .app-backdrop {
     background-image:
-      radial-gradient(60rem 60rem at 12% -10%, rgb(240 0 140 / 7%), transparent 60%),
-      radial-gradient(50rem 50rem at 100% 0%, rgb(102 24 240 / 7%), transparent 60%);
+      radial-gradient(60rem 60rem at 12% -10%, rgb(167 139 250 / 5%), transparent 60%),
+      radial-gradient(50rem 50rem at 100% 0%, rgb(240 0 140 / 4%), transparent 60%);
   }
 
   /* Citation highlight drawn over the rendered PDF page. Amber on purpose:

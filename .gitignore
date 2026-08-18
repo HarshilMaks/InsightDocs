@@ -34,9 +34,18 @@ copilot-session-*.md
 node_modules/
 frontend/node_modules/
 
-# Environment Variables
+# Environment Variables & Secrets
 .env
 .env.local
+.env.production
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+credentials.json
+token.json
+*.secret
 
 # IDE
 .vscode/
@@ -70,12 +79,16 @@ celerybeat.pid
 data/
 uploads/
 *.faiss
+
+# Planning/Vision docs (local only)
 .lock
 .agents
 
+# Temporary/obsolete artifacts
 stitch_insightdocs_ai_dashboard.zip
 insightdocs-frontend.zip
 PROJECT_CLEANUP.md
 stitch_frontend/
 stitch_full_frontend/
 frontend_backup/
+*.zip

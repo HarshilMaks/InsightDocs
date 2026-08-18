@@ -128,7 +128,7 @@ You have TWO database configs:
 
 ```bash
 # Neon Cloud (Production)
-DATABASE_URL=postgresql://neondb_owner:...@ep-autumn-feather...
+DATABASE_URL=postgresql://neondb_owner:***@ep-your-project-id.region.aws.neon.tech/insightdocs
 
 # Docker Local (Development)
 POSTGRES_USER=insightdocs
