@@ -75,3 +75,7 @@ uploads/
 
 stitch_insightdocs_ai_dashboard.zip
 insightdocs-frontend.zip
+PROJECT_CLEANUP.md
+stitch_frontend/
+stitch_full_frontend/
+frontend_backup/

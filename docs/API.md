@@ -301,6 +301,8 @@ curl -X POST "http://localhost:8000/api/v1/query/" \
         "x2": 220.1,
         "y2": 180.3
       },
+      "section_title": "Revenue Analysis",
+      "chunk_type": "text",
       "citation_label": "document.pdf · Page 12 · Chunk 5",
       "content_preview": "Relevant content snippet...",
       "similarity_score": 0.85
