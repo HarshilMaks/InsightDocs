@@ -1,54 +1,111 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Upload, FileText, FileSpreadsheet, File, Trash2, Loader2 } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
+import { toast } from 'sonner'
+import {
+  Upload,
+  FileText,
+  File as FileIcon,
+  Presentation,
+  Trash2,
+  Loader2,
+  ArrowRight,
+  AlertCircle,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useAuth } from '@/context/auth-context'
-import { listDocuments, uploadDocument, deleteDocument, getApiErrorMessage, type DocumentResponse } from '@/lib/api'
+import {
+  listDocuments,
+  uploadDocument,
+  deleteDocument,
+  getApiErrorMessage,
+  type DocumentResponse,
+} from '@/lib/api'
 
 interface DocumentLibraryViewProps {
   searchQuery: string
   onRequireAuth: () => void
 }
 
-function formatBytes(bytes: number): string {
+function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function getFileIcon(fileType: string) {
-  if (fileType === '.pdf') return <FileText className="w-5 h-5 text-[#ffcc00]" />
-  if (fileType === '.docx') return <File className="w-5 h-5 text-blue-400" />
-  if (fileType === '.xlsx' || fileType === '.csv') return <FileSpreadsheet className="w-5 h-5 text-green-400" />
-  return <File className="w-5 h-5 text-zinc-400" />
+function FileTypeIcon({ fileType }: { fileType: string }) {
+  const type = fileType.toLowerCase()
+  if (type === '.pdf') return <FileText className="size-4 text-primary" />
+  if (type === '.pptx') return <Presentation className="size-4 text-muted-foreground" />
+  return <FileIcon className="size-4 text-muted-foreground" />
 }
 
-function getStatusBadge(status: DocumentResponse['status']) {
+function StatusBadge({ status }: { status: DocumentResponse['status'] }) {
   switch (status) {
     case 'completed':
-      return <span className="inline-flex items-center px-2.5 py-1 text-[11px] font-mono font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">● Completed</span>
+      return (
+        <Badge variant="outline" className="gap-1.5 border-[color:var(--success)]/30 text-[color:var(--success)]">
+          <span className="size-1.5 rounded-full bg-[color:var(--success)]" />
+          Ready
+        </Badge>
+      )
     case 'processing':
-      return <span className="inline-flex items-center px-2.5 py-1 text-[11px] font-mono font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 animate-pulse">● Processing</span>
+      return (
+        <Badge variant="outline" className="gap-1.5 border-primary/30 text-primary">
+          <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+          Processing
+        </Badge>
+      )
     case 'pending':
-      return <span className="inline-flex items-center px-2.5 py-1 text-[11px] font-mono font-medium bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">● Pending</span>
+      return (
+        <Badge variant="outline" className="gap-1.5 text-muted-foreground">
+          <span className="size-1.5 rounded-full bg-muted-foreground" />
+          Queued
+        </Badge>
+      )
     case 'failed':
-      return <span className="inline-flex items-center px-2.5 py-1 text-[11px] font-mono font-medium bg-red-500/10 text-red-400 border border-red-500/20">● Failed</span>
-    default:
-      return null
+      return (
+        <Badge variant="outline" className="gap-1.5 border-destructive/30 text-destructive">
+          <span className="size-1.5 rounded-full bg-destructive" />
+          Failed
+        </Badge>
+      )
   }
 }
 
-export const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ searchQuery, onRequireAuth }) => {
+export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibraryViewProps) {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { isAuthenticated } = useAuth()
   const queryClient = useQueryClient()
-  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<DocumentResponse | null>(null)
 
   const documentsQuery = useQuery({
     queryKey: ['documents'],
     queryFn: listDocuments,
     enabled: isAuthenticated,
+    staleTime: 30_000,
+    // Poll only while something is still being processed.
     refetchInterval: (query) => {
       const docs = query.state.data?.documents ?? []
       return docs.some((d) => d.status === 'pending' || d.status === 'processing') ? 5000 : false
@@ -59,19 +116,23 @@ export const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ search
     mutationFn: uploadDocument,
     onSuccess: async (response) => {
       await queryClient.invalidateQueries({ queryKey: ['documents'] })
+      toast.success('Upload started', { description: 'Processing has begun.' })
       navigate(`/documents/${response.document_id}?task=${response.task_id}`)
     },
-    onError: (err) => {
-      setUploadError(getApiErrorMessage(err))
-    },
+    onError: (error) => toast.error('Upload failed', { description: getApiErrorMessage(error) }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: deleteDocument,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['documents'] }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['documents'] })
+      toast.success('Document deleted')
+      setPendingDelete(null)
+    },
+    onError: (error) => toast.error('Delete failed', { description: getApiErrorMessage(error) }),
   })
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     accept: {
       'application/pdf': ['.pdf'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
@@ -80,6 +141,7 @@ export const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ search
     },
     maxFiles: 1,
     multiple: false,
+    noClick: !isAuthenticated,
     disabled: uploadMutation.isPending,
     onDrop: (files) => {
       if (!isAuthenticated) {
@@ -87,12 +149,23 @@ export const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ search
         return
       }
       const file = files[0]
-      if (file) {
-        setUploadError(null)
-        uploadMutation.mutate(file)
-      }
+      if (file) uploadMutation.mutate(file)
     },
   })
+
+  // "New analysis" in the sidebar navigates here with ?upload=true.
+  // Honour that intent once by opening the file picker, then clear the flag.
+  const openedFromParam = useRef(false)
+  useEffect(() => {
+    if (searchParams.get('upload') !== 'true') return
+    const next = new URLSearchParams(searchParams)
+    next.delete('upload')
+    setSearchParams(next, { replace: true })
+    if (isAuthenticated && !openedFromParam.current) {
+      openedFromParam.current = true
+      open()
+    }
+  }, [searchParams, setSearchParams, isAuthenticated, open])
 
   const documents = documentsQuery.data?.documents ?? []
   const filtered = searchQuery
@@ -100,118 +173,173 @@ export const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ search
     : documents
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-4xl font-bold text-white tracking-tight" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-              Document Library
-            </h2>
-            <p className="text-base text-zinc-400 mt-2 max-w-xl">
-              Upload documents and ask questions backed by exact, verifiable evidence.
-            </p>
-          </div>
-        </div>
+    <div className="mx-auto w-full max-w-5xl space-y-6 p-4 md:p-6">
+      <div className="space-y-1">
+        <h2 className="text-2xl font-semibold tracking-tight">Document library</h2>
+        <p className="text-sm text-muted-foreground">
+          Ask questions and get answers backed by the exact page and region they came from.
+        </p>
+      </div>
 
-        {/* Upload Dropzone */}
-        <div
-          {...getRootProps()}
-          className={`relative overflow-hidden border-2 border-dashed p-10 flex flex-col items-center justify-center text-center cursor-pointer glass-panel group retro-grid transition-all duration-300 ${
-            isDragActive ? 'border-[#ffcc00] bg-[#ffcc00]/5' : 'border-zinc-700 hover:border-[#ffcc00]/50'
-          } ${uploadMutation.isPending ? 'opacity-60 pointer-events-none' : ''}`}
-        >
-          <input {...getInputProps()} />
-          <div className="w-16 h-16 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform border-2 border-zinc-700 group-hover:border-[#ffcc00]/50 bg-zinc-900">
-            {uploadMutation.isPending ? (
-              <Loader2 className="w-8 h-8 text-[#ffcc00] animate-spin" />
-            ) : (
-              <Upload className="w-8 h-8 text-zinc-400 group-hover:text-[#ffcc00] transition-colors" />
-            )}
-          </div>
-          <h3 className="font-bold text-white text-lg" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-            {uploadMutation.isPending ? 'Uploading...' : isDragActive ? 'Drop your file here' : 'Upload Document'}
-          </h3>
-          <p className="text-sm text-zinc-400 mt-2">
-            Drag & drop .pdf, .docx, .pptx, or .txt (Max 50MB)
-          </p>
-          {uploadError && (
-            <p className="text-sm text-red-400 mt-3 border border-red-500/30 bg-red-500/10 px-3 py-1">{uploadError}</p>
+      {/* Upload */}
+      <div
+        {...getRootProps()}
+        role="button"
+        tabIndex={0}
+        aria-label="Upload a document"
+        className={`grid-surface flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-6 py-10 text-center transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${
+          isDragActive ? 'border-primary bg-primary/5' : 'hover:border-primary/50 hover:bg-accent/30'
+        } ${uploadMutation.isPending ? 'pointer-events-none opacity-60' : ''}`}
+      >
+        <input {...getInputProps()} />
+        <div className="mb-3 flex size-11 items-center justify-center rounded-lg border bg-card">
+          {uploadMutation.isPending ? (
+            <Loader2 className="size-5 animate-spin text-primary" />
+          ) : (
+            <Upload className="size-5 text-muted-foreground" />
           )}
         </div>
-
-        {/* Document Table */}
-        {!isAuthenticated ? (
-          <div className="glass-panel border border-zinc-800 p-12 text-center">
-            <p className="text-zinc-400 text-lg">Sign in to view and manage your documents.</p>
-            <button
-              onClick={onRequireAuth}
-              className="mt-4 bg-[#ffcc00] text-black font-bold uppercase px-6 py-3 border-4 border-black brutal-shadow hover:bg-[#e6b800] transition-all cursor-pointer"
-              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-            >
-              Sign In
-            </button>
-          </div>
-        ) : documentsQuery.isLoading ? (
-          <div className="glass-panel border border-zinc-800 p-12 text-center">
-            <Loader2 className="w-8 h-8 text-[#ffcc00] animate-spin mx-auto" />
-            <p className="text-zinc-400 mt-4">Loading documents...</p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="glass-panel border border-zinc-800 p-12 text-center">
-            <p className="text-zinc-400 text-lg">
-              {searchQuery ? 'No documents match your search.' : 'No documents yet. Upload one above to get started.'}
-            </p>
-          </div>
-        ) : (
-          <div className="glass-panel border border-zinc-800 overflow-hidden">
-            {/* Table header */}
-            <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-zinc-800 bg-zinc-900/60 text-[11px] font-mono uppercase tracking-wider text-zinc-500">
-              <div className="col-span-5">Filename</div>
-              <div className="col-span-2">Type</div>
-              <div className="col-span-2">Size</div>
-              <div className="col-span-2">Status</div>
-              <div className="col-span-1 text-right">Actions</div>
-            </div>
-
-            {/* Document rows */}
-            <div className="divide-y divide-zinc-800/50">
-              {filtered.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.03] transition-all group cursor-pointer"
-                  onClick={() => {
-                    if (doc.status === 'completed') navigate(`/documents/${doc.id}`)
-                  }}
-                >
-                  <div className="col-span-5 flex items-center gap-3 overflow-hidden">
-                    {getFileIcon(doc.file_type)}
-                    <span className="font-semibold text-white truncate group-hover:text-[#ffcc00] transition-colors">
-                      {doc.filename}
-                    </span>
-                  </div>
-                  <div className="col-span-2 text-sm text-zinc-400">{doc.file_type.replace('.', '').toUpperCase()}</div>
-                  <div className="col-span-2 text-xs font-mono text-zinc-500">{formatBytes(doc.file_size)}</div>
-                  <div className="col-span-2">{getStatusBadge(doc.status)}</div>
-                  <div className="col-span-1 flex justify-end">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (confirm('Delete this document permanently?')) {
-                          deleteMutation.mutate(doc.id)
-                        }
-                      }}
-                      className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <p className="text-sm font-medium">
+          {uploadMutation.isPending
+            ? 'Uploading…'
+            : isDragActive
+              ? 'Drop the file to upload'
+              : 'Drop a file here, or click to browse'}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">PDF, DOCX, PPTX or TXT · up to 50 MB</p>
       </div>
+
+      {/* Table / states */}
+      {!isAuthenticated ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Sign in to see your documents</CardTitle>
+            <CardDescription>Your library and conversations are private to your account.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={onRequireAuth}>
+              Sign in
+              <ArrowRight className="size-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      ) : documentsQuery.isLoading ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-14 w-full" />
+          ))}
+        </div>
+      ) : documentsQuery.isError ? (
+        <Card>
+          <CardContent className="flex items-center gap-3 pt-6">
+            <AlertCircle className="size-4 text-destructive" />
+            <div className="flex-1 text-sm">
+              <p className="font-medium">Could not load your documents</p>
+              <p className="text-muted-foreground">{getApiErrorMessage(documentsQuery.error)}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => documentsQuery.refetch()}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              {searchQuery ? 'No matches' : 'No documents yet'}
+            </CardTitle>
+            <CardDescription>
+              {searchQuery
+                ? `Nothing matched “${searchQuery}”. Try a different search.`
+                : 'Upload a document above and it will appear here once processed.'}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : (
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Name</TableHead>
+                <TableHead className="hidden w-24 sm:table-cell">Size</TableHead>
+                <TableHead className="w-32">Status</TableHead>
+                <TableHead className="w-12" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((doc) => {
+                const ready = doc.status === 'completed'
+                return (
+                  <TableRow
+                    key={doc.id}
+                    data-state={ready ? undefined : 'disabled'}
+                    className={ready ? 'cursor-pointer' : 'cursor-default'}
+                    onClick={() => ready && navigate(`/documents/${doc.id}`)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <FileTypeIcon fileType={doc.file_type} />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{doc.filename}</p>
+                          {doc.status === 'failed' && doc.error_message && (
+                            <p className="truncate text-xs text-destructive">{doc.error_message}</p>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden text-xs text-muted-foreground tabular-nums sm:table-cell">
+                      {formatBytes(doc.file_size)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={doc.status} />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete ${doc.filename}`}
+                        className="size-8 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setPendingDelete(doc)
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      <Dialog open={Boolean(pendingDelete)} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this document?</DialogTitle>
+            <DialogDescription>
+              {pendingDelete?.filename} and all of its indexed content will be removed. This cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
