@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Sidebar } from './components/Sidebar'
 import { TopBar } from './components/TopBar'
 import { DocumentLibraryView } from './components/DocumentLibraryView'
@@ -11,7 +12,8 @@ import { HelpView } from './components/HelpView'
 import { AuthModal } from './components/AuthModal'
 import { ShaderCanvas } from './components/ShaderCanvas'
 import { useAuth } from '@/context/auth-context'
-import type { NavView } from './types'
+import { listDocuments, getByokStatus } from '@/lib/api'
+import type { NavView, ByokConfig } from './types'
 
 export default function App() {
   const { isAuthenticated, user, logout } = useAuth()
@@ -21,6 +23,35 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  // Real document count for sidebar
+  const documentsQuery = useQuery({
+    queryKey: ['documents'],
+    queryFn: listDocuments,
+    enabled: isAuthenticated,
+    staleTime: 30_000,
+  })
+
+  // Real BYOK status for topbar indicator
+  const byokQuery = useQuery({
+    queryKey: ['byok-status'],
+    queryFn: getByokStatus,
+    enabled: isAuthenticated,
+    staleTime: 60_000,
+  })
+
+  const documentsCount = documentsQuery.data?.documents?.length ?? 0
+  const byokConfig: ByokConfig = {
+    enabled: byokQuery.data?.byok_enabled ?? false,
+    apiKey: '',
+    selectedModel: byokQuery.data?.active_model ?? '',
+    connectionStatus: (byokQuery.data?.status === 'healthy' || byokQuery.data?.status === 'degraded') ? 'healthy' : byokQuery.data?.status === 'missing' ? 'untested' : 'error',
+    pingMs: 0,
+    temperature: 0.2,
+    maxTokens: 4096,
+    strictness: 'balanced',
+    autoAuditOnUpload: false,
+  }
 
   // Derive current nav view from URL
   const getNavView = (): NavView => {
@@ -58,6 +89,10 @@ export default function App() {
     action()
   }
 
+  const userSession = isAuthenticated
+    ? { isAuthenticated: true, email: user?.email || '', name: user?.name || '', role: user?.role || '', avatar: '' }
+    : { isAuthenticated: false, email: '', name: 'Guest', role: 'Guest', avatar: '' }
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#09090b] text-white selection:bg-[#ffcc00] selection:text-black relative font-sans">
       <ShaderCanvas />
@@ -66,10 +101,10 @@ export default function App() {
         currentView={getNavView()}
         onNavigate={handleNavigate}
         onNewAnalysis={() => requireAuth(() => navigate('/'))}
-        user={isAuthenticated ? { isAuthenticated: true, email: user?.email || '', name: user?.name || '', role: user?.role || '', avatar: '' } : { isAuthenticated: false, email: '', name: 'Guest', role: 'Guest', avatar: '' }}
+        user={userSession}
         onSignOut={handleSignOut}
         onOpenAuth={() => setIsAuthModalOpen(true)}
-        documentsCount={0}
+        documentsCount={documentsCount}
         isOpenMobile={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
@@ -79,8 +114,8 @@ export default function App() {
           currentView={getNavView()}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          byokConfig={{ enabled: false, apiKey: '', selectedModel: '', connectionStatus: 'healthy', pingMs: 0, temperature: 0.2, maxTokens: 4096, strictness: 'balanced', autoAuditOnUpload: false }}
-          user={isAuthenticated ? { isAuthenticated: true, email: user?.email || '', name: user?.name || '', role: user?.role || '', avatar: '' } : { isAuthenticated: false, email: '', name: 'Guest', role: 'Guest', avatar: '' }}
+          byokConfig={byokConfig}
+          user={userSession}
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         />
