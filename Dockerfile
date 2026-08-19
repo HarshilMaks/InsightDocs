@@ -15,13 +15,14 @@ RUN apt-get update && apt-get install -y \
 # Install uv for faster package installation
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy requirements
-COPY requirements.txt .
+# Copy the lightweight web-service dependency set. Heavy parsing/ML packages
+# belong in a separately deployed worker, not the 512MB Render API process.
+COPY requirements-prod.txt .
 
 # Install Python dependencies to /opt/venv
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-RUN uv pip install --no-cache -r requirements.txt
+RUN uv pip install --no-cache -r requirements-prod.txt
 
 # ============================================
 # Stage 2: Runtime (Minimal final image)
@@ -30,14 +31,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install ONLY runtime dependencies (no build tools)
-RUN apt-get update && apt-get install -y \
+# The web service only needs curl for its local health check. OCR, office
+# conversion, ImageMagick, and ML runtimes run only in a separate worker.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    libgomp1 \
-    tesseract-ocr \
-    libreoffice-nogui \
-    imagemagick \
-    && sed -i 's/domain="coder" rights="none" pattern="PDF"/domain="coder" rights="read|write" pattern="PDF"/g' /etc/ImageMagick-6/policy.xml || true \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
