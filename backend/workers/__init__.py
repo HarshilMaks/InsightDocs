@@ -1,10 +1,5 @@
-"""Workers package."""
-from .celery_app import celery_app
-from .tasks import process_document_task, generate_embeddings_task, cleanup_old_tasks
+"""Celery worker package.
 
-__all__ = [
-    "celery_app",
-    "process_document_task",
-    "generate_embeddings_task",
-    "cleanup_old_tasks",
-]
+Keep package initialization side-effect free. Import task modules explicitly in
+worker processes so the web API never loads the embedding/ML stack at startup.
+"""

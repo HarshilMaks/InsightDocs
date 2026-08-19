@@ -4,6 +4,6 @@ set -o errexit
 
 echo "=== Building backend dependencies ==="
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-prod.txt
 
 echo "=== Build Complete ==="

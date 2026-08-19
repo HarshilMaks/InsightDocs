@@ -6,7 +6,6 @@ from backend.api.schemas import TaskStatusResponse
 from backend.models import get_db, Task
 from backend.models.schemas import User
 from backend.core.security import get_current_user
-from backend.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["Tasks"])

@@ -11,18 +11,27 @@ from backend.api.schemas import (
 from backend.models import get_db, Document, DocumentChunk, Task, TaskStatus
 from backend.models.schemas import User
 from backend.core.security import get_current_user, decrypt_api_key
-from backend.utils.document_processor import MAX_FILE_SIZE, get_supported_extensions
 from backend.utils.llm_client import GeminiAPIError, LLMClient
 from backend.core.limiter import limiter
+
+# Keep parsing/OCR dependencies out of the API startup process. The upload
+# handler imports document_processor only when a user actually uploads a file.
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+BASIC_SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".pptx"}
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 
 def _validate_upload(filename: str, content: bytes):
-    """Validate file type and size."""
+    """Validate file type and size without loading parsers during API startup."""
     ext = Path(filename).suffix.lower()
-    supported = get_supported_extensions()
+    try:
+        from backend.utils.document_processor import get_supported_extensions
+        supported = get_supported_extensions()
+    except Exception as exc:
+        logger.warning("Optional document parsers unavailable during upload validation: %s", exc)
+        supported = BASIC_SUPPORTED_EXTENSIONS
     if ext not in supported:
         raise HTTPException(
             status_code=400,
