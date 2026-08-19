@@ -10,7 +10,6 @@ import {
   Presentation,
   Trash2,
   Loader2,
-  ArrowRight,
   AlertCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -217,10 +216,7 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
             <CardDescription>Your library and conversations are private to your account.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={onRequireAuth}>
-              Sign in
-              <ArrowRight className="size-4" />
-            </Button>
+            <p className="text-sm text-muted-foreground">Use the Sign in button in the top bar to continue.</p>
           </CardContent>
         </Card>
       ) : documentsQuery.isLoading ? (

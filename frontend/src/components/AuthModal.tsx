@@ -38,15 +38,23 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   // Load Google Identity Services script and render the button
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      googleBtnRef.current?.replaceChildren()
+      return
+    }
 
     const renderGoogleButton = () => {
-      if (!googleBtnRef.current || !window.google?.accounts?.id) return
+      const container = googleBtnRef.current
+      if (!container || !window.google?.accounts?.id) return
+
+      // Google injects an iframe into this element. Remove its prior render
+      // before opening the dialog again, otherwise GIS can skip/reuse it.
+      container.replaceChildren()
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleGoogleResponse,
       })
-      window.google.accounts.id.renderButton(googleBtnRef.current, {
+      window.google.accounts.id.renderButton(container, {
         theme: 'filled_black',
         size: 'large',
         width: '100%',

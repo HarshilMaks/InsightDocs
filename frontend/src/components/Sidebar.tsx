@@ -8,7 +8,6 @@ import {
   HelpCircle,
   LogOut,
   Plus,
-  LogIn,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -163,14 +162,7 @@ export function AppSidebar({ onRequireAuth }: AppSidebarProps) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </>
-          ) : (
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Sign in" onClick={onRequireAuth}>
-                <LogIn className="size-4" />
-                <span>Sign in</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
+          ) : null}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
