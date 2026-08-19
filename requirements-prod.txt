@@ -26,6 +26,7 @@ boto3==1.34.7
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
+google-auth==2.56.2
 
 # Document Parsing (minimal)
 PyPDF2==3.0.1
