@@ -19,6 +19,14 @@ def test_root_endpoint(client):
     assert "version" in data
 
 
+
+def test_liveness_endpoint(client):
+    """The warming probe must never perform readiness dependency checks."""
+    response = client.get("/api/v1/live")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 def test_health_endpoint(client):
     """Test health check endpoint."""
     response = client.get("/api/v1/health")

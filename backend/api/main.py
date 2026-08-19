@@ -75,6 +75,12 @@ async def root():
     }
 
 
+@app.get(f"{settings.api_prefix}/live", tags=["System"], include_in_schema=False)
+async def liveness_check():
+    """Minimal process liveness probe with no external dependency checks."""
+    return {"status": "ok"}
+
+
 @app.get(f"{settings.api_prefix}/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
     """Health check endpoint — pings actual services."""
