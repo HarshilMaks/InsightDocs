@@ -50,6 +50,10 @@ celery_app.conf.update(
     timezone='UTC',
     enable_utc=True,
     task_track_started=True,
+    # GitHub-hosted workers are intentionally short-lived. A job is only
+    # acknowledged after it succeeds so an interrupted worker can retry it.
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
     task_time_limit=3600,
     task_soft_time_limit=3300,
     broker_use_ssl=_redis_ssl_options if _redis_ssl_options else None,

@@ -3,4 +3,5 @@
 set -o errexit
 
 echo "=== Starting Celery Worker ==="
-celery -A backend.workers.celery_app worker --loglevel=info --concurrency=2
+# One process prevents parallel OCR/embedding jobs from competing for worker RAM.
+exec celery -A backend.workers.celery_app worker --loglevel=info --concurrency=1 --prefetch-multiplier=1

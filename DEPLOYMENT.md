@@ -75,6 +75,41 @@ AWS_SECRET_ACCESS_KEY=<your secret>
 S3_BUCKET_NAME=insightdocs
 ```
 
+### GitHub Actions Worker (free hosted alternative)
+
+If a paid Render Background Worker is not an option, the repository includes
+`.github/workflows/process-celery-queue.yml`. It starts one Celery consumer for
+up to twelve minutes every fifteen minutes, and can also be run manually from
+**GitHub → Actions → Process InsightDocs queue → Run workflow**.
+
+Add these **Repository secrets** in **GitHub → Settings → Secrets and variables
+→ Actions**. Copy each production value exactly from the Render API service:
+
+```
+SECRET_KEY
+DATABASE_URL
+REDIS_URL
+CELERY_BROKER_URL
+CELERY_RESULT_BACKEND
+MILVUS_URI
+MILVUS_TOKEN
+MILVUS_COLLECTION
+MILVUS_DIM
+S3_ENDPOINT
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+S3_BUCKET_NAME
+AWS_DEFAULT_REGION
+```
+
+`GEMINI_API_KEY` is optional: add it only if you use a system-level Gemini
+fallback in addition to user BYOK keys.
+
+`SECRET_KEY` must match the API service so the worker can decrypt users' BYOK
+keys. The workflow processes one task at a time and does not require a public
+HTTP endpoint. A newly uploaded document can wait up to fifteen minutes before
+a scheduled runner begins it; use **Run workflow** to start a run immediately.
+
 ---
 
 ## Step 3: Deploy Frontend (Vercel)
