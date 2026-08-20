@@ -71,7 +71,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.worker
     command: celery -A backend.workers.celery_app worker --loglevel=info
     env_file:
       - .env

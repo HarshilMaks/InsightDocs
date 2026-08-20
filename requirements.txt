@@ -14,8 +14,8 @@ psycopg2-binary==2.9.9
 alembic==1.13.0
 
 # Vector Database (minimal - no model extras)
-pymilvus>=2.4.0
-setuptools>=69.0.0  # Required by pymilvus for pkg_resources
+pymilvus==2.4.9
+setuptools==80.9.0  # pymilvus 2.4.x imports pkg_resources, removed in setuptools 81+
 
 # LLM Integration
 google-generativeai==0.8.0
@@ -43,8 +43,8 @@ python-dotenv==1.0.0
 httpx==0.25.2
 tenacity==8.2.3
 email-validator==2.1.0
-slowapi
+slowapi==0.1.10
 marshmallow==3.20.1
 
 
-google-auth
+google-auth==2.56.2

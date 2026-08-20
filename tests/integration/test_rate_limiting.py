@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.api.main import app
 from backend.models.database import Base, get_db
@@ -59,7 +59,11 @@ def test_rate_limiting_upload_enforced_per_user(client):
     headers = {"Authorization": f"Bearer {token}"}
     file_content = b"test content"
 
-    with patch("backend.api.documents.process_document_task.apply_async") as mock_apply_async:
+    fake_storage = MagicMock(bucket_name="test-bucket")
+    fake_storage.store_bytes = AsyncMock(return_value="documents/rate-limit.txt")
+    with patch("backend.storage.file_storage.FileStorage", return_value=fake_storage), patch(
+        "backend.workers.tasks.process_document_task.apply_async"
+    ) as mock_apply_async:
         mock_apply_async.return_value = type("TaskRef", (), {"id": "task-rl-1"})()
 
         for i in range(5):
@@ -80,7 +84,11 @@ def test_rate_limiting_isolated_between_users(client):
     headers_b = {"Authorization": f"Bearer {token_b}"}
     file_content = b"test content"
 
-    with patch("backend.api.documents.process_document_task.apply_async") as mock_apply_async:
+    fake_storage = MagicMock(bucket_name="test-bucket")
+    fake_storage.store_bytes = AsyncMock(return_value="documents/rate-limit.txt")
+    with patch("backend.storage.file_storage.FileStorage", return_value=fake_storage), patch(
+        "backend.workers.tasks.process_document_task.apply_async"
+    ) as mock_apply_async:
         mock_apply_async.return_value = type("TaskRef", (), {"id": "task-rl-2"})()
 
         for i in range(5):

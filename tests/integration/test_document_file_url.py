@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.api.main import app
 from backend.models import Document, TaskStatus
@@ -93,7 +93,7 @@ class TestDocumentFileUrlEndpoint:
         fake_storage = MagicMock()
         fake_storage.get_file_url.return_value = "https://minio.local/insightdocs/report.pdf?sig=abc"
 
-        with patch("backend.api.documents.FileStorage", return_value=fake_storage):
+        with patch("backend.storage.file_storage.FileStorage", return_value=fake_storage):
             r = client.get(
                 "/api/v1/documents/doc-file-1/file-url",
                 headers={"Authorization": f"Bearer {token}"},
@@ -137,6 +137,81 @@ class TestDocumentFileUrlEndpoint:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert r.status_code == 409
+
+
+class TestDocumentDeletion:
+    def test_owner_deletion_removes_vectors_and_source_object(self, client):
+        token = _register_and_login(client, "delete-owner@example.com", "Delete Owner")
+        user_id = _user_id_from_token(client, token)
+        _seed_document("doc-delete-1", user_id, s3_key="documents/delete-me.pdf")
+
+        fake_storage = MagicMock()
+        fake_storage.delete_file = AsyncMock(return_value=True)
+        fake_embeddings = MagicMock()
+        fake_embeddings.delete_document_vectors = AsyncMock()
+
+        with patch("backend.storage.file_storage.FileStorage", return_value=fake_storage), patch(
+            "backend.utils.embeddings.get_embedding_engine", return_value=fake_embeddings
+        ):
+            response = client.delete(
+                "/api/v1/documents/doc-delete-1",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        assert response.status_code == 200, response.text
+        fake_embeddings.delete_document_vectors.assert_awaited_once_with("doc-delete-1", user_id)
+        fake_storage.delete_file.assert_awaited_once_with("documents/delete-me.pdf")
+
+        db = TestingSessionLocal()
+        try:
+            assert db.query(Document).filter(Document.id == "doc-delete-1").first() is None
+        finally:
+            db.close()
+
+    def test_pending_document_cannot_race_with_ingestion_deletion(self, client):
+        token = _register_and_login(client, "delete-pending@example.com", "Delete Pending")
+        user_id = _user_id_from_token(client, token)
+        _seed_document(
+            "doc-delete-pending",
+            user_id,
+            s3_key="documents/pending.pdf",
+            status=TaskStatus.PENDING,
+        )
+
+        fake_embeddings = MagicMock()
+        fake_storage = MagicMock()
+        with patch("backend.utils.embeddings.get_embedding_engine", return_value=fake_embeddings), patch(
+            "backend.storage.file_storage.FileStorage", return_value=fake_storage
+        ):
+            response = client.delete(
+                "/api/v1/documents/doc-delete-pending",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        assert response.status_code == 409
+        fake_embeddings.delete_document_vectors.assert_not_called()
+        fake_storage.delete_file.assert_not_called()
+
+    def test_index_cleanup_failure_preserves_document_record(self, client):
+        token = _register_and_login(client, "delete-failure@example.com", "Delete Failure")
+        user_id = _user_id_from_token(client, token)
+        _seed_document("doc-delete-2", user_id, s3_key="documents/retain-me.pdf")
+
+        fake_embeddings = MagicMock()
+        fake_embeddings.delete_document_vectors = AsyncMock(side_effect=RuntimeError("Milvus unavailable"))
+
+        with patch("backend.utils.embeddings.get_embedding_engine", return_value=fake_embeddings):
+            response = client.delete(
+                "/api/v1/documents/doc-delete-2",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        assert response.status_code == 503
+        db = TestingSessionLocal()
+        try:
+            assert db.query(Document).filter(Document.id == "doc-delete-2").first() is not None
+        finally:
+            db.close()
 
 
 if __name__ == "__main__":

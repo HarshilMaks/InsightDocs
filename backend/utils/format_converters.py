@@ -28,7 +28,7 @@ class FormatConverter:
                 timeout=5
             )
             return result.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError):
+        except (subprocess.TimeoutExpired, OSError):
             return False
     
     @staticmethod
@@ -42,7 +42,7 @@ class FormatConverter:
                 timeout=5
             )
             return result.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError):
+        except (subprocess.TimeoutExpired, OSError):
             return False
     
     @classmethod

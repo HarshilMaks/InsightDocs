@@ -8,6 +8,8 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
+SentenceTransformer = None
+
 try:
     from pymilvus import (
         connections,
@@ -65,8 +67,10 @@ class EmbeddingEngine:
         self.collection = None  # Initialize before connect attempt
         self._connect_milvus()
         self._init_collection()
-        # Defer dense model loading until first use
-        # self._configure_dense_model_for_collection()
+        # Inspect collection metadata without loading a model. This preserves
+        # the low-memory startup path while retaining compatibility with
+        # existing legacy 384-dimensional collections.
+        self._configure_dense_model_for_collection()
 
     def _ensure_dense_model_loaded(self):
         """Lazy load dense model on first use."""
@@ -104,11 +108,15 @@ class EmbeddingEngine:
             return None
 
     def _configure_dense_model_for_collection(self):
-        """Load a dense model that matches the active Milvus schema."""
+        """Select the embedding model matching the active Milvus schema.
+
+        This must not instantiate SentenceTransformer: workers load that
+        heavyweight model only at the first embedding/search operation.
+        """
         collection_dim = self._get_collection_dense_dim()
         if collection_dim is None:
+            self.dimension = settings.milvus_dim
             self.dense_model_name = settings.embedding_model_name
-            self.dense_model = self._load_dense_model(self.dense_model_name)
             return
 
         if collection_dim == settings.milvus_dim:
@@ -118,8 +126,7 @@ class EmbeddingEngine:
             self.dimension = collection_dim
             self.dense_model_name = settings.legacy_embedding_model
             logger.warning(
-                "Milvus collection uses legacy %s-dim dense schema; "
-                "loading %s to match it.",
+                "Milvus collection uses legacy %s-dim dense schema; selecting %s.",
                 collection_dim,
                 self.dense_model_name,
             )
@@ -129,8 +136,6 @@ class EmbeddingEngine:
                 f"supported embedding models ({settings.vector_dimension} and {settings.milvus_dim}). "
                 "Run the Milvus migration script before ingesting documents."
             )
-
-        self.dense_model = self._load_dense_model(self.dense_model_name)
 
     def _fallback_sparse_encode(self, texts: List[str]) -> List[Dict[int, float]]:
         """Create deterministic sparse vectors without external sparse-model deps."""
@@ -326,6 +331,31 @@ class EmbeddingEngine:
             raise
     
     
+
+    async def delete_document_vectors(self, document_id: str, user_id: str) -> None:
+        """Permanently remove all vectors belonging to one owned document.
+
+        Both identifiers are included in the expression as a defence in depth
+        measure: callers already verify relational ownership, and Milvus must
+        enforce the same tenant boundary before deleting vectors.
+        """
+        if self.collection is None:
+            raise RuntimeError("Milvus connection not available")
+
+        def _escape_expression_value(value: str) -> str:
+            return value.replace("\\", "\\\\").replace('"', '\\"')
+
+        expression = (
+            f'document_id == "{_escape_expression_value(document_id)}" '
+            f'and user_id == "{_escape_expression_value(user_id)}"'
+        )
+        try:
+            self.collection.delete(expression)
+            self.collection.flush()
+            logger.info("Deleted vectors for document %s and user %s", document_id, user_id)
+        except Exception as e:
+            logger.error("Error deleting vectors for document %s: %s", document_id, e)
+            raise
     async def search(
         self,
         query_text: str,

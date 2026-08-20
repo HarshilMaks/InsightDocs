@@ -41,11 +41,13 @@ def test_embedding_engine_uses_legacy_model_for_384_dim_collection(mock_sentence
     ):
         engine = EmbeddingEngine()
 
-    mock_sentence_transformer.assert_called_with(settings.legacy_embedding_model)
+    mock_sentence_transformer.assert_not_called()
+    assert engine.dense_model_name == settings.legacy_embedding_model
     assert engine.dimension == 384
 
 
 @pytest.mark.asyncio
+@patch("backend.utils.embeddings.SENTENCE_TRANSFORMERS_AVAILABLE", True)
 @patch("backend.utils.embeddings.SentenceTransformer")
 @patch.object(EmbeddingEngine, "_connect_milvus", lambda self: None)
 @patch.object(EmbeddingEngine, "_init_collection", lambda self: None)

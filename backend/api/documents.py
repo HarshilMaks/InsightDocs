@@ -213,8 +213,46 @@ async def delete_document(
     ).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    db.delete(document)
-    db.commit()
+    if document.status in {TaskStatus.PENDING, TaskStatus.PROCESSING}:
+        raise HTTPException(
+            status_code=409,
+            detail="Document is still processing and cannot be deleted yet. Please try again when processing finishes.",
+        )
+
+    # A relational delete cascades to PostgreSQL chunks, but those rows are
+    # only citation metadata. Remove the actual vectors and source object
+    # first so deleted content cannot remain searchable or downloadable.
+    try:
+        from backend.utils.embeddings import get_embedding_engine
+        embedding_engine = get_embedding_engine()
+        await embedding_engine.delete_document_vectors(document.id, current_user.id)
+    except Exception as e:
+        logger.error("Error deleting vectors for document %s: %s", document.id, e)
+        raise HTTPException(
+            status_code=503,
+            detail="Document index is unavailable. The document was not deleted; please try again.",
+        )
+
+    try:
+        from backend.storage.file_storage import FileStorage
+        file_storage = FileStorage()
+        if document.s3_key and not await file_storage.delete_file(document.s3_key):
+            raise RuntimeError("Object storage did not confirm deletion")
+    except Exception as e:
+        logger.error("Error deleting object for document %s: %s", document.id, e)
+        raise HTTPException(
+            status_code=503,
+            detail="Document storage is unavailable. The document record was retained; please try again.",
+        )
+
+    try:
+        db.delete(document)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Error deleting document record %s: %s", document.id, e)
+        raise HTTPException(status_code=500, detail="Unable to delete the document record right now.")
+
     return {"success": True, "message": "Document deleted successfully"}
 
 

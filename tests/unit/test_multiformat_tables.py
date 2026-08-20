@@ -135,20 +135,23 @@ class TestIntegration:
     
     def test_supported_extensions_count(self):
         """Test that we support more formats than before."""
-        from backend.utils.document_processor import SUPPORTED_EXTENSIONS
-        
-        # Should support at least PDF, TXT, DOCX, PPTX, XLSX, CSV, PNG, JPG
-        assert len(SUPPORTED_EXTENSIONS) >= 20
-        
+        from backend.utils.document_processor import get_supported_extensions
+        supported_extensions = get_supported_extensions()
+
+        # The API validates uploads against this runtime resolver. Its basic
+        # set is intentionally small at module import time to keep API start
+        # lightweight; extended formats are provided by the worker converter.
+        assert len(supported_extensions) >= 20
+
         # Check specific formats
-        assert '.pdf' in SUPPORTED_EXTENSIONS
-        assert '.xlsx' in SUPPORTED_EXTENSIONS
-        assert '.csv' in SUPPORTED_EXTENSIONS
-        assert '.png' in SUPPORTED_EXTENSIONS
-        assert '.jpg' in SUPPORTED_EXTENSIONS
-        
-        print(f"✅ Supporting {len(SUPPORTED_EXTENSIONS)} file formats")
-        print(f"   Formats: {sorted(SUPPORTED_EXTENSIONS)}")
+        assert '.pdf' in supported_extensions
+        assert '.xlsx' in supported_extensions
+        assert '.csv' in supported_extensions
+        assert '.png' in supported_extensions
+        assert '.jpg' in supported_extensions
+
+        print(f"✅ Supporting {len(supported_extensions)} file formats")
+        print(f"   Formats: {sorted(supported_extensions)}")
 
 
 def test_mock_table_extraction():

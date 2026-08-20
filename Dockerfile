@@ -63,7 +63,7 @@ EXPOSE 10000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD sh -c 'curl -f http://localhost:${PORT:-10000}/api/v1/health || exit 1'
+    CMD sh -c 'curl -f http://localhost:${PORT:-10000}/api/v1/live || exit 1'
 
 # Default: run migrations then start API (same behavior in Docker, Render, and local)
 # For the worker service, override this with: bash scripts/start_worker.sh

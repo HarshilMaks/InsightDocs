@@ -89,8 +89,8 @@ class TestUploadHandoff:
         fake_storage.bucket_name = "insightdocs"
         fake_storage.store_bytes = AsyncMock(return_value="documents/unique-key-report.txt")
 
-        with patch("backend.api.documents.FileStorage", return_value=fake_storage), patch(
-            "backend.api.documents.process_document_task"
+        with patch("backend.storage.file_storage.FileStorage", return_value=fake_storage), patch(
+            "backend.workers.tasks.process_document_task"
         ) as mock_task:
             mock_task.apply_async.return_value = MagicMock(id="task-123")
 
