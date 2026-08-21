@@ -75,3 +75,19 @@ def test_probe_gemini_status_reports_degraded_when_primary_model_missing():
     assert status['model_status'] == 'fallback'
     assert status['active_model'] == 'gemini-2.0-flash'
     assert status['available_models'][0] == 'gemini-2.0-flash'
+
+
+@pytest.mark.asyncio
+async def test_summary_requests_structured_resume_aware_output():
+    llm = LLMClient(api_key='AIzaSyC_valid_key_for_testing_1234567890')
+
+    with patch.object(llm, '_run_prompt', return_value='## Professional profile\nDetailed summary.') as run_prompt:
+        result = await llm.summarize('Candidate has Python and FastAPI experience.')
+
+    assert result.startswith('## Professional profile')
+    prompt = run_prompt.call_args.args[0]
+    assert 'Do not return a one- or two-sentence abstract.' in prompt
+    assert 'If the document is a resume, CV, or professional profile' in prompt
+    assert 'Candidate has Python and FastAPI experience.' in prompt
+    assert run_prompt.call_args.kwargs['max_output_tokens'] == 2048
+    assert run_prompt.call_args.kwargs['temperature'] <= 0.3

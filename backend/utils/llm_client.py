@@ -421,18 +421,26 @@ class LLMClient:
         return "unknown_error"
 
     async def summarize(self, text: str) -> str:
-        """Generate a summary of the given text."""
+        """Generate a detailed, source-grounded Markdown summary of a document."""
         try:
             prompt = (
-                "Please provide a clear, comprehensive summary of the following document. "
-                "Include the main topics, key findings, and important details.\n\n"
-                f"{text}"
+                "Create a useful, structured Markdown summary of the document below. "
+                "Do not return a one- or two-sentence abstract. Aim for 250-450 words when the "
+                "source contains enough detail; be concise only when the source itself is short. "
+                "Use clear headings and bullets where they improve scanning. Cover the document's "
+                "purpose, its most important information, concrete evidence such as roles, dates, "
+                "outcomes, technologies, or qualifications when present, and a brief takeaway. "
+                "Only include facts found in the document.\n\n"
+                "If the document is a resume, CV, or professional profile, organize it as: "
+                "Professional profile; Experience and impact; Technical skills; Education, projects, "
+                "or certifications (only sections supported by the source). Do not invent missing details.\n\n"
+                f"Document:\n{text}"
             )
             return await asyncio.to_thread(
                 self._run_prompt,
                 prompt,
-                temperature=settings.gemini_temperature,
-                max_output_tokens=1024,
+                temperature=min(settings.gemini_temperature, 0.3),
+                max_output_tokens=2048,
             )
         except GeminiAPIError:
             raise

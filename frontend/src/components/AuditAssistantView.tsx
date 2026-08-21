@@ -773,41 +773,69 @@ function ToolPanel({ tool, summary, quiz, mindmap, isPending, error, onRegenerat
   const map = (mindmap ?? {}) as { central_topic?: unknown; nodes?: unknown; edges?: unknown }
   const nodes = Array.isArray(map.nodes) ? (map.nodes as Array<Record<string, unknown>>) : []
   const edges = Array.isArray(map.edges) ? (map.edges as Array<Record<string, unknown>>) : []
+  const nodeLabels = new Map(
+    nodes
+      .filter((node) => typeof node.id === 'string' && typeof node.label === 'string' && node.label.trim())
+      .map((node) => [String(node.id), String(node.label).trim()]),
+  )
+  const labelFor = (nodeId: unknown) => nodeLabels.get(String(nodeId)) ?? 'Related concept'
+  const conceptGroups = nodes.reduce<Record<string, Array<{ id: string; label: string }>>>((groups, node) => {
+    const group = typeof node.group === 'string' && node.group.trim() ? node.group.trim() : 'Key concepts'
+    const label = typeof node.label === 'string' && node.label.trim() ? node.label.trim() : 'Untitled concept'
+    const id = typeof node.id === 'string' ? node.id : label
+    groups[group] ??= []
+    groups[group].push({ id, label })
+    return groups
+  }, {})
 
   return (
     <div>
       {header}
       {map.central_topic ? (
-        <p className="mb-3 text-sm">
-          <span className="text-muted-foreground">Central topic: </span>
-          <span className="font-medium">{String(map.central_topic)}</span>
-        </p>
+        <Card className="mb-4 border-primary/30 bg-primary/5">
+          <CardContent className="p-4 text-center">
+            <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Central topic</p>
+            <p className="mt-1 text-sm font-semibold">{String(map.central_topic)}</p>
+          </CardContent>
+        </Card>
       ) : null}
       {nodes.length === 0 ? (
         <p className="text-sm text-muted-foreground">No concepts were extracted.</p>
       ) : (
-        <>
-          <div className="mb-4 flex flex-wrap gap-1.5">
-            {nodes.map((node, i) => (
-              <Badge key={i} variant="secondary" className="font-normal">
-                {String(node.label ?? node.id ?? '')}
-              </Badge>
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Object.entries(conceptGroups).map(([group, concepts]) => (
+              <Card key={group}>
+                <CardContent className="p-3">
+                  <p className="mb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{group}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {concepts.map((concept) => (
+                      <Badge key={concept.id} variant="secondary" className="font-normal">
+                        {concept.label}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
           {edges.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                Relationships
-              </p>
-              {edges.map((edge, i) => (
-                <p key={i} className="text-xs text-muted-foreground">
-                  {String(edge.source ?? '')} → {String(edge.label ?? 'relates to')} →{' '}
-                  {String(edge.target ?? '')}
-                </p>
-              ))}
+            <div className="space-y-2">
+              <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Connections</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {edges.map((edge, i) => (
+                  <Card key={i} className="bg-muted/30">
+                    <CardContent className="space-y-1.5 p-3 text-xs">
+                      <p className="font-medium text-foreground">{labelFor(edge.source)}</p>
+                      <p className="text-muted-foreground">{String(edge.label ?? 'relates to')}</p>
+                      <p className="font-medium text-foreground">{labelFor(edge.target)}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   )
