@@ -57,7 +57,9 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       window.google.accounts.id.renderButton(container, {
         theme: 'filled_black',
         size: 'large',
-        width: '100%',
+        // Google Identity Services accepts only a pixel number here; a CSS
+        // percentage leaves its injected iframe blank and logs a width error.
+        width: 320,
         text: 'continue_with',
         shape: 'rectangular',
       })
