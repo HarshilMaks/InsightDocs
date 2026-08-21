@@ -168,7 +168,7 @@ class TestDocumentDeletion:
         finally:
             db.close()
 
-    def test_pending_document_cannot_race_with_ingestion_deletion(self, client):
+    def test_pending_document_can_be_deleted_when_no_worker_has_started(self, client):
         token = _register_and_login(client, "delete-pending@example.com", "Delete Pending")
         user_id = _user_id_from_token(client, token)
         _seed_document(
@@ -179,7 +179,9 @@ class TestDocumentDeletion:
         )
 
         fake_embeddings = MagicMock()
+        fake_embeddings.delete_document_vectors = AsyncMock()
         fake_storage = MagicMock()
+        fake_storage.delete_file = AsyncMock(return_value=True)
         with patch("backend.utils.embeddings.get_embedding_engine", return_value=fake_embeddings), patch(
             "backend.storage.file_storage.FileStorage", return_value=fake_storage
         ):
@@ -188,9 +190,9 @@ class TestDocumentDeletion:
                 headers={"Authorization": f"Bearer {token}"},
             )
 
-        assert response.status_code == 409
-        fake_embeddings.delete_document_vectors.assert_not_called()
-        fake_storage.delete_file.assert_not_called()
+        assert response.status_code == 200, response.text
+        fake_embeddings.delete_document_vectors.assert_awaited_once_with("doc-delete-pending", user_id)
+        fake_storage.delete_file.assert_awaited_once_with("documents/pending.pdf")
 
     def test_index_cleanup_failure_preserves_document_record(self, client):
         token = _register_and_login(client, "delete-failure@example.com", "Delete Failure")

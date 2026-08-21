@@ -90,9 +90,9 @@ class TestUploadHandoff:
         fake_storage.store_bytes = AsyncMock(return_value="documents/unique-key-report.txt")
 
         with patch("backend.storage.file_storage.FileStorage", return_value=fake_storage), patch(
-            "backend.workers.tasks.process_document_task"
-        ) as mock_task:
-            mock_task.apply_async.return_value = MagicMock(id="task-123")
+            "backend.workers.celery_app.celery_app.send_task"
+        ) as mock_send_task:
+            mock_send_task.return_value = MagicMock(id="task-123")
 
             r = client.post(
                 "/api/v1/documents/upload",
@@ -110,8 +110,11 @@ class TestUploadHandoff:
         assert awaited_args.args[0] == b"hello world"
         assert awaited_args.args[1] == "report.txt"
 
-        # The queued task must receive the object key, not a local path.
-        queued_args = mock_task.apply_async.call_args.kwargs["args"]
+        # The API queues the registered worker task by name, passing only the
+        # durable object key—not a local filesystem path—to the worker.
+        mock_send_task.assert_called_once()
+        assert mock_send_task.call_args.args[0] == "insightdocs.process_document"
+        queued_args = mock_send_task.call_args.kwargs["args"]
         document_id, queued_key, filename, user_id = queued_args
         assert queued_key == "documents/unique-key-report.txt"
         assert not os.path.isabs(queued_key) or not os.path.exists(queued_key)
@@ -123,6 +126,34 @@ class TestUploadHandoff:
             assert doc is not None
             assert doc.s3_key == "documents/unique-key-report.txt"
             assert doc.s3_bucket == "insightdocs"
+        finally:
+            db.close()
+
+    def test_upload_queue_failure_cleans_up_new_document_and_object(self, client):
+        token = _register_and_login(client, "queue-failure@example.com", "Queue Failure")
+
+        fake_storage = MagicMock()
+        fake_storage.bucket_name = "insightdocs"
+        fake_storage.store_bytes = AsyncMock(return_value="documents/queue-failure.txt")
+        fake_storage.delete_file = AsyncMock(return_value=True)
+
+        with patch("backend.storage.file_storage.FileStorage", return_value=fake_storage), patch(
+            "backend.workers.celery_app.celery_app.send_task",
+            side_effect=RuntimeError("broker unavailable"),
+        ):
+            response = client.post(
+                "/api/v1/documents/upload",
+                headers={"Authorization": f"Bearer {token}"},
+                files={"file": ("queue-failure.txt", b"hello world", "text/plain")},
+            )
+
+        assert response.status_code == 503, response.text
+        assert "queue" in response.json()["detail"].lower()
+        fake_storage.delete_file.assert_awaited_once_with("documents/queue-failure.txt")
+
+        db = TestingSessionLocal()
+        try:
+            assert db.query(Document).filter(Document.s3_key == "documents/queue-failure.txt").first() is None
         finally:
             db.close()
 

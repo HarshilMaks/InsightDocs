@@ -62,7 +62,7 @@ def test_rate_limiting_upload_enforced_per_user(client):
     fake_storage = MagicMock(bucket_name="test-bucket")
     fake_storage.store_bytes = AsyncMock(return_value="documents/rate-limit.txt")
     with patch("backend.storage.file_storage.FileStorage", return_value=fake_storage), patch(
-        "backend.workers.tasks.process_document_task.apply_async"
+        "backend.workers.celery_app.celery_app.send_task"
     ) as mock_apply_async:
         mock_apply_async.return_value = type("TaskRef", (), {"id": "task-rl-1"})()
 
@@ -87,7 +87,7 @@ def test_rate_limiting_isolated_between_users(client):
     fake_storage = MagicMock(bucket_name="test-bucket")
     fake_storage.store_bytes = AsyncMock(return_value="documents/rate-limit.txt")
     with patch("backend.storage.file_storage.FileStorage", return_value=fake_storage), patch(
-        "backend.workers.tasks.process_document_task.apply_async"
+        "backend.workers.celery_app.celery_app.send_task"
     ) as mock_apply_async:
         mock_apply_async.return_value = type("TaskRef", (), {"id": "task-rl-2"})()
 

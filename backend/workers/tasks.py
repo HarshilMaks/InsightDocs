@@ -5,7 +5,8 @@ import tempfile
 from typing import Dict, Any, Optional
 import logging
 from backend.workers.celery_app import celery_app
-from backend.agents import OrchestratorAgent, AnalysisAgent
+from backend.agents.orchestrator import OrchestratorAgent
+from backend.agents.analysis_agent import AnalysisAgent
 from backend.models import get_db, Task, Document, TaskStatus
 from backend.models.schemas import User
 from backend.core.security import decrypt_api_key

@@ -86,10 +86,33 @@ async def upload_document(
         db.commit()
         db.refresh(document)
 
-        from backend.workers.tasks import process_document_task
-        task = process_document_task.apply_async(
-            args=[document.id, s3_key, file.filename, current_user.id]
-        )
+        # Queue by registered task name so the API remains independent from
+        # worker-only agent/OCR/embedding imports. If the broker rejects this
+        # handoff, remove the just-created document and object; otherwise a
+        # user would be left with an orphaned pending document that no worker
+        # can ever process.
+        try:
+            from backend.workers.celery_app import celery_app
+            task = celery_app.send_task(
+                "insightdocs.process_document",
+                args=[document.id, s3_key, file.filename, current_user.id],
+            )
+        except Exception as e:
+            logger.error("Unable to queue document %s: %s", document.id, e)
+            try:
+                db.delete(document)
+                db.commit()
+            except Exception as cleanup_error:
+                db.rollback()
+                logger.error("Unable to remove orphaned document %s: %s", document.id, cleanup_error)
+            try:
+                await file_storage.delete_file(s3_key)
+            except Exception as cleanup_error:
+                logger.error("Unable to remove orphaned object %s: %s", s3_key, cleanup_error)
+            raise HTTPException(
+                status_code=503,
+                detail="Document processing queue is unavailable. The upload was not saved; please try again.",
+            )
 
         # Create Task record so the worker can find and update it
         task_record = Task(
@@ -213,7 +236,7 @@ async def delete_document(
     ).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    if document.status in {TaskStatus.PENDING, TaskStatus.PROCESSING}:
+    if document.status == TaskStatus.PROCESSING:
         raise HTTPException(
             status_code=409,
             detail="Document is still processing and cannot be deleted yet. Please try again when processing finishes.",
