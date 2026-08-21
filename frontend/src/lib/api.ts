@@ -19,6 +19,8 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+export const AUTH_SESSION_EXPIRED_EVENT = 'insightdocs:auth-session-expired'
+
 // Attach JWT to every request
 api.interceptors.request.use((config) => {
   const token = getAuthToken()
@@ -27,6 +29,24 @@ api.interceptors.request.use((config) => {
   }
   return config
 })
+
+// An access token can expire while the browser is open. Clear it on a 401
+// from an authenticated request, then notify AuthProvider to return the UI to
+// its signed-out state. Do not react to public/login endpoints with no token.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      const headers = error.config?.headers
+      const authorization = headers?.Authorization ?? headers?.authorization
+      if (authorization) {
+        clearStoredAuth()
+        window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT))
+      }
+    }
+    return Promise.reject(error)
+  },
+)
 
 // Auth persistence
 export interface StoredAuth {
