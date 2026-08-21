@@ -93,6 +93,10 @@ export function AuditAssistantView() {
     queryKey: ['document', documentId],
     queryFn: () => getDocument(documentId!),
     enabled: Boolean(documentId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === 'pending' || status === 'processing' ? 4000 : false
+    },
   })
 
   const taskId = searchParams.get('task')
@@ -109,6 +113,21 @@ export function AuditAssistantView() {
   const doc = docQuery.data
   const isPdf = doc?.file_type?.toLowerCase() === '.pdf'
   const isReady = doc?.status === 'completed'
+  const workspaceStatus = doc?.status ?? taskQuery.data?.status ?? 'pending'
+  const isFailed = workspaceStatus === 'failed'
+  const taskProgress = taskQuery.data?.progress ?? 0
+  const taskProgressPercent = Math.round(taskProgress * 100)
+  const processingTitle = isFailed
+    ? 'Document processing failed'
+    : workspaceStatus === 'pending'
+      ? 'Document is queued for processing'
+      : 'Processing document'
+  const processingDescription = isFailed
+    ? doc?.error_message || 'The document could not be processed. Return to Documents to review it or upload another file.'
+    : workspaceStatus === 'pending'
+      ? 'Your document is waiting for the processing worker. This page will unlock automatically when it is ready.'
+      : 'Extracting text, building citations, and indexing the document. This page will unlock automatically when it is ready.'
+
 
   const fileUrlQuery = useQuery({
     queryKey: ['document-file-url', documentId],
@@ -226,7 +245,6 @@ export function AuditAssistantView() {
     }
   }, [selectedSource, nativeSize, renderedSize, page])
 
-  const taskProgress = taskQuery.data?.progress ?? 0
   const allSources = useMemo(
     () => [...turns].reverse().find((t) => t.sources?.length)?.sources ?? [],
     [turns],
@@ -289,19 +307,45 @@ export function AuditAssistantView() {
           </div>
         )}
 
-        <div className="border-b px-3 py-2">
-          <Tabs value={tool} onValueChange={(v) => switchTool(v as Tool)}>
-            <TabsList className="w-full justify-start overflow-x-auto">
-              <TabsTrigger value="ask">Ask</TabsTrigger>
-              <TabsTrigger value="summary" disabled={!isReady}>Summary</TabsTrigger>
-              <TabsTrigger value="quiz" disabled={!isReady}>Quiz</TabsTrigger>
-              <TabsTrigger value="mindmap" disabled={!isReady}>Mind map</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+        {isReady && (
+          <div className="border-b px-3 py-2">
+            <Tabs value={tool} onValueChange={(v) => switchTool(v as Tool)}>
+              <TabsList className="w-full justify-start overflow-x-auto">
+                <TabsTrigger value="ask">Ask</TabsTrigger>
+                <TabsTrigger value="summary">Summary</TabsTrigger>
+                <TabsTrigger value="quiz">Quiz</TabsTrigger>
+                <TabsTrigger value="mindmap">Mind map</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          {tool === 'ask' ? (
+          {!isReady ? (
+            <div className="flex min-h-full items-center justify-center py-10">
+              <Card className="w-full max-w-md text-center">
+                <CardHeader className="items-center">
+                  <div className="mb-1 flex size-11 items-center justify-center rounded-lg border bg-card">
+                    {isFailed ? (
+                      <AlertTriangle className="size-5 text-destructive" />
+                    ) : (
+                      <Loader2 className="size-5 animate-spin text-primary" />
+                    )}
+                  </div>
+                  <CardTitle className="text-base">{processingTitle}</CardTitle>
+                  <CardDescription className="max-w-sm">{processingDescription}</CardDescription>
+                </CardHeader>
+                {!isFailed && (
+                  <CardContent className="space-y-2 pb-6">
+                    <Progress value={taskProgressPercent} className="h-2" />
+                    <p className="text-xs text-muted-foreground">
+                      {workspaceStatus === 'pending' ? 'Waiting for a worker to start' : `${taskProgressPercent}% complete`}
+                    </p>
+                  </CardContent>
+                )}
+              </Card>
+            </div>
+          ) : tool === 'ask' ? (
             <div className="space-y-4">
               {turns.length === 0 && (
                 <div className="py-12 text-center">
