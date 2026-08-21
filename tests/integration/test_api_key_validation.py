@@ -19,6 +19,7 @@ class TestAPIKeyValidation:
             "AIzaSyC_mock_key_for_testing_purposes_123",  # 39 chars
             "AIzaSyC_shorter_key_12345678901234567890",  # 39 chars
             "AIzaSyC-dash-key_underscore-mix-1234567890",  # With dashes/underscores
+            "AQ.Ab0123456789_abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJK",  # Current authorization key
         ]
         
         for key in valid_keys:
@@ -37,7 +38,7 @@ class TestAPIKeyValidation:
         with pytest.raises(ValidationError) as exc_info:
             APIKeyUpdate(api_key="invalid-key-wrong-prefix-12345678901")
         
-        assert "Must start with 'AIza'" in str(exc_info.value)
+        assert "legacy 'AIza'" in str(exc_info.value)
     
     def test_invalid_api_key_too_short(self):
         """Test that short keys are rejected."""

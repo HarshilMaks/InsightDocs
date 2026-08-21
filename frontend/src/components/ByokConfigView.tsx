@@ -24,7 +24,7 @@ import {
   getApiErrorMessage,
 } from '@/lib/api'
 
-const KEY_PATTERN = /^AIza[A-Za-z0-9_-]{31,41}$/
+const KEY_PATTERN = /^(?:AIza[A-Za-z0-9_-]{31,41}|AQ\.[A-Za-z0-9_-]{20,200})$/
 
 export function ByokConfigView() {
   const queryClient = useQueryClient()
@@ -73,7 +73,7 @@ export function ByokConfigView() {
   const handleSave = () => {
     const trimmed = keyInput.trim()
     if (!KEY_PATTERN.test(trimmed)) {
-      setError('Gemini keys start with "AIza" and are 35 to 45 characters long.')
+      setError('Use a Gemini key beginning with "AIza" or a current authorization key beginning with "AQ.".')
       return
     }
     setError(null)
@@ -157,7 +157,7 @@ export function ByokConfigView() {
                   type={showKey ? 'text' : 'password'}
                   value={keyInput}
                   onChange={(e) => setKeyInput(e.target.value)}
-                  placeholder="AIza…"
+                  placeholder="AIza… or AQ.…"
                   autoComplete="off"
                   spellCheck={false}
                   aria-invalid={Boolean(error)}

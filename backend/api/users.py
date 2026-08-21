@@ -25,19 +25,22 @@ class APIKeyUpdate(BaseModel):
         # Remove whitespace
         v = v.strip()
         
-        # Check format: starts with "AIza" and reasonable length
-        if not v.startswith("AIza"):
-            raise ValueError("Invalid Gemini API key format. Must start with 'AIza'")
-        
-        # Gemini keys are typically 39 characters (can vary slightly)
-        if len(v) < 35 or len(v) > 45:
-            raise ValueError(f"Invalid API key length ({len(v)} chars). Expected 35-45 characters")
-        
-        # Check for valid characters (alphanumeric, dash, underscore)
-        if not re.match(r'^[A-Za-z0-9_-]+$', v):
-            raise ValueError("API key contains invalid characters. Only alphanumeric, dash, and underscore allowed")
-        
-        return v
+        # Legacy Gemini API keys use AIza; Google AI Studio now also issues
+        # AQ.-prefixed authorization keys. The live probe below remains the
+        # authority for whether a well-formed key can access Gemini.
+        if v.startswith("AIza"):
+            if len(v) < 35 or len(v) > 45:
+                raise ValueError(f"Invalid API key length ({len(v)} chars). Expected 35-45 characters")
+            if not re.fullmatch(r'[A-Za-z0-9_-]+', v):
+                raise ValueError("API key contains invalid characters. Only alphanumeric, dash, and underscore allowed")
+            return v
+
+        if re.fullmatch(r'AQ\.[A-Za-z0-9_-]{20,200}', v):
+            return v
+
+        raise ValueError(
+            "Invalid Gemini API key format. Use a legacy 'AIza' key or a current 'AQ.' authorization key"
+        )
 
 class BYOKSettings(BaseModel):
     enabled: bool

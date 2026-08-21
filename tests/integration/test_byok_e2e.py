@@ -152,6 +152,31 @@ class TestBYOKEndToEnd:
         assert status["model_status"] == "primary"
         assert status["email"] == "dave@example.com"
 
+    def test_save_current_aq_authorization_key(self, client):
+        token = _register_and_login(client, "aq-key@example.com", "AQ Key User")
+        headers = {"Authorization": f"Bearer {token}"}
+        authorization_key = "AQ.Ab0123456789_abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJK"
+        healthy_status = {
+            "status": "healthy",
+            "model_status": "primary",
+            "message": "Gemini key is valid.",
+            "active_model": "gemini-2.5-flash",
+            "fallback_models": FALLBACK_MODELS,
+            "available_models": ["gemini-2.5-flash"],
+            "checked_at": "2026-08-21T00:00:00",
+        }
+
+        with patch("backend.api.users.probe_gemini_status", return_value=healthy_status) as probe:
+            response = client.put(
+                "/api/v1/users/me/api-key",
+                json={"api_key": authorization_key},
+                headers=headers,
+            )
+
+        assert response.status_code == 200, response.text
+        probe.assert_called_once_with(authorization_key)
+        assert response.json()["byok_enabled"] is True
+
     def test_remove_api_key(self, client):
         token = _register_and_login(client, "frank@example.com", "Frank")
         headers = {"Authorization": f"Bearer {token}"}
