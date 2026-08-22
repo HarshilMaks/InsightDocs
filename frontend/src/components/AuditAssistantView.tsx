@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
@@ -57,6 +57,8 @@ interface ChatTurn {
   sources?: SourceReference[]
   claims?: ClaimVerification[] | null
   evidenceGate?: EvidenceGateSummary | null
+  /** True only for a newly delivered response whose audit persistence was attempted. */
+  auditAttempted?: boolean
 }
 
 function gateStatusLabel(status: EvidenceGateSummary['status']) {
@@ -70,6 +72,20 @@ function gateStatusClass(status: EvidenceGateSummary['status']) {
   if (status === 'passed') return 'border-[color:var(--success)]/30 bg-[color:var(--success)]/5'
   if (status === 'failed') return 'border-destructive/30 bg-destructive/5'
   return 'border-warning/30 bg-warning/5'
+}
+
+function AuditUnavailableCard() {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+      <div>
+        <p className="font-medium">Evidence Gate audit was unavailable</p>
+        <p className="mt-0.5 leading-relaxed text-muted-foreground">
+          The answer is shown, but no review record was created. Inspect the retrieved sources directly before relying on it.
+        </p>
+      </div>
+    </div>
+  )
 }
 
 function EvidenceGateRunCard({ gate, onOpenReview }: { gate: EvidenceGateSummary; onOpenReview: () => void }) {
@@ -105,6 +121,7 @@ export function AuditAssistantView() {
   const { documentId } = useParams<{ documentId: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
 
   const [tool, setTool] = useState<Tool>('ask')
@@ -199,6 +216,16 @@ export function AuditAssistantView() {
     }
   }, [conversationId, documentId])
 
+  // Review detail passes a normalized, owner-scoped source in route state so the
+  // workspace opens the exact cited page and bbox rather than a blank document view.
+  useEffect(() => {
+    const handoff = (location.state as { evidenceSource?: SourceReference } | null)?.evidenceSource
+    if (!handoff || handoff.document_id !== documentId) return
+    setSelectedSource(handoff)
+    if (handoff.page_number) setPage(handoff.page_number)
+    setMobilePane('source')
+  }, [documentId, location.state])
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [turns])
@@ -234,6 +261,7 @@ export function AuditAssistantView() {
           sources: response.sources,
           claims: response.claim_verifications,
           evidenceGate: response.evidence_gate,
+          auditAttempted: true,
         },
       ])
       const first = response.sources[0]
@@ -426,11 +454,15 @@ export function AuditAssistantView() {
                     <CardContent className="space-y-3 p-4">
                       <div className="text-sm leading-relaxed whitespace-pre-wrap">{turn.content}</div>
 
-                      {turn.evidenceGate && (
-                        <EvidenceGateRunCard
-                          gate={turn.evidenceGate}
-                          onOpenReview={() => navigate(`/review/${encodeURIComponent(turn.evidenceGate!.id)}`)}
-                        />
+                      {turn.auditAttempted && (
+                        turn.evidenceGate ? (
+                          <EvidenceGateRunCard
+                            gate={turn.evidenceGate}
+                            onOpenReview={() => navigate(`/review/${encodeURIComponent(turn.evidenceGate!.id)}`)}
+                          />
+                        ) : (
+                          <AuditUnavailableCard />
+                        )
                       )}
 
                       {turn.claims && turn.claims.length > 0 && (
@@ -443,6 +475,9 @@ export function AuditAssistantView() {
                             {turn.claims.map((claim, i) => {
                               const supported = claim.status === 'supported'
                               const unsupported = claim.status === 'unsupported'
+                              const claimSources = claim.supporting_sources
+                                .map((sourceNumber) => turn.sources?.find((source) => source.source_number === sourceNumber))
+                                .filter((source): source is SourceReference => Boolean(source))
                               const Icon = supported ? CheckCircle2 : unsupported ? AlertTriangle : HelpCircle
                               return (
                                 <div
@@ -470,6 +505,21 @@ export function AuditAssistantView() {
                                       {claimLabel(claim.status)}
                                       {claim.reason ? ` · ${claim.reason}` : ''}
                                     </p>
+                                    {claimSources.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 pt-1">
+                                        {claimSources.map((source) => (
+                                          <Button
+                                            key={`${claim.claim}-${source.chunk_id}`}
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-6 px-1.5 text-[10px]"
+                                            onClick={() => selectSource(source)}
+                                          >
+                                            View {source.citation_label}
+                                          </Button>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               )
@@ -564,7 +614,7 @@ export function AuditAssistantView() {
               </Button>
             </div>
             <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Enter to send · Every answer is recorded for evidence review
+              Enter to send · Eligible answers are audited when the Evidence Gate is available
             </p>
           </div>
         )}

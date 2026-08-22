@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDropzone } from 'react-dropzone'
 import { toast } from 'sonner'
 import {
@@ -48,6 +48,8 @@ interface DocumentLibraryViewProps {
   searchQuery: string
   onRequireAuth: () => void
 }
+
+const DOCUMENT_PAGE_SIZE = 100
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -102,14 +104,19 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
   const queryClient = useQueryClient()
   const [pendingDelete, setPendingDelete] = useState<DocumentResponse | null>(null)
 
-  const documentsQuery = useQuery({
+  const documentsQuery = useInfiniteQuery({
     queryKey: ['documents'],
-    queryFn: listDocuments,
+    queryFn: ({ pageParam }) => listDocuments(pageParam, DOCUMENT_PAGE_SIZE),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce((count, page) => count + page.documents.length, 0)
+      return loaded < lastPage.total ? loaded : undefined
+    },
     enabled: isAuthenticated,
     staleTime: 30_000,
     // Poll only while something is still being processed.
     refetchInterval: (query) => {
-      const docs = query.state.data?.documents ?? []
+      const docs = query.state.data?.pages.flatMap((page) => page.documents) ?? []
       return docs.some((d) => d.status === 'pending' || d.status === 'processing') ? 5000 : false
     },
   })
@@ -169,7 +176,7 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
     }
   }, [searchParams, setSearchParams, isAuthenticated, open])
 
-  const documents = documentsQuery.data?.documents ?? []
+  const documents = documentsQuery.data?.pages.flatMap((page) => page.documents) ?? []
   const filtered = searchQuery
     ? documents.filter((d) => d.filename.toLowerCase().includes(searchQuery.toLowerCase()))
     : documents
@@ -209,7 +216,7 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
             <div>
               <p className="font-medium">How the gate works</p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Each new answer is audited in shadow mode against its retained source snapshot. Human decisions remain separate and traceable.
+                Eligible answers are audited in shadow mode against their retained source snapshot. Human decisions remain separate and traceable.
               </p>
             </div>
             <div className="space-y-1.5 border-t pt-3 text-xs text-muted-foreground">
@@ -300,8 +307,9 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
           </CardHeader>
         </Card>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <Table>
+        <>
+          <div className="overflow-hidden rounded-lg border">
+            <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>Name</TableHead>
@@ -355,8 +363,22 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
                 )
               })}
             </TableBody>
-          </Table>
-        </div>
+            </Table>
+          </div>
+          {documentsQuery.hasNextPage && (
+            <div className="flex justify-center pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={documentsQuery.isFetchingNextPage}
+                onClick={() => void documentsQuery.fetchNextPage()}
+              >
+                {documentsQuery.isFetchingNextPage ? <Loader2 className="size-4 animate-spin" /> : null}
+                Load more documents
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Delete confirmation */}

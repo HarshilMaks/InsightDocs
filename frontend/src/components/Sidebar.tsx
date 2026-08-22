@@ -63,7 +63,7 @@ export function AppSidebar({ onRequireAuth }: AppSidebarProps) {
   // cache instead of issuing a second request.
   const documentsQuery = useQuery({
     queryKey: ['documents'],
-    queryFn: listDocuments,
+    queryFn: () => listDocuments(),
     enabled: isAuthenticated,
     staleTime: 30_000,
   })

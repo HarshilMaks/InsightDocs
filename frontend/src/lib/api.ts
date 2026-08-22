@@ -125,8 +125,11 @@ export interface DocumentResponse {
   error_message?: string | null
 }
 
-export async function listDocuments(): Promise<{ documents: DocumentResponse[]; total: number }> {
-  const { data } = await api.get('/documents/')
+export async function listDocuments(
+  skip = 0,
+  limit = 100,
+): Promise<{ documents: DocumentResponse[]; total: number }> {
+  const { data } = await api.get('/documents/', { params: { skip, limit } })
   return data
 }
 
@@ -241,7 +244,7 @@ export async function sendQuery(payload: {
   return data
 }
 
-export async function getQueryHistory(conversationId?: string | null): Promise<{ queries: Array<{
+export interface QueryHistoryItem {
   id: string
   conversation_id?: string | null
   turn_index?: number | null
@@ -249,8 +252,19 @@ export async function getQueryHistory(conversationId?: string | null): Promise<{
   response?: string | null
   response_time?: number | null
   created_at: string
-}>; total: number }> {
-  const params: Record<string, string> = {}
+}
+
+export interface QueryHistoryResponse {
+  queries: QueryHistoryItem[]
+  total: number
+}
+
+export async function getQueryHistory(
+  conversationId?: string | null,
+  skip = 0,
+  limit = 100,
+): Promise<QueryHistoryResponse> {
+  const params: Record<string, string | number> = { skip, limit }
   if (conversationId) params.conversation_id = conversationId
   const { data } = await api.get('/query/history', { params })
   return data

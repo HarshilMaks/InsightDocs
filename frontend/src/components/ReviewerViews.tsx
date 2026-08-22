@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertCircle,
@@ -21,7 +21,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { getApiErrorMessage } from '@/lib/api'
+import { getApiErrorMessage, type SourceReference } from '@/lib/api'
 import {
   createReviewDecision,
   getReviewDetail,
@@ -34,6 +34,7 @@ import {
 } from '@/lib/reviewer-api'
 
 const reviewStatuses: ReviewStatus[] = ['pending', 'accepted', 'rejected']
+const REVIEW_PAGE_SIZE = 50
 
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (status === 'accepted' || status === 'supported') return 'default'
@@ -66,11 +67,16 @@ function QueueError({ error, onRetry }: { error: unknown; onRetry: () => void })
 
 export function ReviewerQueueView() {
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus>('pending')
-  const queueQuery = useQuery({
+  const queueQuery = useInfiniteQuery({
     queryKey: ['review-queue', reviewStatus],
-    queryFn: () => getReviewQueue(reviewStatus),
+    queryFn: ({ pageParam }) => getReviewQueue(reviewStatus, pageParam, REVIEW_PAGE_SIZE),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce((count, page) => count + page.items.length, 0)
+      return loaded < lastPage.total ? loaded : undefined
+    },
   })
-  const items = queueQuery.data?.items ?? []
+  const items = queueQuery.data?.pages.flatMap((page) => page.items) ?? []
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 p-4 md:p-6">
@@ -135,6 +141,20 @@ export function ReviewerQueueView() {
           ))}
         </div>
       )}
+
+      {queueQuery.hasNextPage && !queueQuery.isLoading && !queueQuery.isError && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={queueQuery.isFetchingNextPage}
+            onClick={() => void queueQuery.fetchNextPage()}
+          >
+            {queueQuery.isFetchingNextPage ? <Loader2 className="size-4 animate-spin" /> : null}
+            Load more reviews
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -163,9 +183,29 @@ function SourceCard({ source }: { source: ReviewSource }) {
           <div className="sm:col-span-2"><dt className="inline font-medium text-foreground">Page / bbox: </dt><dd className="inline font-mono">{source.page_number ?? '—'}{bbox ? ` · (${bbox.x1}, ${bbox.y1})–(${bbox.x2}, ${bbox.y2})${bbox.page_number ? ` page ${bbox.page_number}` : ''}` : ' · no bounding box'}</dd></div>
         </dl>
         {canOpenDocument && (
-          <Button variant="outline" size="sm" onClick={() => navigate(`/documents/${encodeURIComponent(source.document_id!)}`)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const evidenceSource: SourceReference = {
+                source_number: source.source_number,
+                document_id: source.document_id!,
+                document_name: source.document_name,
+                chunk_id: source.chunk_id,
+                chunk_index: source.chunk_index,
+                page_number: source.page_number,
+                bbox: source.bbox,
+                section_title: source.section_title,
+                chunk_type: source.chunk_type,
+                content_preview: source.content,
+                similarity_score: source.similarity_score,
+                citation_label: source.citation_label,
+              }
+              navigate(`/documents/${encodeURIComponent(source.document_id!)}`, { state: { evidenceSource } })
+            }}
+          >
             <ExternalLink className="size-3.5" />
-            Open document
+            Open cited evidence
           </Button>
         )}
       </div>

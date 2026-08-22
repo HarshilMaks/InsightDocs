@@ -1,13 +1,23 @@
-import { useQuery } from '@tanstack/react-query'
-import { MessageSquareText, AlertCircle } from 'lucide-react'
+import { useInfiniteQuery } from '@tanstack/react-query'
+import { MessageSquareText, AlertCircle, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { getQueryHistory, getApiErrorMessage } from '@/lib/api'
 
+const HISTORY_PAGE_SIZE = 100
+
 export function ChatHistoryView() {
-  const historyQuery = useQuery({ queryKey: ['query-history'], queryFn: () => getQueryHistory() })
-  const queries = historyQuery.data?.queries ?? []
+  const historyQuery = useInfiniteQuery({
+    queryKey: ['query-history'],
+    queryFn: ({ pageParam }) => getQueryHistory(undefined, pageParam, HISTORY_PAGE_SIZE),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce((count, page) => count + page.queries.length, 0)
+      return loaded < lastPage.total ? loaded : undefined
+    },
+  })
+  const queries = historyQuery.data?.pages.flatMap((page) => page.queries) ?? []
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 p-4 md:p-6">
@@ -70,6 +80,20 @@ export function ChatHistoryView() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {historyQuery.hasNextPage && !historyQuery.isLoading && !historyQuery.isError && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={historyQuery.isFetchingNextPage}
+            onClick={() => void historyQuery.fetchNextPage()}
+          >
+            {historyQuery.isFetchingNextPage ? <Loader2 className="size-4 animate-spin" /> : null}
+            Load more history
+          </Button>
         </div>
       )}
     </div>

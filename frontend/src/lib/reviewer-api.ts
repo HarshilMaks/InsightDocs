@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { API_BASE_URL, getAuthToken } from './api'
+import { API_BASE_URL, AUTH_SESSION_EXPIRED_EVENT, clearStoredAuth, getAuthToken } from './api'
 
 const reviewerApi = axios.create({
   baseURL: API_BASE_URL,
@@ -11,6 +11,21 @@ reviewerApi.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
+
+reviewerApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      const headers = error.config?.headers
+      const authorization = headers?.Authorization ?? headers?.authorization
+      if (authorization) {
+        clearStoredAuth()
+        window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT))
+      }
+    }
+    return Promise.reject(error)
+  },
+)
 
 export type ReviewStatus = 'pending' | 'accepted' | 'rejected'
 export type ReviewDecision = Exclude<ReviewStatus, 'pending'>
@@ -101,9 +116,11 @@ export interface CreateReviewDecisionPayload {
 
 export async function getReviewQueue(
   reviewStatus: ReviewStatus = 'pending',
+  skip = 0,
+  limit = 50,
 ): Promise<ReviewQueueResponse> {
   const { data } = await reviewerApi.get('/evidence-gate/reviews', {
-    params: { review_status: reviewStatus },
+    params: { review_status: reviewStatus, skip, limit },
   })
   return data
 }
