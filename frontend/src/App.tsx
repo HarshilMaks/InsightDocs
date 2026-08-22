@@ -21,6 +21,12 @@ const ByokConfigView = lazy(() =>
 const ChatHistoryView = lazy(() =>
   import('./components/ChatHistoryView').then((m) => ({ default: m.ChatHistoryView })),
 )
+const ReviewerQueueView = lazy(() =>
+  import('./components/ReviewerViews').then((m) => ({ default: m.ReviewerQueueView })),
+)
+const ReviewerDetailView = lazy(() =>
+  import('./components/ReviewerViews').then((m) => ({ default: m.ReviewerDetailView })),
+)
 const SettingsView = lazy(() =>
   import('./components/SettingsView').then((m) => ({ default: m.SettingsView })),
 )
@@ -89,6 +95,22 @@ export default function App() {
                   element={guarded(
                     <Scrollable>
                       <ChatHistoryView />
+                    </Scrollable>,
+                  )}
+                />
+                <Route
+                  path="/review"
+                  element={guarded(
+                    <Scrollable>
+                      <ReviewerQueueView />
+                    </Scrollable>,
+                  )}
+                />
+                <Route
+                  path="/review/:runId"
+                  element={guarded(
+                    <Scrollable>
+                      <ReviewerDetailView />
                     </Scrollable>,
                   )}
                 />

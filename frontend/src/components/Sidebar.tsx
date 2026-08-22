@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   FileText,
   History,
+  ClipboardCheck,
   KeyRound,
   Settings,
   HelpCircle,
@@ -37,6 +38,7 @@ interface AppSidebarProps {
 const navItems = [
   { label: 'Documents', to: '/', icon: FileText, requiresAuth: false },
   { label: 'History', to: '/history', icon: History, requiresAuth: true },
+  { label: 'Reviews', to: '/review', icon: ClipboardCheck, requiresAuth: true },
   { label: 'API key', to: '/byok', icon: KeyRound, requiresAuth: true },
   { label: 'Settings', to: '/settings', icon: Settings, requiresAuth: true },
 ]
@@ -67,8 +69,11 @@ export function AppSidebar({ onRequireAuth }: AppSidebarProps) {
   })
   const documentsCount = documentsQuery.data?.documents.length ?? 0
 
-  const isActive = (to: string) =>
-    to === '/' ? location.pathname === '/' || location.pathname.startsWith('/documents/') : location.pathname === to
+  const isActive = (to: string) => {
+    if (to === '/') return location.pathname === '/' || location.pathname.startsWith('/documents/')
+    if (to === '/review') return location.pathname === '/review' || location.pathname.startsWith('/review/')
+    return location.pathname === to
+  }
 
   const go = (to: string, requiresAuth: boolean) => {
     if (requiresAuth && !isAuthenticated) {

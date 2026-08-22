@@ -27,6 +27,7 @@ interface TopBarProps {
 const titles: Record<string, string> = {
   '/': 'Documents',
   '/history': 'History',
+  '/review': 'Evidence reviews',
   '/byok': 'API key',
   '/settings': 'Settings',
   '/help': 'Help',
@@ -57,7 +58,9 @@ export function TopBar({ searchQuery, onSearchChange, onRequireAuth }: TopBarPro
 
   const title = location.pathname.startsWith('/documents/')
     ? 'Workspace'
-    : titles[location.pathname] ?? 'InsightDocs'
+    : location.pathname.startsWith('/review/')
+      ? 'Evidence review'
+      : titles[location.pathname] ?? 'InsightDocs'
 
   const byok = byokQuery.data
   const byokActive = Boolean(byok?.byok_enabled && byok?.has_api_key)
