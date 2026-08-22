@@ -176,3 +176,20 @@ The `vercel.json` in `frontend/` handles SPA routing and security headers automa
 - The Celery worker uses `--concurrency=2` by default — increase for higher throughput if your plan allows more CPU/RAM.
 - Object storage presigned URLs are served directly to the browser for PDF viewing — ensure your S3 endpoint is publicly reachable (not behind a VPN).
 - Structured JSON logs are emitted in production (`APP_ENV=production`) for log ingestion services.
+
+
+## Evidence Gate deployment note
+
+Evidence Gate review state is stored in PostgreSQL. Before rolling out a release that
+contains it, take the normal database backup/snapshot and run migrations once against
+the target database:
+
+```bash
+alembic upgrade head
+alembic current
+```
+
+Confirm that the current revision is `b6f2d9e4a8c1` or a later revision. Then verify a
+query still succeeds and, for an owner with an audit run, confirm `/review` can load the
+queue/detail and handle a stale review decision with a visible conflict rather than an
+overwrite. Do not expose the review endpoints to unauthenticated callers.

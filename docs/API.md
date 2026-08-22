@@ -400,3 +400,53 @@ All errors return JSON in this format:
 
 **Supported file types:** .txt, .pdf, .docx, .pptx
 **Maximum file size:** 50MB
+
+
+## Evidence Gate Reviews
+
+The following endpoints require authentication and are owner-scoped. A caller cannot
+read or decide another user's review item; cross-tenant identifiers return `404`.
+
+### GET /api/v1/evidence-gate/reviews
+
+List reviewable Evidence Gate runs. Query parameters:
+
+```text
+review_status=pending|accepted|rejected  (default: pending)
+skip=0
+limit=50  (maximum: 100)
+```
+
+Each queue item contains its run ID, query ID/text, automated run status, claim counts,
+current review status/version, and creation timestamp.
+
+### GET /api/v1/evidence-gate/reviews/{run_id}
+
+Return the owner-scoped review detail: question, delivered response, automated audit
+status, claim verdicts, source snapshot metadata, and append-only decision history.
+Source items are re-filtered through current document ownership before being returned;
+deleted or no-longer-owned source documents are omitted.
+
+### POST /api/v1/evidence-gate/reviews/{run_id}/decisions
+
+Append a human decision using optimistic concurrency.
+
+```json
+{
+  "decision": "accepted",
+  "expected_version": 0,
+  "note": "Evidence confirmed against page 2."
+}
+```
+
+`decision` is `accepted` or `rejected`; `note` is optional. A successful decision
+advances the review version and appends an immutable event. If another decision has
+already advanced the version, the endpoint returns `409`; refetch the detail and retry
+with its current `review_version`.
+
+## Evidence Gate Query Metadata
+
+`POST /api/v1/query/` retains its existing request/response fields and may include an
+optional `evidence_gate` summary. The summary reports a shadow audit run and does not
+block the answer. If audit persistence is unavailable, the query still succeeds and
+`evidence_gate` is `null`; no successful audit is fabricated.

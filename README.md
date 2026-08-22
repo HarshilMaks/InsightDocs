@@ -161,3 +161,30 @@ pytest tests/
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
+
+
+## Evidence Gate and Review Queue
+
+InsightDocs now includes an additive **Evidence Gate** for document-grounded answers. In
+its current **shadow mode**, every eligible query can create an immutable audit record
+that binds the generated candidate, delivered answer, policy version, and source
+snapshot by hash. It classifies the run as `passed`, `failed`, `degraded`, or
+`abstained` without blocking a user answer.
+
+The protected **Reviews** area gives a document owner a queue of audit runs, claim-level
+support status, the retained source quote/page/bbox metadata, and an append-only
+accepted/rejected review decision history. Review decisions use optimistic concurrency:
+a stale decision is rejected rather than silently overwriting another review.
+
+This is not a claim that a citation is universally true. It means the claim was or was
+not supported by the selected, inspectable source evidence. The review queue is a human
+verification workflow, not an automated truth guarantee.
+
+Before using this capability against any database, apply the two forward migrations:
+
+```bash
+alembic upgrade head
+```
+
+The Evidence Gate starts in shadow mode only. It does not replace the existing Document
+Workspace, query request contract, or source viewer.
