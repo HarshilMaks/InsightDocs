@@ -69,7 +69,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["gate_run_id"],
             ["evidence_gate_runs.id"],
-            name="fk_evidence_gate_review_decisions_gate_run_id_evidence_gate_runs",
+            name="fk_eg_review_decisions_run",
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
