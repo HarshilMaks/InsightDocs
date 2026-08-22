@@ -3,7 +3,7 @@ Pydantic schemas for API requests and responses.
 (Merged from InsightOps and Insight projects)
 """
 from pydantic import BaseModel, Field, EmailStr
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 
 # Import the Enum from your single source of truth: the database models
@@ -231,3 +231,85 @@ class HealthResponse(BaseSchema):
     status: str
     version: str
     components: Dict[str, str]
+
+
+# ---------------------------------------------------------
+# Evidence Gate reviewer schemas
+# ---------------------------------------------------------
+
+class EvidenceGateReviewQueueItem(BaseSchema):
+    id: str
+    query_id: str
+    query_text: str
+    status: str
+    claim_count: int
+    unsupported_count: int
+    unverified_count: int
+    review_status: str
+    review_version: int
+    created_at: datetime
+
+
+class EvidenceGateReviewQueueResponse(BaseSchema):
+    items: List[EvidenceGateReviewQueueItem]
+    total: int
+
+
+class EvidenceGateReviewSource(BaseSchema):
+    """A source reconstructed only from the persisted query snapshot."""
+
+    source_number: int
+    document_id: str
+    document_name: str
+    chunk_id: str
+    chunk_index: int
+    page_number: Optional[int] = None
+    bbox: Optional[BoundingBox] = None
+    section_title: Optional[str] = None
+    chunk_type: str = "text"
+    content: str
+    similarity_score: float
+    citation_label: str
+
+
+class EvidenceGateReviewClaim(BaseSchema):
+    id: str
+    ordinal: int
+    claim_text: str
+    verdict: str
+    reason: Optional[str] = None
+    supporting_source_numbers: List[int]
+    sources: List[EvidenceGateReviewSource] = Field(default_factory=list)
+
+
+class EvidenceGateReviewDecisionRequest(BaseSchema):
+    decision: Literal["accepted", "rejected"]
+    expected_version: int = Field(..., ge=0)
+    note: Optional[str] = Field(None, max_length=2000)
+
+
+class EvidenceGateReviewDecisionEvent(BaseSchema):
+    id: str
+    reviewer_id: Optional[str] = None
+    decision: str
+    note: Optional[str] = None
+    expected_version: int
+    result_version: int
+    created_at: datetime
+
+
+class EvidenceGateReviewDetail(BaseSchema):
+    id: str
+    query_id: str
+    query_text: str
+    response_text: Optional[str] = None
+    policy_version: str
+    mode: str
+    status: str
+    action: Optional[str] = None
+    review_status: str
+    review_version: int
+    reviewed_at: Optional[datetime] = None
+    created_at: datetime
+    claims: List[EvidenceGateReviewClaim]
+    decision_history: List[EvidenceGateReviewDecisionEvent]
