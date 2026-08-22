@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    Column, String, Integer, Boolean, DateTime, Text,
-    ForeignKey, Float, JSON, Index, Enum as SQLEnum
+    CheckConstraint, Column, String, Integer, Boolean, DateTime, Text,
+    ForeignKey, Float, JSON, Index, Enum as SQLEnum, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from .database import Base  # Use the Base from your project's database.py
@@ -204,6 +204,9 @@ class Query(Base, TimestampMixin):
     # Relationships
     user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     user = relationship("User", back_populates="queries")
+    evidence_gate_runs = relationship(
+        "EvidenceGateRun", back_populates="query", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_queries_user_created", "user_id", "created_at"),
@@ -212,3 +215,95 @@ class Query(Base, TimestampMixin):
 
     def __repr__(self):
         return f"<Query(id='{self.id}', user_id='{self.user_id}')>"
+
+
+class EvidenceGateRun(Base, TimestampMixin):
+    """Immutable, query-bound audit result for one versioned evidence policy run."""
+    __tablename__ = "evidence_gate_runs"
+
+    id = Column(String, primary_key=True, default=_generate_uuid)
+    query_id = Column(String, ForeignKey("queries.id", ondelete="CASCADE"), nullable=False)
+    # Denormalized tenant metadata aids auditing/indexing; authorization must still
+    # join through Query ownership so this field is never an authorization shortcut.
+    user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    attempt = Column(Integer, nullable=False, default=1)
+    policy_version = Column(String(64), nullable=False)
+    mode = Column(String(16), nullable=False, default="shadow")
+    status = Column(String(16), nullable=False)
+    action = Column(String(16), nullable=True)
+    candidate_answer_sha256 = Column(String(64), nullable=False)
+    delivered_answer_sha256 = Column(String(64), nullable=False)
+    source_snapshot_sha256 = Column(String(64), nullable=False)
+    verifier_model = Column(String(100), nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    claim_count = Column(Integer, nullable=False, default=0)
+    supported_count = Column(Integer, nullable=False, default=0)
+    unsupported_count = Column(Integer, nullable=False, default=0)
+    unverified_count = Column(Integer, nullable=False, default=0)
+    error_code = Column(String(64), nullable=True)
+    error_detail = Column(Text, nullable=True)
+
+    query = relationship("Query", back_populates="evidence_gate_runs")
+    claims = relationship(
+        "EvidenceGateClaim", back_populates="gate_run", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "query_id", "policy_version", "attempt",
+            name="uq_evidence_gate_runs_query_policy_attempt",
+        ),
+        CheckConstraint(
+            "mode IN ('shadow', 'annotate', 'enforce')",
+            name="ck_evidence_gate_runs_mode",
+        ),
+        CheckConstraint(
+            "status IN ('passed', 'failed', 'degraded', 'abstained')",
+            name="ck_evidence_gate_runs_status",
+        ),
+        CheckConstraint(
+            "action IS NULL OR action IN ('allow', 'annotate', 'abstain')",
+            name="ck_evidence_gate_runs_action",
+        ),
+        Index("ix_evidence_gate_runs_user_created", "user_id", "created_at"),
+        Index("ix_evidence_gate_runs_query_created", "query_id", "created_at"),
+    )
+
+    def __repr__(self):
+        return (
+            f"<EvidenceGateRun(id='{self.id}', query_id='{self.query_id}', "
+            f"status='{self.status}')>"
+        )
+
+
+class EvidenceGateClaim(Base, TimestampMixin):
+    """A claim-level assessment that references an immutable query source snapshot."""
+    __tablename__ = "evidence_gate_claims"
+
+    id = Column(String, primary_key=True, default=_generate_uuid)
+    gate_run_id = Column(
+        String, ForeignKey("evidence_gate_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    ordinal = Column(Integer, nullable=False)
+    claim_text = Column(Text, nullable=False)
+    claim_sha256 = Column(String(64), nullable=False)
+    verdict = Column(String(16), nullable=False)
+    reason = Column(Text, nullable=True)
+    supporting_source_numbers = Column(JSON, nullable=False, default=list)
+
+    gate_run = relationship("EvidenceGateRun", back_populates="claims")
+
+    __table_args__ = (
+        UniqueConstraint("gate_run_id", "ordinal", name="uq_evidence_gate_claims_run_ordinal"),
+        CheckConstraint(
+            "verdict IN ('supported', 'unsupported', 'unverified')",
+            name="ck_evidence_gate_claims_verdict",
+        ),
+        Index("ix_evidence_gate_claims_run_verdict", "gate_run_id", "verdict"),
+    )
+
+    def __repr__(self):
+        return (
+            f"<EvidenceGateClaim(id='{self.id}', gate_run_id='{self.gate_run_id}', "
+            f"ordinal={self.ordinal})>"
+        )

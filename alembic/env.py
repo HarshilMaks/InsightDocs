@@ -12,7 +12,15 @@ load_dotenv()
 
 # Import Base and models for autogenerate support
 from backend.models.database import Base
-from backend.models.schemas import User, Document, DocumentChunk, Task, Query
+from backend.models.schemas import (
+    Document,
+    DocumentChunk,
+    EvidenceGateClaim,
+    EvidenceGateRun,
+    Query,
+    Task,
+    User,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
