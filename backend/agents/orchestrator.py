@@ -212,7 +212,7 @@ class OrchestratorAgent(BaseAgent):
                     section_title=fields["section_title"],
                     chunk_type=fields["chunk_type"] or "text",
                     parent_chunk_id=None,
-                    embedding_model=app_settings.embedding_model_name,
+                    embedding_model=("sparse-hash-v1" if app_settings.embedding_mode == "sparse" else app_settings.embedding_model_name),
                     embedding_dimension=768,
                 )
                 db.add(chunk)
@@ -240,7 +240,7 @@ class OrchestratorAgent(BaseAgent):
                     section_title=fields["section_title"],
                     chunk_type=fields["chunk_type"] or "text",
                     parent_chunk_id=parent_db_id,
-                    embedding_model=app_settings.embedding_model_name,
+                    embedding_model=("sparse-hash-v1" if app_settings.embedding_mode == "sparse" else app_settings.embedding_model_name),
                     embedding_dimension=768,
                 )
                 db.add(chunk)
@@ -523,8 +523,10 @@ class OrchestratorAgent(BaseAgent):
 
             self.log_event("query_start", {"query": query_text, "user_id": user_id, "document_id": scoped_document_id})
             
-            # Step 1: Hybrid Vector Search (Dense + Sparse) with user filter
+            # Step 1: tenant-filtered vector search. Sparse mode uses the
+            # dependency-free hashed sparse index; hybrid keeps dense+sparse.
             from backend.utils.embeddings import get_embedding_engine
+            from backend.config import settings as app_settings
             embedding_engine = get_embedding_engine()
             search_top_k = max(top_k * 4, 20)
             search_results = await embedding_engine.search(
@@ -534,10 +536,15 @@ class OrchestratorAgent(BaseAgent):
                 document_id=scoped_document_id,
             )
             
-            # Step 2: Rerank top candidates
-            from backend.utils.reranker import get_reranker
-            reranker = get_reranker()
-            reranked_results = reranker.rerank(query_text, search_results, top_n=top_k)
+            # Step 2: Cross-encoder reranking is another local
+            # SentenceTransformers model. It is intentionally disabled for the
+            # 512 MB sparse-only deployment; preserve Milvus sparse ranking.
+            if app_settings.embedding_mode == "sparse":
+                reranked_results = search_results[:top_k]
+            else:
+                from backend.utils.reranker import get_reranker
+                reranker = get_reranker()
+                reranked_results = reranker.rerank(query_text, search_results, top_n=top_k)
             
             # Step 3: Generate answer using RAG
             conversation_history = self._build_conversation_history(db, user_id, conversation_id, history_limit)

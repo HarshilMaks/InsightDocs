@@ -3,7 +3,7 @@ Configuration management for InsightDocs.
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
-from typing import List
+from typing import List, Literal
 
 class Settings(BaseSettings):
     # Application
@@ -49,7 +49,9 @@ class Settings(BaseSettings):
     milvus_collection: str = Field("insightdocscollection")
     milvus_dim: int = Field(768)  # Updated to match bge-base-en-v1.5 (768-dim)
     
-    # Embeddings
+    # Embeddings. Sparse mode is intended for constrained deployments and
+    # intentionally avoids local model loading (SentenceTransformers/BGEM3).
+    embedding_mode: Literal["hybrid", "sparse"] = Field("hybrid")
     vector_dimension: int = Field(384)
     embedding_model_name: str = Field("BAAI/bge-base-en-v1.5")
     legacy_embedding_model: str = Field("all-MiniLM-L6-v2")  # For backward compatibility

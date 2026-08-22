@@ -29,7 +29,7 @@ try:
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
-    logger.warning("sentence-transformers not available. Embeddings will be disabled.")
+    logger.warning("sentence-transformers unavailable; hybrid dense embeddings are disabled, but sparse mode remains available.")
 
 
 class EmbeddingEngine:
@@ -46,23 +46,30 @@ class EmbeddingEngine:
         
         # Default to the newer dense model, but we may swap to the legacy
         # model if the existing Milvus collection still uses the old schema.
+        # Sparse mode deliberately never initializes a local model; zero-value
+        # dense placeholders are retained only because the existing Milvus schema
+        # has a non-null dense_vector field.
+        self.dense_enabled = settings.embedding_mode == "hybrid"
         self.dense_model_name = settings.embedding_model_name
         self.dense_model = None  # Defer loading until needed
         self.dimension = settings.milvus_dim
         self._token_pattern = re.compile(r"[A-Za-z0-9]+")
         self._fallback_sparse_dim = 2**18
         
-        # Sparse model (BM25 for keyword search)
-        # Using BGEM3EmbeddingFunction as a wrapper or similar if available,
-        # but for simplicity/control we'll use a standard BM25 approach or milvus-model
-        try:
-            from milvus_model.hybrid import BGEM3EmbeddingFunction
-            self.sparse_model = BGEM3EmbeddingFunction(use_fp16=False, device="cpu")
-            self.has_sparse = True
-        except Exception as e:
-            logger.warning(f"BGEM3 sparse model unavailable; using hashed sparse fallback: {e}")
-            self.sparse_model = None
-            self.has_sparse = False
+        # Sparse-only mode must not load BGEM3 either: it is another model
+        # with a significant memory footprint. The deterministic hashed fallback
+        # is dependency-free and compatible with Milvus sparse-vector search.
+        self.sparse_model = None
+        self.has_sparse = False
+        if self.dense_enabled:
+            try:
+                from milvus_model.hybrid import BGEM3EmbeddingFunction
+                self.sparse_model = BGEM3EmbeddingFunction(use_fp16=False, device="cpu")
+                self.has_sparse = True
+            except Exception as e:
+                logger.warning(f"BGEM3 sparse model unavailable; using hashed sparse fallback: {e}")
+        else:
+            logger.info("Sparse-only embedding mode enabled; local dense and BGEM3 models are disabled.")
             
         self.collection = None  # Initialize before connect attempt
         self._connect_milvus()
@@ -73,9 +80,9 @@ class EmbeddingEngine:
         self._configure_dense_model_for_collection()
 
     def _ensure_dense_model_loaded(self):
-        """Lazy load dense model on first use."""
-        if self.dense_model is not None:
-            return  # Already loaded
+        """Lazy load dense model on first use when hybrid retrieval is enabled."""
+        if not self.dense_enabled or self.dense_model is not None:
+            return
         
         logger.info(f"Lazy-loading dense embedding model: {self.dense_model_name}")
         self.dense_model = self._load_dense_model(self.dense_model_name)
@@ -114,6 +121,14 @@ class EmbeddingEngine:
         heavyweight model only at the first embedding/search operation.
         """
         collection_dim = self._get_collection_dense_dim()
+        if not self.dense_enabled:
+            # Existing hybrid collections retain this field, so preserve its
+            # actual dimension for zero placeholders without selecting/loading a
+            # local encoder or rejecting a legacy collection.
+            if collection_dim is not None:
+                self.dimension = collection_dim
+            return
+
         if collection_dim is None:
             self.dimension = settings.milvus_dim
             self.dense_model_name = settings.embedding_model_name
@@ -240,14 +255,15 @@ class EmbeddingEngine:
             if not texts:
                 return {"dense": [], "sparse": []}
             
-            # Lazy load dense model on first use
-            if self.dense_model is None:
+            if self.dense_enabled:
                 self._ensure_dense_model_loaded()
+                dense_embeddings = self.dense_model.encode(texts, convert_to_numpy=True)
+                dense_list = dense_embeddings.tolist()
+            else:
+                # Milvus's established schema requires dense_vector on inserts.
+                # These placeholders are never searched in sparse-only mode.
+                dense_list = [[0.0] * self.dimension for _ in texts]
 
-            # Generate dense embeddings
-            dense_embeddings = self.dense_model.encode(texts, convert_to_numpy=True)
-            dense_list = dense_embeddings.tolist()
-            
             # Generate sparse embeddings
             sparse_list = []
             if self.has_sparse:
@@ -269,7 +285,11 @@ class EmbeddingEngine:
                 # even when milvus-model's BGEM3 helper cannot be initialized.
                 sparse_list = self._fallback_sparse_encode(texts)
 
-            logger.info(f"Generated {len(dense_list)} hybrid embeddings")
+            logger.info(
+                "Generated %s %s embeddings",
+                len(dense_list),
+                "hybrid" if self.dense_enabled else "sparse-only",
+            )
             return {
                 "dense": dense_list,
                 "sparse": sparse_list
@@ -380,23 +400,10 @@ class EmbeddingEngine:
             raise RuntimeError("Milvus connection not available")
             
         try:
-            # Generate query embeddings (dense + sparse when available)
             query_embeds = await self.embed_texts([query_text])
-            dense_query = query_embeds['dense'][0]
-            
-            # Create AnnSearchRequests
-            from pymilvus import AnnSearchRequest, WeightedRanker
-            
-            # Dense search request
-            dense_req_kwargs = {
-                "data": [dense_query],
-                "anns_field": "dense_vector",
-                "param": {"metric_type": "COSINE", "params": {"nprobe": 10}},
-                "limit": top_k * 3,  # Fetch more candidates for filtering
-            }
 
-            # Build filter expression for user isolation, optionally scoped
-            # to a single document (e.g. the document workspace view).
+            # Build filter expression for tenant isolation, optionally scoped
+            # to a single document (e.g. when querying from a workspace view).
             expr_clauses = []
             if user_id:
                 expr_clauses.append(f'user_id == "{user_id}"')
@@ -405,50 +412,61 @@ class EmbeddingEngine:
             expr = " and ".join(expr_clauses) if expr_clauses else None
 
             sparse_query_set = query_embeds.get('sparse')
-            if sparse_query_set is not None:
-                sparse_query = query_embeds['sparse'][0]
+            sparse_query = sparse_query_set[0] if sparse_query_set else None
+            sparse_params = {"metric_type": "IP", "params": {"drop_ratio_search": 0.2}}
 
-                # Sparse search request
-                sparse_req_kwargs = {
-                    "data": [sparse_query],
-                    "anns_field": "sparse_vector",
-                    "param": {"metric_type": "IP", "params": {"drop_ratio_search": 0.2}},
-                    "limit": top_k * 3,  # Fetch more candidates for filtering
-                }
-
-                if expr is not None:
-                    dense_req_kwargs["expr"] = expr
-                    sparse_req_kwargs["expr"] = expr
-
-                dense_req = AnnSearchRequest(**dense_req_kwargs)
-                sparse_req = AnnSearchRequest(**sparse_req_kwargs)
-
-                # Perform Hybrid Search
-                # Rerank with WeightedRanker (0.7 dense + 0.3 sparse is a good starting point)
-                ranker = WeightedRanker(0.7, 0.3)
-
-                search_results = self.collection.hybrid_search(
-                    reqs=[dense_req, sparse_req],
-                    rerank=ranker,
-                    limit=top_k,
-                    output_fields=["text", "document_id", "user_id"],
-                )
-            else:
-                # Dense-only fallback only happens when no sparse representation was
-                # produced at all.
-                if expr is not None:
-                    dense_req_kwargs["expr"] = expr
-
-                dense_req = AnnSearchRequest(**dense_req_kwargs)
-
+            if not self.dense_enabled:
+                if not sparse_query:
+                    raise ValueError("Query does not contain searchable sparse terms")
+                # Never create a dense request in low-memory mode: the stored
+                # dense values are schema placeholders, not semantic vectors.
                 search_results = self.collection.search(
-                    data=[dense_query],
-                    anns_field="dense_vector",
-                    param={"metric_type": "COSINE", "params": {"nprobe": 10}},
+                    data=[sparse_query],
+                    anns_field="sparse_vector",
+                    param=sparse_params,
                     limit=top_k,
                     output_fields=["text", "document_id", "user_id"],
                     expr=expr,
                 )
+            else:
+                dense_query = query_embeds['dense'][0]
+                dense_params = {"metric_type": "COSINE", "params": {"nprobe": 10}}
+                if not sparse_query:
+                    # Preserve the original hybrid-mode dense fallback when a
+                    # query has no sparse terms (for example, punctuation only).
+                    search_results = self.collection.search(
+                        data=[dense_query],
+                        anns_field="dense_vector",
+                        param=dense_params,
+                        limit=top_k,
+                        output_fields=["text", "document_id", "user_id"],
+                        expr=expr,
+                    )
+                else:
+                    from pymilvus import AnnSearchRequest, WeightedRanker
+
+                    dense_req_kwargs = {
+                        "data": [dense_query],
+                        "anns_field": "dense_vector",
+                        "param": dense_params,
+                        "limit": top_k * 3,
+                    }
+                    sparse_req_kwargs = {
+                        "data": [sparse_query],
+                        "anns_field": "sparse_vector",
+                        "param": sparse_params,
+                        "limit": top_k * 3,
+                    }
+                    if expr is not None:
+                        dense_req_kwargs["expr"] = expr
+                        sparse_req_kwargs["expr"] = expr
+
+                    search_results = self.collection.hybrid_search(
+                        reqs=[AnnSearchRequest(**dense_req_kwargs), AnnSearchRequest(**sparse_req_kwargs)],
+                        rerank=WeightedRanker(0.7, 0.3),
+                        limit=top_k,
+                        output_fields=["text", "document_id", "user_id"],
+                    )
             
             # Format results
             results = []

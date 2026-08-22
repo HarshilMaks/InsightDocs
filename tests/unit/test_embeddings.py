@@ -149,3 +149,58 @@ async def test_store_embeddings_returns_empty_list_for_no_texts(mock_sentence_tr
 
     engine.collection.insert.assert_not_called()
     assert result == []
+
+
+@pytest.mark.asyncio
+@patch.object(EmbeddingEngine, "_connect_milvus", lambda self: None)
+@patch.object(EmbeddingEngine, "_init_collection", lambda self: None)
+async def test_sparse_mode_generates_placeholders_without_sentence_transformers():
+    missing_sparse_module = types.ModuleType("milvus_model.hybrid")
+
+    with patch.object(settings, "embedding_mode", "sparse"), patch(
+        "backend.utils.embeddings.SENTENCE_TRANSFORMERS_AVAILABLE", False
+    ), patch.dict(sys.modules, {"milvus_model.hybrid": missing_sparse_module}):
+        engine = EmbeddingEngine()
+        embeddings = await engine.embed_texts(["evidence gate review"])
+
+    assert engine.dense_enabled is False
+    assert engine.has_sparse is False
+    assert embeddings["dense"] == [[0.0] * engine.dimension]
+    assert embeddings["sparse"][0]
+
+
+@pytest.mark.asyncio
+@patch.object(EmbeddingEngine, "_connect_milvus", lambda self: None)
+@patch.object(EmbeddingEngine, "_init_collection", lambda self: None)
+async def test_sparse_mode_search_never_issues_a_dense_request():
+    missing_sparse_module = types.ModuleType("milvus_model.hybrid")
+
+    with patch.object(settings, "embedding_mode", "sparse"), patch.dict(
+        sys.modules, {"milvus_model.hybrid": missing_sparse_module}
+    ):
+        engine = EmbeddingEngine()
+
+    engine.collection = MagicMock()
+    engine.collection.search.return_value = [
+        [
+            SimpleNamespace(
+                id="chunk-1",
+                score=0.91,
+                entity={"text": "relevant chunk", "document_id": "doc-1", "user_id": "user-1"},
+            )
+        ]
+    ]
+    engine.embed_texts = AsyncMock(return_value={"dense": [[0.0] * engine.dimension], "sparse": [{123: 0.5}]})
+
+    results = await engine.search("evidence query", top_k=5, user_id="user-1")
+
+    engine.collection.search.assert_called_once_with(
+        data=[{123: 0.5}],
+        anns_field="sparse_vector",
+        param={"metric_type": "IP", "params": {"drop_ratio_search": 0.2}},
+        limit=5,
+        output_fields=["text", "document_id", "user_id"],
+        expr='user_id == "user-1"',
+    )
+    engine.collection.hybrid_search.assert_not_called()
+    assert results[0]["metadata"]["user_id"] == "user-1"
