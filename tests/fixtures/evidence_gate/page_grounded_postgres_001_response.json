@@ -1,0 +1,30 @@
+{
+  "answer": "PostgreSQL stores document metadata.",
+  "sources": [
+    {
+      "source_number": 1,
+      "document_id": "fixture-document-001",
+      "document_name": "fixture-architecture.pdf",
+      "chunk_id": "fixture-chunk-page-2",
+      "chunk_index": 4,
+      "page_number": 2,
+      "bbox": {
+        "x1": 72.2,
+        "y1": 143.8,
+        "x2": 336.1,
+        "y2": 168.2
+      },
+      "content_preview": "Architecture note: PostgreSQL stores document metadata.",
+      "similarity_score": 0.99,
+      "citation_label": "fixture-architecture.pdf · p. 2"
+    }
+  ],
+  "claim_verifications": [
+    {
+      "claim": "PostgreSQL stores document metadata.",
+      "status": "supported",
+      "supporting_sources": [1],
+      "reason": null
+    }
+  ]
+}

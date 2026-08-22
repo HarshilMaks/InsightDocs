@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "fixture_id": "page-grounded-postgres-001",
+  "description": "A supported claim must resolve to the expected PDF page, bounding box, and evidence text.",
+  "request": {
+    "query": "Which database stores document metadata?",
+    "document_scope": ["fixture-document-001"]
+  },
+  "document": {
+    "logical_id": "fixture-document-001",
+    "filename": "fixture-architecture.pdf",
+    "sha256": "0b0a24f04ecf3aa60e0a1ca2a1a7f6ce2f87fe9b0b1c1f6f00d7b352482aa60e",
+    "page_count": 2
+  },
+  "expected": {
+    "claims": [
+      {
+        "id": "claim-postgres-metadata",
+        "text_contains": ["PostgreSQL", "document metadata"],
+        "verification": "supported",
+        "evidence_refs": ["evidence-postgres-page-2"]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "evidence-postgres-page-2",
+        "document_logical_id": "fixture-document-001",
+        "page_number": 2,
+        "coordinate_space": "pdf_points_top_left_v1",
+        "page_size_points": {
+          "width": 612.0,
+          "height": 792.0
+        },
+        "bbox": {
+          "x1": 72.0,
+          "y1": 144.0,
+          "x2": 336.0,
+          "y2": 168.0
+        },
+        "text_exact": "PostgreSQL stores document metadata.",
+        "text_sha256": "bc95736549e65916ae003239e9995e4a4a97d6d857db9cce2a39e1e6d7edbd96",
+        "required_source_fields": [
+          "document_id",
+          "chunk_id",
+          "page_number",
+          "bbox",
+          "content_preview"
+        ]
+      }
+    ]
+  }
+}
