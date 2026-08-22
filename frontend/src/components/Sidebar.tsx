@@ -36,9 +36,9 @@ interface AppSidebarProps {
 }
 
 const navItems = [
-  { label: 'Documents', to: '/', icon: FileText, requiresAuth: false },
+  { label: 'Evidence Gate', to: '/', icon: ClipboardCheck, requiresAuth: false },
+  { label: 'Review queue', to: '/review', icon: FileText, requiresAuth: true },
   { label: 'History', to: '/history', icon: History, requiresAuth: true },
-  { label: 'Reviews', to: '/review', icon: ClipboardCheck, requiresAuth: true },
   { label: 'API key', to: '/byok', icon: KeyRound, requiresAuth: true },
   { label: 'Settings', to: '/settings', icon: Settings, requiresAuth: true },
 ]
@@ -90,7 +90,7 @@ export function AppSidebar({ onRequireAuth }: AppSidebarProps) {
           <BrandLogo size={28} />
           <div className="grid flex-1 leading-tight group-data-[collapsible=icon]:hidden">
             <span className="truncate text-sm font-semibold">InsightDocs</span>
-            <span className="truncate text-[11px] text-muted-foreground">Provable RAG</span>
+            <span className="truncate text-[11px] text-muted-foreground">Evidence-led AI review</span>
           </div>
         </div>
 
@@ -99,13 +99,13 @@ export function AppSidebar({ onRequireAuth }: AppSidebarProps) {
           onClick={() => (isAuthenticated ? navigate('/?upload=true') : onRequireAuth())}
         >
           <Plus className="size-4 shrink-0" />
-          <span className="group-data-[collapsible=icon]:hidden">New analysis</span>
+          <span className="group-data-[collapsible=icon]:hidden">Add evidence</span>
         </Button>
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupLabel>Evidence workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (

@@ -19,6 +19,8 @@ import {
   Sparkles,
   PanelRightOpen,
   RefreshCw,
+  ClipboardCheck,
+  ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -40,6 +42,7 @@ import {
   getApiErrorMessage,
   type SourceReference,
   type ClaimVerification,
+  type EvidenceGateSummary,
 } from '@/lib/api'
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
@@ -53,6 +56,42 @@ interface ChatTurn {
   content: string
   sources?: SourceReference[]
   claims?: ClaimVerification[] | null
+  evidenceGate?: EvidenceGateSummary | null
+}
+
+function gateStatusLabel(status: EvidenceGateSummary['status']) {
+  if (status === 'passed') return 'Evidence checks passed'
+  if (status === 'failed') return 'Needs evidence review'
+  if (status === 'abstained') return 'Answer abstained'
+  return 'Evidence check degraded'
+}
+
+function gateStatusClass(status: EvidenceGateSummary['status']) {
+  if (status === 'passed') return 'border-[color:var(--success)]/30 bg-[color:var(--success)]/5'
+  if (status === 'failed') return 'border-destructive/30 bg-destructive/5'
+  return 'border-warning/30 bg-warning/5'
+}
+
+function EvidenceGateRunCard({ gate, onOpenReview }: { gate: EvidenceGateSummary; onOpenReview: () => void }) {
+  return (
+    <div className={`rounded-lg border p-3 ${gateStatusClass(gate.status)}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-2">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium">{gateStatusLabel(gate.status)}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+              Evidence Gate · {gate.mode} mode · {gate.supported_count} supported, {gate.unsupported_count} not supported, {gate.unverified_count} unverified
+            </p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" className="h-7 shrink-0 text-xs" onClick={onOpenReview}>
+          <ClipboardCheck className="size-3.5" />
+          Review audit
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 /** Human wording for verification states. "Unsupported" must never read as "false". */
@@ -69,6 +108,7 @@ export function AuditAssistantView() {
   const queryClient = useQueryClient()
 
   const [tool, setTool] = useState<Tool>('ask')
+  const [showSecondaryTools, setShowSecondaryTools] = useState(false)
   const [draft, setDraft] = useState('')
   const [turns, setTurns] = useState<ChatTurn[]>([])
   const [conversationId, setConversationId] = useState<string | null>(
@@ -193,6 +233,7 @@ export function AuditAssistantView() {
           content: response.answer,
           sources: response.sources,
           claims: response.claim_verifications,
+          evidenceGate: response.evidence_gate,
         },
       ])
       const first = response.sources[0]
@@ -225,6 +266,7 @@ export function AuditAssistantView() {
 
   const switchTool = (next: Tool) => {
     setTool(next)
+    if (next !== 'ask') setShowSecondaryTools(true)
     if (next === 'summary' && !summaryMutation.data && !summaryMutation.isPending) summaryMutation.mutate()
     if (next === 'quiz' && !quizMutation.data && !quizMutation.isPending) quizMutation.mutate()
     if (next === 'mindmap' && !mindmapMutation.data && !mindmapMutation.isPending) mindmapMutation.mutate()
@@ -289,6 +331,9 @@ export function AuditAssistantView() {
               <p className="truncate text-sm font-medium">{doc?.filename}</p>
             )}
           </div>
+          <Badge variant="outline" className="hidden gap-1 border-primary/30 bg-primary/5 text-[10px] text-primary sm:inline-flex">
+            <ShieldCheck className="size-3" /> Evidence Gate
+          </Badge>
           {selectedSource && (
             <Button variant="outline" size="sm" className="lg:hidden" onClick={() => setMobilePane('source')}>
               <PanelRightOpen className="size-4" />
@@ -308,15 +353,27 @@ export function AuditAssistantView() {
         )}
 
         {isReady && (
-          <div className="border-b px-3 py-2">
-            <Tabs value={tool} onValueChange={(v) => switchTool(v as Tool)}>
-              <TabsList className="w-full justify-start overflow-x-auto">
-                <TabsTrigger value="ask">Ask</TabsTrigger>
-                <TabsTrigger value="summary">Summary</TabsTrigger>
-                <TabsTrigger value="quiz">Quiz</TabsTrigger>
-                <TabsTrigger value="mindmap">Mind map</TabsTrigger>
+          <div className="flex items-center gap-2 border-b px-3 py-2">
+            <Tabs value={tool} onValueChange={(v) => switchTool(v as Tool)} className="min-w-0 flex-1">
+              <TabsList className="max-w-full justify-start overflow-x-auto">
+                <TabsTrigger value="ask">Evidence chat</TabsTrigger>
+                {showSecondaryTools && (
+                  <>
+                    <TabsTrigger value="summary">Summary</TabsTrigger>
+                    <TabsTrigger value="quiz">Quiz</TabsTrigger>
+                    <TabsTrigger value="mindmap">Mind map</TabsTrigger>
+                  </>
+                )}
               </TabsList>
             </Tabs>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 text-xs text-muted-foreground"
+              onClick={() => setShowSecondaryTools((visible) => !visible)}
+            >
+              {showSecondaryTools ? 'Hide tools' : 'Other tools'}
+            </Button>
           </div>
         )}
 
@@ -352,10 +409,9 @@ export function AuditAssistantView() {
                   <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-lg border bg-card">
                     <Sparkles className="size-5 text-primary" />
                   </div>
-                  <p className="text-base font-medium">Ask anything about this document</p>
+                  <p className="text-base font-medium">Interrogate the evidence</p>
                   <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-                    Each answer is checked claim by claim, and every citation points at the exact region on
-                    the page.
+                    Ask a question, inspect the exact source region, then open the Evidence Gate audit to review each claim.
                   </p>
                 </div>
               )}
@@ -369,6 +425,13 @@ export function AuditAssistantView() {
                   <Card key={turn.id} className="max-w-none gap-0 py-0">
                     <CardContent className="space-y-3 p-4">
                       <div className="text-sm leading-relaxed whitespace-pre-wrap">{turn.content}</div>
+
+                      {turn.evidenceGate && (
+                        <EvidenceGateRunCard
+                          gate={turn.evidenceGate}
+                          onOpenReview={() => navigate(`/review/${encodeURIComponent(turn.evidenceGate!.id)}`)}
+                        />
+                      )}
 
                       {turn.claims && turn.claims.length > 0 && (
                         <>
@@ -488,7 +551,7 @@ export function AuditAssistantView() {
                 rows={1}
                 disabled={!isReady}
                 aria-label="Ask a question about this document"
-                placeholder={isReady ? 'Ask about this document…' : 'Available once processing finishes'}
+                placeholder={isReady ? 'Ask a question to inspect its evidence…' : 'Available once processing finishes'}
                 className="max-h-32 min-h-10 resize-none"
               />
               <Button
@@ -501,7 +564,7 @@ export function AuditAssistantView() {
               </Button>
             </div>
             <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Enter to send · Shift+Enter for a new line
+              Enter to send · Every answer is recorded for evidence review
             </p>
           </div>
         )}

@@ -203,6 +203,19 @@ export interface ClaimVerification {
   reason?: string | null
 }
 
+export interface EvidenceGateSummary {
+  id: string
+  policy_version: string
+  mode: 'shadow' | 'annotate' | 'enforce'
+  status: 'passed' | 'failed' | 'degraded' | 'abstained'
+  action?: 'allow' | 'annotate' | 'abstain' | null
+  claim_count: number
+  supported_count: number
+  unsupported_count: number
+  unverified_count: number
+  verified_at?: string | null
+}
+
 export interface QueryResponse {
   answer: string
   sources: SourceReference[]
@@ -214,6 +227,8 @@ export interface QueryResponse {
   confidence_score?: number | null
   tokens_used?: number | null
   claim_verifications?: ClaimVerification[] | null
+  /** Additive shadow-mode audit summary. Older servers may omit it. */
+  evidence_gate?: EvidenceGateSummary | null
 }
 
 export async function sendQuery(payload: {

@@ -11,6 +11,9 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
+  ArrowRight,
+  ClipboardCheck,
+  ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -173,11 +176,56 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 p-4 md:p-6">
-      <div className="space-y-1">
-        <h2 className="text-2xl font-semibold tracking-tight">Document library</h2>
-        <p className="text-sm text-muted-foreground">
-          Ask questions and get answers backed by the exact page and region they came from.
-        </p>
+      <section className="overflow-hidden rounded-2xl border bg-card">
+        <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_17rem] md:p-7">
+          <div className="space-y-4">
+            <Badge variant="outline" className="w-fit gap-1.5 border-primary/35 bg-primary/5 text-primary">
+              <ShieldCheck className="size-3.5" />
+              Evidence Gate
+            </Badge>
+            <div className="space-y-2">
+              <h2 className="max-w-2xl text-3xl font-semibold tracking-tight md:text-4xl">
+                Answers are useful only when their evidence can be reviewed.
+              </h2>
+              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
+                Add a document, interrogate the evidence, then inspect the page-level sources and auditable claim review behind every answer.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => (isAuthenticated ? navigate('/?upload=true') : onRequireAuth())}>
+                Add a document
+                <ArrowRight className="size-4" />
+              </Button>
+              <Button variant="outline" onClick={() => (isAuthenticated ? navigate('/review') : onRequireAuth())}>
+                <ClipboardCheck className="size-4" />
+                Open review queue
+              </Button>
+            </div>
+          </div>
+          <div className="grid content-start gap-3 rounded-xl border bg-muted/30 p-4 text-sm">
+            <div className="flex size-9 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
+              <ShieldCheck className="size-4" />
+            </div>
+            <div>
+              <p className="font-medium">How the gate works</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Each new answer is audited in shadow mode against its retained source snapshot. Human decisions remain separate and traceable.
+              </p>
+            </div>
+            <div className="space-y-1.5 border-t pt-3 text-xs text-muted-foreground">
+              <p><span className="font-medium text-foreground">1.</span> Ask with exact page and region evidence.</p>
+              <p><span className="font-medium text-foreground">2.</span> Inspect claim-level support.</p>
+              <p><span className="font-medium text-foreground">3.</span> Accept or reject the review record.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold tracking-tight">Evidence library</h3>
+          <p className="text-sm text-muted-foreground">Source documents available for evidence-grounded analysis.</p>
+        </div>
       </div>
 
       {/* Upload */}

@@ -25,9 +25,9 @@ interface TopBarProps {
 }
 
 const titles: Record<string, string> = {
-  '/': 'Documents',
-  '/history': 'History',
-  '/review': 'Evidence reviews',
+  '/': 'Evidence Gate',
+  '/history': 'Query history',
+  '/review': 'Review queue',
   '/byok': 'API key',
   '/settings': 'Settings',
   '/help': 'Help',
@@ -57,7 +57,7 @@ export function TopBar({ searchQuery, onSearchChange, onRequireAuth }: TopBarPro
   })
 
   const title = location.pathname.startsWith('/documents/')
-    ? 'Workspace'
+    ? 'Evidence workspace'
     : location.pathname.startsWith('/review/')
       ? 'Evidence review'
       : titles[location.pathname] ?? 'InsightDocs'
@@ -79,8 +79,8 @@ export function TopBar({ searchQuery, onSearchChange, onRequireAuth }: TopBarPro
           <Input
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search documents"
-            aria-label="Search documents"
+            placeholder="Search evidence library"
+            aria-label="Search evidence library"
             className="h-9 pl-8"
           />
         </div>
