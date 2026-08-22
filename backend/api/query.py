@@ -8,6 +8,7 @@ import logging
 from backend.api.schemas import (
     BoundingBox,
     ClaimVerification,
+    EvidenceGateSummary,
     QueryHistoryResponse,
     QueryRequest,
     QueryResponse,
@@ -18,6 +19,7 @@ from backend.models.schemas import User
 from backend.core.security import get_current_user, decrypt_api_key
 from backend.core.limiter import limiter
 from backend.middleware.guardrails import check_input_guardrail, check_output
+from backend.evidence_gate.service import persist_shadow_audit, shadow_audit_summary
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/query", tags=["Query"])
@@ -75,9 +77,11 @@ async def query_documents(
                 detail=error_msg,
             )
         
-        answer = result.get("answer", "")
+        candidate_answer = result.get("answer", "")
+        answer = candidate_answer
         sources_data = result.get("sources", [])
         claim_verifications_data = result.get("claim_verifications")
+        was_flagged = False
 
         # Output guardrail: check generated answer against context for
         # hallucination. Uses user's API key when BYOK is enabled.
@@ -149,8 +153,29 @@ async def query_documents(
         db.commit()
         db.refresh(query_record)
 
+        # Shadow auditing is additive. The existing Query has already committed, so
+        # a later audit failure rolls back only its own transaction and never blocks
+        # or rewrites a successful answer. No summary is returned on that failure.
+        audit_summary = None
+        try:
+            audit_run = persist_shadow_audit(
+                db,
+                query=query_record,
+                user_id=current_user.id,
+                candidate_answer=candidate_answer,
+                delivered_answer=answer,
+                source_snapshot=[source.model_dump(mode="json") for source in sources],
+                claim_verifications=claim_verifications_data,
+                output_guard_flagged=was_flagged,
+            )
+            db.commit()
+            audit_summary = shadow_audit_summary(audit_run)
+        except Exception:
+            db.rollback()
+            logger.exception("Evidence Gate shadow audit failed for query %s", query_record.id)
+
         claim_verifications = None
-        if claim_verifications_data:
+        if claim_verifications_data and candidate_answer == answer:
             claim_verifications = [
                 ClaimVerification(
                     claim=c.get("claim", ""),
@@ -171,6 +196,22 @@ async def query_documents(
             response_time=elapsed,
             confidence_score=None,
             claim_verifications=claim_verifications,
+            evidence_gate=(
+                EvidenceGateSummary(
+                    id=audit_summary.id,
+                    policy_version=audit_summary.policy_version,
+                    mode=audit_summary.mode,
+                    status=audit_summary.status,
+                    action=audit_summary.action,
+                    claim_count=audit_summary.claim_count,
+                    supported_count=audit_summary.supported_count,
+                    unsupported_count=audit_summary.unsupported_count,
+                    unverified_count=audit_summary.unverified_count,
+                    verified_at=audit_summary.verified_at,
+                )
+                if audit_summary is not None
+                else None
+            ),
         )
 
     except HTTPException:

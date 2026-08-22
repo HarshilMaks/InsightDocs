@@ -136,6 +136,21 @@ class QueryRequest(BaseSchema):
                      "If omitted, retrieval searches across all of the user's documents.",
     )
 
+class EvidenceGateSummary(BaseSchema):
+    """Compact optional metadata for a server-created shadow audit run."""
+
+    id: str
+    policy_version: str
+    mode: str
+    status: str
+    action: Optional[str] = None
+    claim_count: int
+    supported_count: int
+    unsupported_count: int
+    unverified_count: int
+    verified_at: datetime
+
+
 class QueryResponse(BaseSchema):
     answer: str
     sources: List[SourceReference]
@@ -150,6 +165,10 @@ class QueryResponse(BaseSchema):
         None,
         description="Per-claim verification results, when verification ran successfully. "
                      "None if verification did not run (e.g. no context or a transient failure).",
+    )
+    evidence_gate: Optional[EvidenceGateSummary] = Field(
+        None,
+        description="Optional shadow-mode evidence audit metadata for this query.",
     )
 
 class QueryHistoryItem(BaseSchema):

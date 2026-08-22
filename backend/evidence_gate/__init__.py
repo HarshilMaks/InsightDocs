@@ -27,6 +27,7 @@ from .regression import (
     RegressionResult,
     evaluate_evidence_fixture,
 )
+from .service import POLICY_VERSION, ShadowAuditSummary, persist_shadow_audit, shadow_audit_summary
 
 __all__ = [
     "EvidenceGateAction",
@@ -42,10 +43,14 @@ __all__ = [
     "RegressionFinding",
     "RegressionMetrics",
     "RegressionResult",
+    "POLICY_VERSION",
+    "ShadowAuditSummary",
     "evaluate_evidence_fixture",
     "evaluate_evidence_gate",
     "load_evidence_fixture",
     "parse_evidence_fixture",
+    "persist_shadow_audit",
+    "shadow_audit_summary",
     "source_snapshot_sha256",
     "text_sha256",
 ]
