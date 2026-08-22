@@ -63,6 +63,9 @@ class User(Base, TimestampMixin):
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     queries = relationship("Query", back_populates="user", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="user", cascade="all, delete-orphan")
+    evidence_gate_review_decisions = relationship(
+        "EvidenceGateReviewDecision", back_populates="reviewer"
+    )
 
     @property
     def is_admin(self) -> bool:
@@ -242,10 +245,21 @@ class EvidenceGateRun(Base, TimestampMixin):
     unverified_count = Column(Integer, nullable=False, default=0)
     error_code = Column(String(64), nullable=True)
     error_detail = Column(Text, nullable=True)
+    # Review state is mutable only through compare-and-swap updates; individual
+    # decisions are retained separately as immutable audit events.
+    review_status = Column(String(16), nullable=False, default="pending", server_default="pending")
+    review_version = Column(Integer, nullable=False, default=0, server_default="0")
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
 
     query = relationship("Query", back_populates="evidence_gate_runs")
     claims = relationship(
         "EvidenceGateClaim", back_populates="gate_run", cascade="all, delete-orphan"
+    )
+    review_decisions = relationship(
+        "EvidenceGateReviewDecision",
+        back_populates="gate_run",
+        cascade="all, delete-orphan",
+        order_by="EvidenceGateReviewDecision.result_version",
     )
 
     __table_args__ = (
@@ -265,8 +279,16 @@ class EvidenceGateRun(Base, TimestampMixin):
             "action IS NULL OR action IN ('allow', 'annotate', 'abstain')",
             name="ck_evidence_gate_runs_action",
         ),
+        CheckConstraint(
+            "review_status IN ('pending', 'accepted', 'rejected')",
+            name="ck_evidence_gate_runs_review_status",
+        ),
         Index("ix_evidence_gate_runs_user_created", "user_id", "created_at"),
         Index("ix_evidence_gate_runs_query_created", "query_id", "created_at"),
+        Index(
+            "ix_evidence_gate_runs_user_review_created",
+            "user_id", "review_status", "created_at",
+        ),
     )
 
     def __repr__(self):
@@ -306,4 +328,48 @@ class EvidenceGateClaim(Base, TimestampMixin):
         return (
             f"<EvidenceGateClaim(id='{self.id}', gate_run_id='{self.gate_run_id}', "
             f"ordinal={self.ordinal})>"
+        )
+
+
+class EvidenceGateReviewDecision(Base):
+    """Append-only human review decision for an Evidence Gate run."""
+    __tablename__ = "evidence_gate_review_decisions"
+
+    id = Column(String, primary_key=True, default=_generate_uuid)
+    gate_run_id = Column(
+        String,
+        ForeignKey("evidence_gate_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    reviewer_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    decision = Column(String(16), nullable=False)
+    note = Column(Text, nullable=True)
+    expected_version = Column(Integer, nullable=False)
+    result_version = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    gate_run = relationship("EvidenceGateRun", back_populates="review_decisions")
+    reviewer = relationship("User", back_populates="evidence_gate_review_decisions")
+
+    __table_args__ = (
+        CheckConstraint(
+            "decision IN ('accepted', 'rejected')",
+            name="ck_evidence_gate_review_decisions_decision",
+        ),
+        UniqueConstraint(
+            "gate_run_id",
+            "result_version",
+            name="uq_evidence_gate_review_decisions_run_result_version",
+        ),
+        Index(
+            "ix_evidence_gate_review_decisions_run_created",
+            "gate_run_id",
+            "created_at",
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<EvidenceGateReviewDecision(id='{self.id}', gate_run_id='{self.gate_run_id}', "
+            f"result_version={self.result_version})>"
         )

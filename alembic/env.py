@@ -16,6 +16,7 @@ from backend.models.schemas import (
     Document,
     DocumentChunk,
     EvidenceGateClaim,
+    EvidenceGateReviewDecision,
     EvidenceGateRun,
     Query,
     Task,
