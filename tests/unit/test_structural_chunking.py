@@ -187,3 +187,39 @@ class TestParentChildLinkage:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
+
+
+class TestCitationBoundingBoxes:
+    def test_same_page_child_uses_a_union_bbox_for_all_of_its_blocks(self):
+        parser = EnhancedPDFParser()
+        chunks = parser.chunk_blocks(
+            [
+                _block("First evidence block.", bbox=(10.0, 20.0, 100.0, 40.0)),
+                _block("Second evidence block.", bbox=(15.0, 80.0, 120.0, 100.0)),
+            ],
+            chunk_size=1000,
+            overlap=0,
+        )
+
+        child = next(chunk for chunk in chunks if not chunk.get("is_parent"))
+        assert child["page_number"] == 1
+        assert child["bbox"] == {"x1": 10.0, "y1": 20.0, "x2": 120.0, "y2": 100.0}
+        assert "First evidence block." in child["text"]
+        assert "Second evidence block." in child["text"]
+
+    def test_child_chunk_is_finalized_before_a_page_transition(self):
+        parser = EnhancedPDFParser()
+        chunks = parser.chunk_blocks(
+            [
+                _block("Evidence on page one.", page_number=1, bbox=(10.0, 20.0, 100.0, 40.0)),
+                _block("Evidence on page two.", page_number=2, bbox=(15.0, 80.0, 120.0, 100.0)),
+            ],
+            chunk_size=1000,
+            overlap=0,
+        )
+
+        children = [chunk for chunk in chunks if not chunk.get("is_parent")]
+        assert [(chunk["page_number"], chunk["bbox"]) for chunk in children] == [
+            (1, {"x1": 10.0, "y1": 20.0, "x2": 100.0, "y2": 40.0}),
+            (2, {"x1": 15.0, "y1": 80.0, "x2": 120.0, "y2": 100.0}),
+        ]

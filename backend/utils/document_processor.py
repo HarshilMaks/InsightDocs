@@ -43,8 +43,10 @@ class DocumentProcessor:
     def __init__(self):
         # Lazy import EnhancedPDFParser to avoid loading fitz at startup
         try:
-            from backend.utils.pdf_parser_enhanced import EnhancedPDFParser
-            self.pdf_parser = EnhancedPDFParser()
+            from backend.utils.pdf_parser_enhanced import EnhancedPDFParser, FITZ_AVAILABLE
+            self.pdf_parser = EnhancedPDFParser() if FITZ_AVAILABLE else None
+            if not FITZ_AVAILABLE:
+                logger.warning("PyMuPDF is unavailable; PDF processing will continue without spatial coordinates.")
         except ImportError:
             logger.warning("EnhancedPDFParser not available, will use fallback PDF parsing")
             self.pdf_parser = None

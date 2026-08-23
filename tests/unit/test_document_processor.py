@@ -54,3 +54,27 @@ async def test_parse_text_file(processor, tmp_path):
     assert result["text"] == test_content
     assert result["metadata"]["type"] == "text"
     assert result["metadata"]["char_count"] == len(test_content)
+
+
+@pytest.mark.asyncio
+async def test_pdf_uses_plain_text_fallback_when_pymupdf_is_unavailable(monkeypatch):
+    import backend.utils.pdf_parser_enhanced as enhanced_parser
+    import backend.utils.document_processor as processor_module
+
+    monkeypatch.setattr(enhanced_parser, "FITZ_AVAILABLE", False)
+    monkeypatch.setattr(
+        processor_module,
+        "extract_text_and_tables",
+        lambda _path: {
+            "combined_text": "Text extracted by pdfplumber.",
+            "tables": [],
+            "text_blocks": [{"text": "Text extracted by pdfplumber."}],
+        },
+    )
+
+    processor = DocumentProcessor()
+    result = await processor._parse_pdf_file("without-pymupdf.pdf")
+
+    assert result["text"] == "Text extracted by pdfplumber."
+    assert result["blocks"] == []
+    assert result["metadata"]["has_spatial_data"] is False

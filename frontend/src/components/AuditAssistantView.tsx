@@ -724,7 +724,7 @@ export function AuditAssistantView() {
                   />
                   {highlight && (
                     <div
-                      className="evidence-highlight pointer-events-none absolute rounded-sm transition-all"
+                      className="evidence-highlight pointer-events-none absolute z-20 rounded-sm transition-all"
                       style={{
                         left: `${highlight.left}px`,
                         top: `${highlight.top}px`,

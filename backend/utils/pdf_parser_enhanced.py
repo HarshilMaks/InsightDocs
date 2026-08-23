@@ -345,6 +345,22 @@ class EnhancedPDFParser:
             section_parent_index[section_title] = len(chunks) - 1
             return len(chunks) - 1
 
+        def _union_chunk_bbox(chunk_blocks: List[Dict[str, Any]]) -> Optional[Dict[str, float]]:
+            """Return one visible same-page rectangle covering every child block."""
+            bboxes = [block.get("bbox") or {} for block in chunk_blocks]
+            valid = [
+                bbox for bbox in bboxes
+                if all(key in bbox for key in ("x1", "y1", "x2", "y2"))
+            ]
+            if not valid:
+                return None
+            return {
+                "x1": min(float(bbox["x1"]) for bbox in valid),
+                "y1": min(float(bbox["y1"]) for bbox in valid),
+                "x2": max(float(bbox["x2"]) for bbox in valid),
+                "y2": max(float(bbox["y2"]) for bbox in valid),
+            }
+
         def _finalize_prose_chunk():
             nonlocal current_chunk_text, current_chunk_blocks
             if not current_chunk_blocks:
@@ -354,7 +370,7 @@ class EnhancedPDFParser:
             chunks.append({
                 "text": current_chunk_text.strip(),
                 "page_number": first_block["page_number"],
-                "bbox": first_block["bbox"],
+                "bbox": _union_chunk_bbox(current_chunk_blocks),
                 "chunk_type": "text",
                 "section_title": current_section_title,
                 "parent_chunk_index": parent_idx,
@@ -376,6 +392,11 @@ class EnhancedPDFParser:
                 # underlying prose block here at all (it was already
                 # excluded from filtered_blocks).
                 continue
+
+            if current_chunk_blocks and block.get("page_number") != current_chunk_blocks[0].get("page_number"):
+                # A single bbox cannot truthfully describe content across two
+                # pages. Finish the current page before starting the next.
+                _finalize_prose_chunk()
 
             if idx in headings:
                 # A new heading finalizes the current prose chunk and
