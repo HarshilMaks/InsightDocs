@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   HelpCircle,
+  KeyRound,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -85,6 +86,32 @@ function AuditUnavailableCard() {
         </p>
       </div>
     </div>
+  )
+}
+
+function isMissingGeminiApiKeyError(error: unknown) {
+  return getApiErrorMessage(error).trim().toLowerCase() === 'no gemini api key is configured.'
+}
+
+function GeminiKeyRequiredCard({ onConfigure }: { onConfigure: () => void }) {
+  return (
+    <Card role="alert" className="border-warning/35 bg-warning/5">
+      <CardContent className="flex items-start gap-3 p-4">
+        <KeyRound className="mt-0.5 size-5 shrink-0 text-warning" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div>
+            <p className="text-sm font-medium">A Gemini API key is required to answer this question</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              This service has no platform Gemini key and your account has no usable key. Add your own key to generate document-grounded answers.
+            </p>
+          </div>
+          <Button size="sm" onClick={onConfigure}>
+            <KeyRound className="size-4" />
+            Configure API key
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -271,8 +298,16 @@ export function AuditAssistantView() {
       }
       void queryClient.invalidateQueries({ queryKey: ['query-history'] })
     },
-    onError: (error) => toast.error('Query failed', { description: getApiErrorMessage(error) }),
+    onError: (error) => {
+      if (isMissingGeminiApiKeyError(error)) {
+        toast.error('Gemini API key required', { description: 'Configure an API key to ask questions about this document.' })
+        return
+      }
+      toast.error('Query failed', { description: getApiErrorMessage(error) })
+    },
   })
+
+  const requiresGeminiApiKey = askMutation.isError && isMissingGeminiApiKeyError(askMutation.error)
 
   const summaryMutation = useMutation({ mutationFn: () => summarizeDocument(documentId!) })
   const quizMutation = useMutation({ mutationFn: () => generateQuiz(documentId!) })
@@ -549,6 +584,10 @@ export function AuditAssistantView() {
                     </CardContent>
                   </Card>
                 ),
+              )}
+
+              {requiresGeminiApiKey && (
+                <GeminiKeyRequiredCard onConfigure={() => navigate('/byok')} />
               )}
 
               {askMutation.isPending && (
