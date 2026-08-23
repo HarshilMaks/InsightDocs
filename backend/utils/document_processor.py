@@ -142,8 +142,38 @@ class DocumentProcessor:
             
             # Fallback to basic PyMuPDF if pdfplumber failed (if available)
             if not self.pdf_parser:
-                # If neither pdfplumber nor PyMuPDF available, raise error
-                raise RuntimeError("No PDF parser available. Please ensure either pdfplumber or PyMuPDF is installed.")
+                is_scanned, ocr_confidence = OcrProcessor.detect_scanned_pdf(file_path)
+                if is_scanned:
+                    text, extracted_confidence = OcrProcessor.process_scanned_pdf(file_path)
+                    return {
+                        "text": text,
+                        "blocks": [],
+                        "tables": [],
+                        "metadata": {
+                            "type": "pdf",
+                            "is_scanned": True,
+                            "ocr_confidence": extracted_confidence or ocr_confidence,
+                            "char_count": len(text),
+                            "has_spatial_data": False,
+                        },
+                    }
+                try:
+                    from PyPDF2 import PdfReader
+                    reader = PdfReader(file_path)
+                    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+                    return {
+                        "text": text,
+                        "blocks": [],
+                        "tables": [],
+                        "metadata": {
+                            "type": "pdf",
+                            "is_scanned": False,
+                            "char_count": len(text),
+                            "has_spatial_data": False,
+                        },
+                    }
+                except Exception as fallback_error:
+                    raise RuntimeError("No PDF parser available for this document.") from fallback_error
             
             result = self.pdf_parser.parse_pdf(file_path)
             

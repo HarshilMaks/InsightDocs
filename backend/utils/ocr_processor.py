@@ -9,24 +9,33 @@ import logging
 from typing import Optional, Tuple
 from pathlib import Path
 import io
+from types import SimpleNamespace
 
+pytesseract = SimpleNamespace(image_to_data=None)
+Output = SimpleNamespace(DICT="DICT")
 try:
-    import pytesseract
-    from pytesseract import Output
+    import pytesseract as _pytesseract
+    from pytesseract import Output as _Output
+    pytesseract = _pytesseract
+    Output = _Output
     PYTESSERACT_AVAILABLE = True
 except ImportError:
     PYTESSERACT_AVAILABLE = False
     logging.warning("pytesseract not available. OCR features will be disabled.")
 
+Image = None
 try:
-    from PIL import Image
+    from PIL import Image as _Image
+    Image = _Image
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
     logging.warning("Pillow not available. Image processing will be disabled.")
 
+fitz = None
 try:
-    import fitz  # PyMuPDF for PDF processing
+    import fitz as _fitz  # PyMuPDF for PDF processing
+    fitz = _fitz
     FITZ_AVAILABLE = True
 except ImportError:
     FITZ_AVAILABLE = False
@@ -53,7 +62,7 @@ class OcrProcessor:
             - is_scanned: True if PDF appears to be scanned
             - confidence_score: 0-1, how confident the detection is
         """
-        if not FITZ_AVAILABLE:
+        if fitz is None:
             logger.warning("PyMuPDF not available. Cannot detect scanned PDFs.")
             return False, 0.0
 
@@ -109,11 +118,11 @@ class OcrProcessor:
             - extracted_text: OCR'd text
             - confidence_score: 0-1, average confidence of extraction
         """
-        if not PYTESSERACT_AVAILABLE:
+        if pytesseract is None:
             logger.error("Tesseract not available for OCR")
             return "", 0.0
 
-        if not PIL_AVAILABLE:
+        if Image is None:
             logger.error("Pillow not available for image processing")
             return "", 0.0
 
@@ -156,11 +165,11 @@ class OcrProcessor:
             - extracted_text: All OCR'd text from PDF
             - avg_confidence: Average confidence score
         """
-        if not FITZ_AVAILABLE:
+        if fitz is None:
             logger.error("PyMuPDF required for PDF OCR processing")
             return "", 0.0
 
-        if not PYTESSERACT_AVAILABLE:
+        if pytesseract is None:
             logger.error("Tesseract required for OCR")
             return "", 0.0
 
@@ -209,7 +218,7 @@ class OcrProcessor:
         Returns:
             Tuple of (extracted_text, confidence_score)
         """
-        if not PYTESSERACT_AVAILABLE:
+        if pytesseract is None:
             return "", 0.0
 
         try:

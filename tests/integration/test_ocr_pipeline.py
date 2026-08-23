@@ -132,11 +132,8 @@ class TestOCRIntegrationWithDocumentProcessor:
         ):
             result = await processor._parse_pdf_file("/fake/native.pdf")
 
-        # With new enhanced parser, fake paths trigger OCR fallback (file doesn't exist)
-        # This is expected behavior - production code works correctly with real files
-        assert result["metadata"]["is_scanned"] is True  # Changed from False
-        # Text may be empty due to parser failure, which is expected for fake paths
-        assert isinstance(result["text"], str)
+        assert result["metadata"]["is_scanned"] is False
+        assert "enough text" in result["text"]
 
 
 class TestOCRMetadataTracking:

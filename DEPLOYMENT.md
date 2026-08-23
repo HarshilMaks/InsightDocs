@@ -80,6 +80,8 @@ S3_ENDPOINT=<your S3/R2 endpoint>
 AWS_ACCESS_KEY_ID=<your key>
 AWS_SECRET_ACCESS_KEY=<your secret>
 S3_BUCKET_NAME=insightdocs
+GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL_FALLBACKS=gemini-3-flash-preview
 ```
 
 ### GitHub Actions Worker (free hosted alternative)
@@ -153,7 +155,8 @@ The `vercel.json` in `frontend/` handles SPA routing and security headers automa
 - [ ] S3-compatible bucket created with credentials
 - [ ] Render API service deployed with env vars set
 - [ ] Render Worker service deployed with same env vars
-- [ ] `alembic upgrade head` ran successfully on first API start (check logs)
+- [ ] `alembic upgrade head` completed successfully before the API starts (check logs)
+- [ ] `alembic current` reports `d8e4f1a2b903` or a later revision
 - [ ] Vercel frontend deployed with `VITE_API_BASE_URL` pointing to Render API
 - [ ] `ALLOWED_ORIGINS` on Render includes the Vercel frontend URL
 - [ ] Health endpoint returns healthy
@@ -173,13 +176,13 @@ The `vercel.json` in `frontend/` handles SPA routing and security headers automa
 | Upload succeeds but processing fails | Worker not running or can't reach Redis | Check worker logs on Render; verify `CELERY_BROKER_URL` |
 | "No module named..." errors | Missing dependency | Check that `requirements.txt` includes all needed packages |
 | PDF viewer shows nothing | Presigned URL expired or S3 endpoint wrong | Verify `S3_ENDPOINT` is accessible from the client browser (not internal-only) |
-| Alembic migration fails | Wrong DATABASE_URL | Verify the URL is correct and the database exists |
+| Alembic migration fails | Wrong database URL, stale image, or deployed source missing the recorded revision | Confirm the deployed commit contains the migration file, run `alembic heads` and `alembic current`, then deploy the matching revision. Do not stamp or delete `alembic_version` as a workaround. |
 
 ---
 
 ## Architecture Notes for Production
 
-- The API starts by running `alembic upgrade head` (in `start_api.sh`) — this is safe for single-instance deployments. For multi-instance, run migrations as a separate one-off job before deploying.
+- The API runs `alembic upgrade head` before Uvicorn starts. A migration failure stops the deployment rather than serving against a mismatched schema. For multi-instance deployments, run migrations as a separate one-off job before rolling application instances.
 - The Celery worker uses `--concurrency=2` by default — increase for higher throughput if your plan allows more CPU/RAM.
 - Object storage presigned URLs are served directly to the browser for PDF viewing — ensure your S3 endpoint is publicly reachable (not behind a VPN).
 - Structured JSON logs are emitted in production (`APP_ENV=production`) for log ingestion services.
@@ -196,7 +199,7 @@ alembic upgrade head
 alembic current
 ```
 
-Confirm that the current revision is `b6f2d9e4a8c1` or a later revision. Then verify a
+Confirm that the current revision is `d8e4f1a2b903` or a later revision. Then verify a
 query still succeeds and, for an owner with an audit run, confirm `/review` can load the
 queue/detail and handle a stale review decision with a visible conflict rather than an
 overwrite. Do not expose the review endpoints to unauthenticated callers.

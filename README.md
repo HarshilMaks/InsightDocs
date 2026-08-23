@@ -1,190 +1,110 @@
 # InsightDocs
 
-> An enterprise document intelligence platform that lets you ask questions about your documents and get answers backed by **precise, verifiable evidence** — not vague citations.
+InsightDocs is an evidence-first document intelligence application for people who need to inspect the source behind an AI answer—not just receive a plausible response.
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-green.svg)](https://fastapi.tiangolo.com/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+It is designed for analysts, reviewers, operators, researchers, and teams working with PDFs and business documents where traceability matters. Upload documents, select an explicit evidence corpus, ask a question, inspect the cited source regions, and review the evidence record behind the answer.
 
-## What Makes This Different
+## What it does
 
-Most RAG systems say "Source: document.pdf" and leave you guessing. InsightDocs shows you the **exact page, paragraph, and pixel region** the answer came from — and **verifies each claim** against the evidence before showing it to you.
+- Ingests PDF, DOCX, PPTX, and text documents through S3-compatible storage and Celery workers.
+- Provides single-document evidence chat and private multi-document Evidence Workspaces.
+- Restricts workspace retrieval to explicitly selected, ready documents; it never silently falls back to the full library.
+- Returns source citations with document, page, chunk, and spatial coordinates.
+- Renders PDF evidence highlights. New PDF ingestions preserve separated line regions for tighter highlights; older documents use their stored single-region fallback until re-ingested.
+- Runs Evidence Gate in shadow mode, retaining an immutable audit record and claim-support results without blocking the answer.
+- Provides an owner-scoped review queue with append-only accept/reject history and optimistic concurrency protection.
+- Supports encrypted Bring Your Own Key Gemini access and tenant-scoped relational and vector retrieval.
+- Supports sparse retrieval mode for constrained deployments without loading local PyTorch or SentenceTransformers models.
 
-**The signature interaction:** Ask a question → get an answer → click a sentence → the PDF jumps to and highlights the exact supporting region.
+## Product flow
 
-## Core Capabilities
+```text
+Upload document
+  → worker parses, chunks, indexes, and marks it ready
+  → choose one document or create an Evidence Workspace
+  → ask a question
+  → inspect answer, sources, and page-level highlights
+  → review the Evidence Gate record when human approval is needed
+```
 
-- **Pixel-level citation grounding** — bounding-box coordinates for every retrieved chunk, rendered as a live highlight overlay on the source PDF
-- **Per-claim verification** — each factual sentence in the answer is independently classified as "supported" or "unsupported" against the retrieved evidence
-- **Section-aware, table-atomic chunking** — headings detected via font-size heuristics, tables kept as atomic units (never split), parent-child chunk hierarchy for precise retrieval + broad LLM context
-- **Hybrid retrieval** — Milvus dense + sparse vector search with cross-encoder reranking and document-scoped filtering
-- **BYOK (Bring Your Own Key)** — user-provided Gemini API keys encrypted with AES-256 (Fernet + PBKDF2HMAC, per-user salt)
-- **Tenant isolation** — user-scoped filtering enforced at both the relational DB and vector DB layers
-- **Evaluation harness** — golden dataset + CI-runnable metrics (Answer Grounding Rate, Source Recall@K, Citation Coverage)
+Only documents marked **Ready** are available for evidence queries. Queued, processing, and failed documents remain visible but cannot be selected as evidence.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  React/TypeScript Frontend (Vite)                           │
-│  PDF Viewer + Citation Highlighting + Claim Verification UI │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│  FastAPI Backend                                            │
-│  Upload → S3 → Celery Worker → Parse → Chunk → Embed       │
-│  Query → Hybrid Search → Rerank → Generate → Verify        │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│  PostgreSQL │ Milvus (Vectors) │ Redis (Queue) │ S3/MinIO   │
-└─────────────────────────────────────────────────────────────┘
+```text
+React + TypeScript (Vite)
+  → FastAPI API
+  → PostgreSQL: users, documents, chunks, history, audits, reviews
+  → Milvus/Zilliz: tenant-scoped vector retrieval
+  → Redis + Celery worker: asynchronous document processing
+  → S3-compatible object storage: original documents
+  → Gemini: answer generation and evidence checks
 ```
 
-### Query Pipeline
+For the production design and operational boundaries, see [ARCHITECTURE.md](ARCHITECTURE.md). For deployment, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
-```
-Query → Document Scope Check → Dense+Sparse Hybrid Search (Milvus)
-      → Cross-Encoder Reranking → Citation Hydration (PostgreSQL)
-      → LLM Generation (Gemini) → Per-Claim Verification
-      → Structured Response with Confidence Badges
-```
+## Quick start
 
-### Ingestion Pipeline
+### Prerequisites
 
-```
-Upload → S3/MinIO (API uploads directly, never passes local paths to workers)
-       → Celery Worker downloads own temp copy
-       → Parse (PDF/DOCX/PPTX/TXT, OCR for scanned docs)
-       → Section-aware chunking (heading detection, table atomicity, parent-child)
-       → Dense + Sparse embedding → Milvus (with user_id + document_id)
-       → PostgreSQL chunk persistence (with bbox, section_title, parent linkage)
-       → Summary generation → Complete
-```
+- Python 3.11+
+- Node.js 20+
+- PostgreSQL, Redis, Milvus or Zilliz, and S3-compatible storage
+- A Gemini API key, either platform-configured or supplied through BYOK
 
-## Quick Start
+### Local setup
 
 ```bash
 git clone https://github.com/HarshilMaks/InsightDocs.git
 cd InsightDocs
-cp .env.example .env  # Edit and add your GEMINI_API_KEY
-docker-compose up -d
+cp .env.example .env
+# Fill in required service credentials in .env
+
+docker-compose up -d --build
 ```
 
-Services:
-- **API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/api/v1/docs
-- **MinIO Console**: http://localhost:9001
+The API is available at `http://localhost:8000` and API documentation at `http://localhost:8000/api/v1/docs`.
 
-## Evaluation
-
-```bash
-# Run evaluation harness (mock mode, no services needed):
-python eval/run_eval.py --mode mock
-
-# Against a live backend:
-python eval/run_eval.py --mode live --token <jwt_token>
-```
-
-Metrics produced: Answer Grounding Rate, Source Recall@K, Citation Coverage.
-Exit code 1 if any metric falls below configurable thresholds (CI gate).
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| API | FastAPI, Pydantic, SQLAlchemy |
-| Workers | Celery, Redis |
-| Database | PostgreSQL |
-| Vectors | Milvus (hybrid dense + sparse) |
-| Storage | S3/MinIO |
-| LLM | Google Gemini (BYOK) |
-| Embeddings | Sentence Transformers (BAAI/bge-base-en-v1.5) |
-| Reranking | Cross-Encoder (ms-marco-MiniLM-L-6-v2) |
-| Frontend | React, TypeScript, Vite, Tailwind, react-pdf |
-| Auth | JWT (python-jose, bcrypt) |
-| Logging | Structured JSON (production) / plain text (dev) |
-
-## Project Structure
-
-```
-InsightDocs/
-├── backend/
-│   ├── agents/          # Orchestrator + DataAgent + AnalysisAgent
-│   ├── api/             # FastAPI routes (documents, query, auth, users, tasks)
-│   ├── core/            # Security, rate limiting, logging, base agent
-│   ├── middleware/      # Input/output guardrails, claim verification
-│   ├── models/          # SQLAlchemy models, Alembic migrations
-│   ├── storage/         # S3/MinIO file storage
-│   ├── utils/           # LLM client, embeddings, document processor, reranker, OCR
-│   └── workers/         # Celery tasks
-├── frontend/
-│   └── src/
-│       ├── components/  # PdfViewer, ChatPanel, CitationsPanel, etc.
-│       ├── pages/       # DocumentPage, DashboardPage, SettingsPage
-│       └── lib/         # API client, types, utilities
-├── eval/                # Golden dataset + evaluation harness
-├── tests/               # Unit + integration tests (125+ passing)
-├── alembic/             # Database migrations
-└── .lock/               # Project vision & roadmap (local planning, gitignored)
-```
-
-## Testing
-
-```bash
-# Full suite:
-pytest tests/
-
-# Current state: 125+ passing, 14 pre-existing env-gap failures
-# (missing optional native deps: sentence-transformers, LibreOffice, ImageMagick)
-```
-
-## Development Status
-
-### Completed (Verified with tests + static analysis)
-- ✅ Reliable ingestion pipeline (S3-first upload, worker temp-file cleanup)
-- ✅ Section-aware, table-atomic, parent-child chunking with heading detection
-- ✅ Interactive PDF viewer with citation bbox highlighting
-- ✅ Per-claim verification (supported/unsupported per sentence)
-- ✅ Evaluation harness with CI-gate thresholds
-- ✅ Structured JSON logging (production) / plain text (development)
-- ✅ Document-scoped querying (workspace-level retrieval filtering)
-- ✅ BYOK API key encryption + tenant-isolated vector search
-- ✅ Cross-encoder reranking
-
-### Planned (Not yet implemented)
-- ⬜ Knowledge Graph (Neo4j entity extraction + graph-enhanced retrieval)
-- ⬜ RBAC / Organizations / Document sharing
-- ⬜ OpenTelemetry distributed tracing
-- ⬜ Token usage accounting / cost dashboard
-
-## License
-
-Apache License 2.0 — see [LICENSE](LICENSE).
-
-
-## Evidence Gate and Review Queue
-
-InsightDocs now includes an additive **Evidence Gate** for document-grounded answers. In
-its current **shadow mode**, every eligible query can create an immutable audit record
-that binds the generated candidate, delivered answer, policy version, and source
-snapshot by hash. It classifies the run as `passed`, `failed`, `degraded`, or
-`abstained` without blocking a user answer.
-
-The protected **Reviews** area gives a document owner a queue of audit runs, claim-level
-support status, the retained source quote/page/bbox metadata, and an append-only
-accepted/rejected review decision history. Review decisions use optimistic concurrency:
-a stale decision is rejected rather than silently overwriting another review.
-
-This is not a claim that a citation is universally true. It means the claim was or was
-not supported by the selected, inspectable source evidence. The review queue is a human
-verification workflow, not an automated truth guarantee.
-
-Before using this capability against any database, apply the two forward migrations:
+For a production-safe Render and Vercel deployment, follow [DEPLOYMENT.md](DEPLOYMENT.md). Apply migrations before serving a new release:
 
 ```bash
 alembic upgrade head
 ```
 
-The Evidence Gate starts in shadow mode only. It does not replace the existing Document
-Workspace, query request contract, or source viewer.
+## Configuration
+
+Production deployments with approximately 512 MB of memory must set:
+
+```text
+EMBEDDING_MODE=sparse
+```
+
+Sparse mode uses deterministic hashed sparse vectors and avoids local dense embedding, reranking, and PyTorch model startup. The API and worker must use the same retrieval configuration.
+
+Gemini model availability differs by key. The configured model chain starts with `gemini-3.6-flash`, then `gemini-3-flash-preview`, and dynamically discovers an accessible text-generation model if required.
+
+## Validation
+
+```bash
+# Backend tests
+.venv/bin/python -m pytest -q tests/
+
+# Frontend type-check and production build
+cd frontend && npm run build
+
+# PostgreSQL migration SQL preview
+DATABASE_URL='postgresql://user:password@localhost:5432/insightdocs' \
+  .venv/bin/alembic upgrade head --sql
+```
+
+The focused release regressions cover citation geometry, Evidence Gate review decisions, workspace ownership and strict retrieval scope, ready-document enforcement, history isolation and ordering, Gemini fallback, and request cancellation handling.
+
+## Current boundaries
+
+InsightDocs is a document-evidence product, not an automated truth system. A citation or Evidence Gate result means a claim was assessed against retained selected evidence; it does not establish universal truth. Human review remains the final decision point.
+
+The current release does not provide organization-wide sharing/RBAC, external data connectors, document change monitoring, comparison/conflict matrices, draft-claim verification, or evidence-packet export.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
