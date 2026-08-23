@@ -1,78 +1,137 @@
 # InsightDocs Architecture
 
-## Purpose
+InsightDocs is an evidence-first document application. Its architecture favors explicit retrieval scope, inspectable citations, owner isolation, and operational safety over open-ended autonomous behavior.
 
-InsightDocs turns uploaded documents into reviewable evidence. The design prioritizes provenance, tenant isolation, explicit retrieval scope, and operational safety over open-ended autonomous behavior.
+## Runtime topology
 
-## Runtime components
-
-```text
-Browser
-  React + TypeScript + Vite
-       │ HTTPS
-FastAPI API
-  auth, library, workspaces, query history, Evidence Gate, review queue
-       │                    │
-PostgreSQL                 Milvus / Zilliz
-  application state         tenant-scoped vector records
-       │                    │
-Redis + Celery worker ──────┘
-  asynchronous parsing, chunking, embedding
-       │
-S3-compatible storage
-  original uploaded files
+```mermaid
+flowchart TB
+    Browser[React and TypeScript client] -->|HTTPS| API[FastAPI API]
+    API --> DB[(PostgreSQL: application data)]
+    API --> V[(Milvus or Zilliz: vectors)]
+    API --> S[(S3-compatible storage: originals)]
+    API --> G[Gemini: answers and checks]
+    API --> R[(Redis)]
+    R --> W[Celery worker: processing and indexing]
+    W --> S
+    W --> DB
+    W --> V
 ```
 
-Gemini is used for answer generation and optional safety/evidence checks. A user can supply an encrypted BYOK key; a configured system key is an optional fallback.
+| Component | Responsibility |
+| --- | --- |
+| Browser client | Authentication UI, document library, Evidence Workspaces, source viewing, history, and review actions. |
+| FastAPI API | Authentication, ownership checks, upload handoff, query orchestration, history, Evidence Gate persistence, and review APIs. |
+| Celery worker | Parsing, OCR where configured, chunking, embedding, vector indexing, and document state transitions. |
+| PostgreSQL | Application records, document/chunk metadata, query history, audit runs, and append-only review decisions. |
+| Milvus or Zilliz | Retrieval vectors constrained by tenant and document scope. |
+| S3-compatible storage | Original uploaded files. The API issues short-lived owner-checked URLs for viewing. |
+| Redis | Celery broker/result backend and rate-limit storage. |
 
-## Document lifecycle
+A user may provide an encrypted BYOK Gemini key. A configured system key is an optional fallback. Gemini is never the source of record for ownership, document state, citations, or review decisions.
 
-1. The API validates an upload and writes the original file to object storage.
-2. It creates a pending document and queues a Celery task.
-3. The worker downloads its own temporary copy, extracts text, tables, and PDF geometry where available, then creates structural chunks.
-4. The worker writes chunks to PostgreSQL and their vectors to Milvus with both `user_id` and `document_id` metadata.
-5. The document becomes `completed` only after processing succeeds. Only completed documents are eligible for evidence queries.
+## Ingestion lifecycle
 
-The API never treats a queued, processing, or failed document as searchable evidence. The UI reflects the same rule.
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as API
+    participant S as Object storage
+    participant Q as Redis and Celery
+    participant W as Worker
+    participant DB as PostgreSQL
+    participant V as Vector store
 
-## Retrieval and evidence scope
+    U->>A: Upload supported file
+    A->>S: Store original object
+    A->>DB: Create pending document
+    A->>Q: Queue processing task
+    Q->>W: Deliver task
+    W->>S: Download its own temporary copy
+    W->>W: Extract text, tables, and PDF geometry
+    W->>DB: Store chunks and metadata
+    W->>V: Index tenant and document-scoped vectors
+    W->>DB: Mark document completed
+```
 
-Every vector search is tenant-scoped by `user_id`.
+The upload API stores the original file before it queues the worker. A worker downloads its own temporary copy, so processing does not depend on an API container’s local filesystem.
 
-- A single-document query adds a verified `document_id` filter.
-- A workspace query resolves the owner’s selected, completed documents and sends an explicit `document_id in [...]` allow-list.
-- An empty workspace or workspace with no ready documents returns an error. It does not fall back to the user’s whole library.
+A document becomes queryable only after processing succeeds. The UI calls this **Ready**; the persisted state is `completed`. Queued, processing, and failed documents remain unavailable as evidence.
 
-Production constrained to approximately 512 MB should run with `EMBEDDING_MODE=sparse`. Sparse mode uses deterministic hashed sparse vectors and avoids importing SentenceTransformers, BGEM3, cross-encoders, and PyTorch. Hybrid retrieval remains a development/deployment option only when the required model capacity is available.
+## Query and evidence lifecycle
 
-## Citations and PDF highlights
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as API
+    participant DB as PostgreSQL
+    participant V as Vector store
+    participant G as Gemini
 
-Retrieved vector records are hydrated from PostgreSQL before an answer is returned. A source reference includes its document, page, chunk, section, similarity score, and spatial geometry when available.
+    U->>A: Ask against document or workspace
+    A->>DB: Verify owner and ready-document scope
+    A->>V: Retrieve only allowed tenant/document vectors
+    V-->>A: Candidate chunks
+    A->>DB: Hydrate citation metadata and source geometry
+    A->>G: Generate from retrieved source context
+    G-->>A: Answer and claim assessment
+    A->>DB: Persist query, source snapshot, and shadow audit
+    A-->>U: Answer, citations, and audit summary
+```
 
-New text-based PDF ingestions store separated line/region boxes. The frontend renders one overlay per region so the cited evidence is not represented by a broad page rectangle. Legacy chunks retain their stored single bbox and remain compatible; re-ingest a document to obtain multi-region geometry. Scanned/OCR-only documents can provide text evidence without spatial highlights.
+### Scope rules
 
-## Query, history, and cancellation
+- Every vector search is constrained by `user_id`.
+- A single-document query validates ownership and adds that `document_id` to retrieval.
+- A workspace query resolves the owner’s explicitly selected completed documents and passes a document allow-list.
+- An empty workspace, or one without ready documents, returns an error. It never falls back to the user’s full library.
+- A conversation ID cannot be reused across different workspaces.
 
-A completed query persists the question, answer, sources, conversation ID, timing, and optional workspace provenance. History is owner-scoped and can reopen a routed document or workspace conversation when provenance exists.
+### Cancellation
 
-The browser can cancel an in-flight query. The API checks for a disconnected client after generation and before persistence; when detected, it does not create a query history or Evidence Gate record. Gemini generation is non-streaming, so a cancellation cannot guarantee revocation of an already-issued provider request.
+The browser may cancel an in-flight request. The API checks for a disconnected client after generation and before persistence. When a disconnect is observed, it returns `499` and does not save the query or Evidence Gate record. Gemini generation is non-streaming, so cancellation cannot revoke a request already sent to the provider.
+
+## Citations and source inspection
+
+Retrieved vector results are hydrated from PostgreSQL before they are returned. A source reference carries document, page, chunk, section, similarity score, and spatial geometry when available.
+
+| Source type | Citation behavior |
+| --- | --- |
+| New text-based PDF ingestion | Stores separated line/region boxes. The viewer renders one overlay per region. |
+| Legacy PDF ingestion | Retains the stored single bounding box. Re-ingest for multi-region geometry. |
+| Scanned or OCR-only document | Can provide text evidence, but may not have spatial PDF highlights. |
 
 ## Evidence Gate and review
 
-Evidence Gate runs in shadow mode. It creates an immutable audit run with the answer and source snapshot hashes, along with claim-support outcomes when verification is available. It does not block answer delivery.
+```mermaid
+flowchart LR
+    Q[Persisted query and source snapshot] --> G[Evidence Gate shadow audit]
+    G --> C[Claim support outcomes]
+    G --> H[Immutable audit hashes]
+    C --> R[Owner review queue]
+    H --> R
+    R --> D[Append-only accept or reject decision]
+```
 
-Review decisions are owner-scoped and append-only. They use a `review_version` compare-and-swap update, so stale accept/reject actions return a conflict instead of overwriting another decision.
+Evidence Gate is a shadow-mode assessment. It records whether answer claims are supported by the selected source snapshot when verification is available. It does not block the answer, search the web, declare universal truth, or make a decision for the user.
 
-## Security boundaries
+Review decisions are owner-scoped and append-only. A compare-and-swap `review_version` prevents a stale accept/reject action from silently overwriting another decision.
 
-- JWT authentication is required for user data.
-- Documents, workspaces, history, vectors, reviews, and presigned file URLs are owner-scoped.
-- BYOK values are encrypted at rest and decrypted only for an authorized request.
-- Presigned object-storage URLs are issued only after document ownership is verified.
-- CORS is configured from an explicit allowed-origin list.
+## Security and ownership boundaries
 
-## Deployment boundaries
+| Boundary | Enforcement |
+| --- | --- |
+| Authentication | JWT-protected user data routes. |
+| Document access | Owner filter on document, workspace membership, history, audit, review, and presigned file URL operations. |
+| Retrieval | Tenant filter plus direct-document or workspace allow-list. |
+| BYOK | Encrypted at rest; decrypted only for an authorized request; never returned through the API. |
+| Storage access | Presigned original-file URLs are issued only after ownership checks and expire quickly. |
+| Browser origin | Explicit allowed-origin configuration. |
 
-The API and worker are deployed separately. They must share database, Redis, object-storage, Milvus, encryption key, and retrieval-mode configuration. The API applies Alembic migrations before startup and fails the deployment if migration fails; a service with a schema mismatch must not report itself as healthy.
+## Deployment boundary
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment and verification steps.
+API and worker are separate services. They must share compatible PostgreSQL, Redis, storage, vector, encryption, and retrieval-mode configuration. In constrained deployments, `EMBEDDING_MODE=sparse` avoids importing local dense embedding, reranking, and PyTorch models.
+
+`scripts/start_api.sh` runs `alembic upgrade head` before Uvicorn starts. A migration failure stops the API; a schema-mismatched service must not report itself healthy.
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the release topology, configuration placement, and verification procedure.

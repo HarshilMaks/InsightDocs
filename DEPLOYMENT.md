@@ -1,205 +1,156 @@
 # InsightDocs Deployment Guide
 
-## Prerequisites
+This guide deploys the frontend, API, worker, database, vector search, queue, and object storage as separate responsibilities. It uses Render and Vercel as concrete examples; equivalent providers are acceptable when they meet the same boundaries.
 
-You need accounts/instances for these services:
+## Deployment topology
 
-| Service | Purpose | Recommended Provider |
-|---|---|---|
-| **PostgreSQL** | Relational data (users, documents, chunks, queries) | Neon, Supabase, or Render Postgres |
-| **Redis** | Celery broker + rate limiting | Upstash Redis or Render Redis |
-| **Milvus/Zilliz** | Vector search | Zilliz Cloud (free tier available) |
-| **Object Storage** | Document files | AWS S3, Cloudflare R2, or Backblaze B2 |
-| **Python hosting** | API + Celery worker | Render (recommended) or Railway |
-| **Frontend hosting** | React SPA | Vercel (recommended) |
-
----
-
-## Step 1: Provision Infrastructure
-
-### PostgreSQL
-- Create a database named `insightdocs`
-- Note the connection URL: `postgresql://user:pass@host:port/insightdocs`
-
-### Redis
-- Create a Redis instance
-- Note the URL: `redis://default:password@host:port/0`
-
-### Zilliz Cloud (Milvus)
-- Create a free cluster at https://cloud.zilliz.com
-- Note the endpoint URL and API token
-- The collection will be auto-created on first connection
-
-### Object Storage (S3-compatible)
-- Create a bucket named `insightdocs`
-- Create access credentials (access key + secret key)
-- Note the endpoint URL (for AWS S3 use `https://s3.amazonaws.com`, for R2 use your R2 endpoint)
-
----
-
-## Step 2: Deploy Backend (Render)
-
-### API Service
-1. Create a **Web Service** on Render and connect your GitHub repo.
-2. Choose the **Docker** runtime.
-3. Settings:
-   - **Dockerfile Path:** `Dockerfile`
-   - **Build Command:** leave empty. The Dockerfile installs `requirements-prod.txt` into `/opt/venv` during the image build.
-   - **Start Command / Docker Command:** leave empty. The image `CMD` runs `bash scripts/start_api.sh`.
-   - **Plan:** Starter or higher (512 MB deployments must use sparse retrieval).
-
-### Worker Service
-1. Create a **Background Worker** on Render and connect the same repo.
-2. Choose the **Docker** runtime.
-3. Settings:
-   - **Dockerfile Path:** `Dockerfile.worker`
-   - **Build Command:** leave empty. Its Dockerfile installs dependencies during the image build.
-   - **Start Command / Docker Command:** leave empty. The image `CMD` runs `bash scripts/start_worker.sh`.
-
-> Do not set `bash scripts/render_build.sh` as a Build, Start, Docker, or
-> Pre-Deploy command for either Docker service. It is only for native Python
-> deployments; the Docker runtime intentionally executes as an unprivileged
-> user after `/opt/venv` has already been built.
-
-### Environment Variables (set on BOTH services)
-```
-APP_ENV=production
-DEBUG=false
-# Required for a 512 MB Render API/worker. This disables local PyTorch models.
-EMBEDDING_MODE=sparse
-SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_urlsafe(64))">
-# One variable, with every permitted browser origin separated by commas.
-ALLOWED_ORIGINS=https://insightdocs.vercel.app,http://localhost:3000,http://127.0.0.1:3000
-DATABASE_URL=<your postgres URL>
-REDIS_URL=<your redis URL>
-CELERY_BROKER_URL=<same as REDIS_URL>
-CELERY_RESULT_BACKEND=<redis URL with /1 suffix>
-MILVUS_URI=<your Zilliz endpoint>
-MILVUS_TOKEN=<your Zilliz token>
-S3_ENDPOINT=<your S3/R2 endpoint>
-AWS_ACCESS_KEY_ID=<your key>
-AWS_SECRET_ACCESS_KEY=<your secret>
-S3_BUCKET_NAME=insightdocs
-GEMINI_MODEL=gemini-3.6-flash
-GEMINI_MODEL_FALLBACKS=gemini-3-flash-preview
+```mermaid
+flowchart LR
+    U[User browser] --> F[Vercel: React and Vite frontend]
+    F -->|HTTPS API requests| A[Render API: FastAPI]
+    A --> DB[(PostgreSQL)]
+    A --> V[(Milvus or Zilliz)]
+    A --> S[(S3-compatible storage)]
+    A --> R[(Redis)]
+    W[Render worker: Celery] --> R
+    W --> DB
+    W --> V
+    W --> S
+    A --> G[Gemini]
 ```
 
-### GitHub Actions Worker (free hosted alternative)
+The API and worker must use the same database, Redis, object-storage, vector, encryption, and retrieval-mode configuration. The frontend receives only `VITE_API_BASE_URL`; it must never receive server or provider secrets.
 
-If a paid Render Background Worker is not an option, the repository includes
-`.github/workflows/process-celery-queue.yml`. It starts one Celery consumer for
-up to twelve minutes every fifteen minutes, and can also be run manually from
-**GitHub → Actions → Process InsightDocs queue → Run workflow**.
+## Before creating services
 
-Add these **Repository secrets** in **GitHub → Settings → Secrets and variables
-→ Actions**. Copy each production value exactly from the Render API service:
+Provision these services and retain their connection values in your deployment secret manager.
 
+| Service | Required role | Example provider |
+| --- | --- | --- |
+| PostgreSQL | Users, documents, chunks, history, audits, reviews | Render Postgres, Neon, Supabase |
+| Redis | Celery broker/result backend and rate limiting | Render Redis, Upstash |
+| Milvus or Zilliz | Tenant-scoped vector retrieval | Zilliz Cloud, Milvus |
+| S3-compatible storage | Original uploaded documents | S3, Cloudflare R2, Backblaze B2 |
+| API and worker hosting | FastAPI and Celery services | Render, Railway |
+| Frontend hosting | Vite single-page app | Vercel |
+
+## Release sequence
+
+```mermaid
+flowchart TD
+    C[Deploy source revision with migrations] --> M[Alembic upgrade head]
+    M -->|success| A[Start API]
+    M -->|failure| X[Stop startup: fail closed]
+    A --> W[Start worker with matching configuration]
+    W --> F[Deploy frontend with API URL]
+    F --> S[Run live smoke test]
 ```
-SECRET_KEY
-DATABASE_URL
-REDIS_URL
-CELERY_BROKER_URL
-CELERY_RESULT_BACKEND
-MILVUS_URI
-MILVUS_TOKEN
-MILVUS_COLLECTION
-MILVUS_DIM
-S3_ENDPOINT
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-S3_BUCKET_NAME
-AWS_DEFAULT_REGION
+
+Do not deploy an API source revision that lacks the migration revision recorded by the database. Do not bypass a mismatch with `alembic stamp` or by deleting `alembic_version`.
+
+## 1. Deploy the API
+
+Create a Render **Web Service** from this repository.
+
+| Setting | Value |
+| --- | --- |
+| Runtime | Docker |
+| Dockerfile | `Dockerfile` |
+| Build command | Leave empty; Dockerfile installs `requirements-prod.txt` into `/opt/venv`. |
+| Start command | Leave empty; image CMD runs `bash scripts/start_api.sh`. |
+| Memory-constrained plan | Set `EMBEDDING_MODE=sparse`. |
+
+The start script runs migrations before Uvicorn. If migration fails, the service must fail instead of binding a healthy port against an unknown schema.
+
+## 2. Deploy the worker
+
+Create a Render **Background Worker** from the same repository.
+
+| Setting | Value |
+| --- | --- |
+| Runtime | Docker |
+| Dockerfile | `Dockerfile.worker` |
+| Build command | Leave empty. |
+| Start command | Leave empty; image CMD runs `bash scripts/start_worker.sh`. |
+
+The worker performs parsing, OCR where configured, chunking, and vector indexing. A queued document will not become Ready without it.
+
+## 3. Configure server environment variables
+
+Set these on **both API and worker** unless marked otherwise. Copy the exact variable names from [`.env.example`](.env.example).
+
+| Group | Variables |
+| --- | --- |
+| Application | `APP_ENV=production`, `DEBUG=false`, `SECRET_KEY`, `ALLOWED_ORIGINS` |
+| Retrieval | `EMBEDDING_MODE=sparse` for 512 MB services, `MILVUS_URI`, `MILVUS_TOKEN`, `MILVUS_COLLECTION`, `MILVUS_DIM` |
+| Data and queue | `DATABASE_URL`, `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` |
+| Object storage | `S3_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`, `AWS_DEFAULT_REGION` |
+| Gemini | `GEMINI_MODEL=gemini-3.6-flash`, `GEMINI_MODEL_FALLBACKS=gemini-3-flash-preview`; `GEMINI_API_KEY` only when using a system-level fallback in addition to BYOK. |
+
+`SECRET_KEY` must be identical for API and worker so an authorized worker/API operation can decrypt stored BYOK values. Never put these values in the Git repository, frontend variables, or browser build output.
+
+### GitHub Actions worker alternative
+
+`.github/workflows/process-celery-queue.yml` can run one Celery consumer for up to twelve minutes every fifteen minutes, or on manual dispatch. It is a lower-cost alternative to a permanent worker, but a newly uploaded document may wait up to fifteen minutes unless an operator triggers the workflow.
+
+Add the same server configuration as GitHub Actions repository secrets. Include `SECRET_KEY`, database/Redis/Milvus/storage variables, and optional `GEMINI_API_KEY` if a system-level fallback is used.
+
+## 4. Deploy the frontend
+
+Create a Vercel project from this repository.
+
+| Setting | Value |
+| --- | --- |
+| Root directory | `frontend` |
+| Framework | Vite |
+| Required environment variable | `VITE_API_BASE_URL=https://your-api-host/api/v1` |
+
+Add the final Vercel URL to the API and worker `ALLOWED_ORIGINS` list. `frontend/vercel.json` handles SPA routing and configured security headers.
+
+## 5. Verify a release
+
+```mermaid
+sequenceDiagram
+    participant O as Operator
+    participant A as API
+    participant W as Worker
+    participant F as Frontend
+
+    O->>A: Check /api/v1/health
+    O->>A: Register and sign in
+    O->>F: Upload a fresh PDF
+    F->>W: Wait for document to become Ready
+    O->>F: Ask a question and inspect citation
+    O->>F: Open History and review record
 ```
 
-`GEMINI_API_KEY` is optional: add it only if you use a system-level Gemini
-fallback in addition to user BYOK keys.
+Use this release checklist:
 
-`SECRET_KEY` must match the API service so the worker can decrypt users' BYOK
-keys. The workflow processes one task at a time and does not require a public
-HTTP endpoint. A newly uploaded document can wait up to fifteen minutes before
-a scheduled runner begins it; use **Run workflow** to start a run immediately.
-
----
-
-## Step 3: Deploy Frontend (Vercel)
-
-1. Import the repo on Vercel
-2. Set **Root Directory** to `frontend`
-3. Framework: Vite (auto-detected)
-4. Environment Variables:
-   ```
-   VITE_API_BASE_URL=https://your-render-api-url.onrender.com/api/v1
-   ```
-5. Deploy
-
-The `vercel.json` in `frontend/` handles SPA routing and security headers automatically.
-
----
-
-## Step 4: Verify Deployment
-
-1. **Health check:** `curl https://your-api.onrender.com/api/v1/health`
-   - Should return `{"status": "healthy", ...}`
-2. **Register a user:** POST to `/api/v1/auth/register`
-3. **Upload a document:** POST to `/api/v1/documents/upload`
-4. **Query:** POST to `/api/v1/query/`
-5. **Frontend:** Visit your Vercel URL, log in, upload a PDF, ask a question
-
----
-
-## Deployment Checklist
-
-- [ ] PostgreSQL provisioned and URL noted
-- [ ] Redis provisioned and URL noted
-- [ ] Zilliz Cloud cluster created, endpoint + token noted
-- [ ] S3-compatible bucket created with credentials
-- [ ] Render API service deployed with env vars set
-- [ ] Render Worker service deployed with same env vars
-- [ ] `alembic upgrade head` completed successfully before the API starts (check logs)
-- [ ] `alembic current` reports `d8e4f1a2b903` or a later revision
-- [ ] Vercel frontend deployed with `VITE_API_BASE_URL` pointing to Render API
-- [ ] `ALLOWED_ORIGINS` on Render includes the Vercel frontend URL
-- [ ] Health endpoint returns healthy
-- [ ] Registration + login works
-- [ ] Document upload + processing completes
-- [ ] Query returns answer with citations
-- [ ] PDF viewer loads and highlights citations
-
----
+- [ ] `alembic current` reports `d8e4f1a2b903` or a later revision.
+- [ ] API health returns healthy.
+- [ ] Worker receives and completes a document task.
+- [ ] A fresh PDF becomes Ready and shows citation highlights.
+- [ ] A workspace query searches only its selected ready documents.
+- [ ] History reopens a routed document or workspace conversation.
+- [ ] Review queue loads and rejects a stale decision with a visible conflict.
+- [ ] Stop cancels an active query without persisting a cancelled answer when the disconnect is observed.
 
 ## Troubleshooting
 
-| Issue | Cause | Fix |
-|---|---|---|
-| CORS errors in browser | `ALLOWED_ORIGINS` doesn't include frontend URL | Add your Vercel URL to `ALLOWED_ORIGINS` env var on Render |
-| 503 on query | Milvus not connected | Verify `MILVUS_URI` and `MILVUS_TOKEN` are correct |
-| Upload succeeds but processing fails | Worker not running or can't reach Redis | Check worker logs on Render; verify `CELERY_BROKER_URL` |
-| "No module named..." errors | Missing dependency | Check that `requirements.txt` includes all needed packages |
-| PDF viewer shows nothing | Presigned URL expired or S3 endpoint wrong | Verify `S3_ENDPOINT` is accessible from the client browser (not internal-only) |
-| Alembic migration fails | Wrong database URL, stale image, or deployed source missing the recorded revision | Confirm the deployed commit contains the migration file, run `alembic heads` and `alembic current`, then deploy the matching revision. Do not stamp or delete `alembic_version` as a workaround. |
+| Symptom | First check | Correct response |
+| --- | --- | --- |
+| Browser CORS failure | `ALLOWED_ORIGINS` | Add the exact frontend origin, without path segments. |
+| Query returns `503` | Milvus/Zilliz connectivity | Verify `MILVUS_URI`, `MILVUS_TOKEN`, collection settings, and network access. |
+| Upload succeeds but never becomes Ready | Worker and Redis logs | Confirm worker is running and both services use the same Redis configuration. |
+| PDF viewer cannot load | Presigned URL and storage endpoint | Ensure the object-storage endpoint is browser reachable and configured correctly. |
+| API fails on startup | Migration log | Confirm source contains the recorded migration, compare `alembic heads` and `alembic current`, then deploy the matching revision. |
+| BYOK fails after deployment | `SECRET_KEY` mismatch | Set the same `SECRET_KEY` on API and worker; do not rotate it without a credential migration plan. |
 
----
+## Operational notes
 
-## Architecture Notes for Production
+- API migrations run before Uvicorn begins. For multiple API instances, use a one-off migration job before rolling instances.
+- Production logs are JSON when `APP_ENV=production`.
+- Object-storage URLs are short-lived and owner-checked before they are issued.
+- Existing PDFs retain legacy single-region highlights until they are re-ingested; use a fresh PDF smoke test for multi-region highlights.
 
-- The API runs `alembic upgrade head` before Uvicorn starts. A migration failure stops the deployment rather than serving against a mismatched schema. For multi-instance deployments, run migrations as a separate one-off job before rolling application instances.
-- The Celery worker uses `--concurrency=2` by default — increase for higher throughput if your plan allows more CPU/RAM.
-- Object storage presigned URLs are served directly to the browser for PDF viewing — ensure your S3 endpoint is publicly reachable (not behind a VPN).
-- Structured JSON logs are emitted in production (`APP_ENV=production`) for log ingestion services.
-
-
-## Evidence Gate deployment note
-
-Evidence Gate review state is stored in PostgreSQL. Before rolling out a release that
-contains it, take the normal database backup/snapshot and run migrations once against
-the target database:
-
-```bash
-alembic upgrade head
-alembic current
-```
-
-Confirm that the current revision is `d8e4f1a2b903` or a later revision. Then verify a
-query still succeeds and, for an owner with an audit run, confirm `/review` can load the
-queue/detail and handle a stale review decision with a visible conflict rather than an
-overwrite. Do not expose the review endpoints to unauthenticated callers.
+For runtime/data flow, see [ARCHITECTURE.md](ARCHITECTURE.md). For environment variable descriptions, see [`.env.example`](.env.example). For the current supported product boundary, see [PROJECT_STATUS.md](PROJECT_STATUS.md).
