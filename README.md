@@ -1,21 +1,21 @@
 # InsightDocs
 
-InsightDocs is an evidence-first document intelligence application for people who need to inspect the source behind an AI answer—not just receive a plausible response.
+InsightDocs is an evidence-first document intelligence application for work that must remain traceable to selected source material. It is built for analysts, reviewers, operators, researchers, and teams working with PDFs and business documents where a plausible answer is not enough.
 
-It is designed for analysts, reviewers, operators, researchers, and teams working with PDFs and business documents where traceability matters. Upload documents, select an explicit evidence corpus, ask a question, inspect the cited source regions, and review the evidence record behind the answer.
+## Not a generic document chat
 
-## Product positioning
+Broad notebook-style research tools and general-purpose chat assistants are useful for open-ended exploration, drafting, and asking questions across a library. InsightDocs is for a different moment in the workflow: when a user must define the evidence set, inspect where an answer came from, and retain a reviewable record of the result.
 
-| Review need | Common document, scanner, or general AI workflow | InsightDocs approach |
-| --- | --- | --- |
-| Turn files into searchable content | Display pages, extract text, or create a broad searchable library | Processes supported files asynchronously, then makes each document available only when it is ready. |
-| Ask a question | Provide a summary or answer with little control over the evidence set | Supports a single ready document or an explicitly curated Evidence Workspace. Workspace queries never expand to the full library. |
-| Check an answer | Require manual searching through the original file | Returns document, page, chunk, and spatial citation data; PDF sources can be opened with evidence highlights. |
-| Keep separate investigations separate | Reuse a shared or implicit search corpus | Keeps documents, workspaces, conversations, and retrieval tenant- and owner-scoped. |
-| Add human accountability | Treat the generated response as the final output | Runs Evidence Gate in shadow mode and retains an auditable claim-support record for human review. |
-| Operate within limited infrastructure | Assume local dense models and high-memory services | Supports deterministic sparse retrieval for constrained deployments while retaining the same evidence workflow. |
+| Broad notebook or chat workflow | InsightDocs workflow |
+| --- | --- |
+| Put material in a broad notebook or library, then explore it conversationally | Select one ready document or create a named private Evidence Workspace for a specific investigation. |
+| Treat the available library as conversational context | Enforce the selected ready-document set as a retrieval boundary. A workspace query never expands to the full library. |
+| Receive a useful answer, summary, or synthesis | Receive an answer with document, page, chunk, and spatial source references that can be inspected in the original PDF. |
+| Use citations as helpful reading references | Preserve exact PDF regions for new ingestions so evidence highlights can point to separated source passages rather than only a broad page area. |
+| Continue an open chat thread | Reopen saved document or workspace conversations with their original evidence scope. |
+| Hand the generated answer to a person for informal review | Retain a shadow-mode Evidence Gate claim-support record and owner-scoped review decisions for human accountability. |
 
-The comparison describes workflow design, not a claim about every third-party product. InsightDocs is most valuable when evidence scope, source inspection, and review traceability matter more than producing an ungrounded answer quickly.
+Use a general notebook or chat tool when the goal is broad exploration or drafting. Use InsightDocs when the answer must stay tied to a controlled corpus and a reviewer needs to inspect the evidence behind it.
 
 ## Who it is for
 
@@ -65,7 +65,9 @@ React + TypeScript (Vite)
 
 For the production design and operational boundaries, see [ARCHITECTURE.md](ARCHITECTURE.md). For deployment, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
-## Quick start
+## Run locally (optional)
+
+Local setup is for development or evaluation. It does not deploy or publish the application.
 
 ### Prerequisites
 
@@ -74,7 +76,7 @@ For the production design and operational boundaries, see [ARCHITECTURE.md](ARCH
 - PostgreSQL, Redis, Milvus or Zilliz, and S3-compatible storage
 - A Gemini API key, either platform-configured or supplied through BYOK
 
-### Local setup
+### Service stack
 
 ```bash
 git clone https://github.com/HarshilMaks/InsightDocs.git
@@ -82,16 +84,23 @@ cd InsightDocs
 cp .env.example .env
 # Fill in required service credentials in .env
 
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
-The API is available at `http://localhost:8000` and API documentation at `http://localhost:8000/api/v1/docs`.
+This starts the backend service stack. The API is available at `http://localhost:8000` and its generated documentation is at `http://localhost:8000/api/v1/docs`. To run the frontend locally, follow [frontend/README.md](frontend/README.md).
 
-For a production-safe Render and Vercel deployment, follow [DEPLOYMENT.md](DEPLOYMENT.md). Apply migrations before serving a new release:
+### Migrations
 
-```bash
-alembic upgrade head
-```
+`alembic upgrade head` is not a deployment command by itself. It applies database schema changes.
+
+- For a new local database, or after pulling a release that includes a new migration, run:
+
+  ```bash
+  docker compose exec api alembic upgrade head
+  ```
+
+- If the local database is already at the current revision, no migration action is needed.
+- In production, `scripts/start_api.sh` runs `alembic upgrade head` before the API starts and fails closed if it cannot succeed. Follow [DEPLOYMENT.md](DEPLOYMENT.md) rather than running ad hoc production commands.
 
 ## Configuration
 
