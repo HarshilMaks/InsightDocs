@@ -100,6 +100,22 @@ async def query_documents(
                 query_request.workspace_id,
                 current_user.id,
             )
+        elif query_request.document_id:
+            document = (
+                db.query(Document)
+                .filter(
+                    Document.id == query_request.document_id,
+                    Document.user_id == current_user.id,
+                )
+                .one_or_none()
+            )
+            if document is None:
+                raise HTTPException(status_code=404, detail="Document not found.")
+            if document.status != TaskStatus.COMPLETED:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Document is not ready for evidence queries. Wait for processing to complete.",
+                )
 
         logger.info(f"Query by user {current_user.id}: {query_request.query}")
         conversation_id = query_request.conversation_id or str(uuid4())

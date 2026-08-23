@@ -325,7 +325,8 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
                   <TableRow
                     key={doc.id}
                     data-state={ready ? undefined : 'disabled'}
-                    className={ready ? 'cursor-pointer' : 'cursor-default'}
+                    className={ready ? 'cursor-pointer' : 'cursor-default opacity-65'}
+                    title={ready ? undefined : 'This document is unavailable until processing completes.'}
                     onClick={() => ready && navigate(`/documents/${doc.id}`)}
                   >
                     <TableCell>
@@ -333,8 +334,14 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
                         <FileTypeIcon fileType={doc.file_type} />
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium">{doc.filename}</p>
-                          {doc.status === 'failed' && doc.error_message && (
-                            <p className="truncate text-xs text-destructive">{doc.error_message}</p>
+                          {!ready && (
+                            <p className={`truncate text-xs ${doc.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                              {doc.status === 'failed'
+                                ? doc.error_message || 'Processing failed. This document cannot be used as evidence.'
+                                : doc.status === 'processing'
+                                  ? 'Processing and indexing — not available as evidence yet.'
+                                  : 'Queued for processing — not available as evidence yet.'}
+                            </p>
                           )}
                         </div>
                       </div>

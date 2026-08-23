@@ -221,3 +221,23 @@ def test_empty_workspace_query_never_falls_back_to_full_library(client):
     )
     assert response.status_code == 400
     assert "no ready documents" in response.json()["detail"].lower()
+
+
+def test_pending_single_document_query_is_rejected_before_retrieval(client):
+    token = _register_and_login(client, "workspace-pending-query@example.com", "Pending Query")
+    user_id = _user_id(client, token)
+    _seed_document("workspace-pending-direct", user_id, status=TaskStatus.PENDING)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    fake_orchestrator = MagicMock()
+    fake_orchestrator.process_query = AsyncMock()
+    with patch("backend.api.query._get_user_orchestrator", return_value=fake_orchestrator):
+        response = client.post(
+            "/api/v1/query/",
+            headers=headers,
+            json={"query": "This queued document must not be searched.", "document_id": "workspace-pending-direct"},
+        )
+
+    assert response.status_code == 409
+    assert "not ready" in response.json()["detail"].lower()
+    fake_orchestrator.process_query.assert_not_called()
