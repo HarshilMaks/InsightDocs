@@ -1,4 +1,6 @@
-# Frontend Implementation Guide - InsightDocs
+# Historical Frontend Implementation Guide
+
+> **Historical record.** This implementation guide describes an earlier frontend plan. It is retained for context only; use [PROJECT_STATUS.md](../PROJECT_STATUS.md), [README.md](../README.md), and `frontend/README.md` for current guidance.
 
 **Complete guide for building the React frontend with Vite, TypeScript, Tailwind CSS, and Shadcn UI**
 

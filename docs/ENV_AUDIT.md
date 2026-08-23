@@ -1,5 +1,7 @@
 # .env Configuration Audit
 
+> **Historical record.** This audit reflects an earlier environment review and is retained for context only. Use [.env.example](../.env.example), [PROJECT_STATUS.md](../PROJECT_STATUS.md), and [DEPLOYMENT.md](../DEPLOYMENT.md) for current configuration.
+
 **Date:** 2026-03-22  
 **Status:** Complete Analysis
 

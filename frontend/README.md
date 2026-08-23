@@ -1,20 +1,27 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# InsightDocs frontend
 
-# Run and deploy your AI Studio app
+The frontend is a React and TypeScript application built with Vite. It provides the authenticated document library, evidence chat, Evidence Workspaces, History, and review views.
 
-This contains everything you need to run your app locally.
+## Local development
 
-View your app in AI Studio: https://ai.studio/apps/ae5d26f3-ec5b-4724-82e1-6c30f2647245
+```bash
+cd frontend
+npm ci
+cp .env.example .env.local
+npm run dev
+```
 
-## Run Locally
+The development server listens on `http://localhost:3000`.
 
-**Prerequisites:**  Node.js
+Set `VITE_API_BASE_URL` in `.env.local` to the complete FastAPI API base URL, including `/api/v1`. The frontend does not use or expose a Gemini API key.
 
+## Checks
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm run lint
+npm run build
+```
+
+## Deployment
+
+Build output is written to `dist/`. Configure `VITE_API_BASE_URL` in the hosting environment before the build. See [the root deployment guide](../DEPLOYMENT.md) for the API, worker, CORS, and release sequence.

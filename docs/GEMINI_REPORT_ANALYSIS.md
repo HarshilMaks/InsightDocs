@@ -1,5 +1,7 @@
 # Gemini Report Analysis & Fixes Applied
 
+> **Historical record.** This report analyzes a prior remediation effort and is retained for context only. Use [PROJECT_STATUS.md](../PROJECT_STATUS.md) and [docs/GEMINI_API_KEY_GUIDE.md](GEMINI_API_KEY_GUIDE.md) for current configuration guidance.
+
 ## Executive Summary
 
 **Status: ✅ FIXED - All Critical Issues Resolved**

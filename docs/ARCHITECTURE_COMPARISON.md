@@ -1,4 +1,6 @@
-# InsightDocs — Architecture & Competitive Comparison
+# Historical Architecture Comparison
+
+> **Historical record.** This comparison describes an earlier implementation and planning context. It is not current product, architecture, deployment, or setup guidance. Use [PROJECT_STATUS.md](../PROJECT_STATUS.md) and the authoritative references it lists.
 
 > A detailed analysis of InsightDocs' system architecture, workflows, and feature comparison against consumer AI document tools (e.g., AI PDF Summarizer platforms).
 
@@ -311,4 +313,4 @@ InsightDocs is an **engine**, not a product — yet. The agent architecture, sto
 ---
 
 *Document generated: 2026-02-28*
-*Project: InsightDocs — AI-Driven Agent Architecture for Document Intelligence*
+*Historical project description: InsightDocs AI-Driven Agent Architecture for Document Intelligence*

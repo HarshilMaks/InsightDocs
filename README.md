@@ -4,6 +4,28 @@ InsightDocs is an evidence-first document intelligence application for people wh
 
 It is designed for analysts, reviewers, operators, researchers, and teams working with PDFs and business documents where traceability matters. Upload documents, select an explicit evidence corpus, ask a question, inspect the cited source regions, and review the evidence record behind the answer.
 
+## Product positioning
+
+| Review need | Common document, scanner, or general AI workflow | InsightDocs approach |
+| --- | --- | --- |
+| Turn files into searchable content | Display pages, extract text, or create a broad searchable library | Processes supported files asynchronously, then makes each document available only when it is ready. |
+| Ask a question | Provide a summary or answer with little control over the evidence set | Supports a single ready document or an explicitly curated Evidence Workspace. Workspace queries never expand to the full library. |
+| Check an answer | Require manual searching through the original file | Returns document, page, chunk, and spatial citation data; PDF sources can be opened with evidence highlights. |
+| Keep separate investigations separate | Reuse a shared or implicit search corpus | Keeps documents, workspaces, conversations, and retrieval tenant- and owner-scoped. |
+| Add human accountability | Treat the generated response as the final output | Runs Evidence Gate in shadow mode and retains an auditable claim-support record for human review. |
+| Operate within limited infrastructure | Assume local dense models and high-memory services | Supports deterministic sparse retrieval for constrained deployments while retaining the same evidence workflow. |
+
+The comparison describes workflow design, not a claim about every third-party product. InsightDocs is most valuable when evidence scope, source inspection, and review traceability matter more than producing an ungrounded answer quickly.
+
+## Who it is for
+
+| User | Typical use | How InsightDocs helps |
+| --- | --- | --- |
+| Analysts and researchers | Investigate reports, policies, submissions, or reference packs | Build a bounded corpus, ask focused questions, and inspect supporting source regions. |
+| Review and risk teams | Prepare a human decision from retained evidence | Use Evidence Gate records and the owner-scoped review queue without treating automation as final approval. |
+| Operations and program teams | Answer recurring questions from controlled business documents | Keep each topic in a private workspace and reopen its saved conversation history. |
+| Technical teams | Operate an evidence-aware document application | Deploy the API, worker, storage, database, and retrieval services with documented sparse-mode support. |
+
 ## What it does
 
 - Ingests PDF, DOCX, PPTX, and text documents through S3-compatible storage and Celery workers.

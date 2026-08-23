@@ -1,452 +1,96 @@
 # API Reference
 
-Base URL: http://localhost:8000/api/v1
+Base URL: `http://localhost:8000/api/v1`
 
-Authentication required for all endpoints (Bearer Token).
+The generated OpenAPI documentation at [`/api/v1/docs`](http://localhost:8000/api/v1/docs) is the canonical request and response schema reference. This page is a stable endpoint index for the current product surface.
+
+The authentication endpoints and the System routes explicitly marked below are public. All remaining endpoints require a bearer access token. Owner-scoped resources return `404` rather than exposing another user's document, workspace, history, audit, or review record.
 
 ## System
 
-### GET / (root, no prefix)
-Returns status, version, components
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "version": "1.0.0",
-  "components": {
-    "database": "connected",
-    "redis": "connected",
-    "storage": "connected"
-  }
-}
-```
-
-### GET /api/v1/health
-Real health check, pings PostgreSQL and Redis, returns healthy/degraded
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "database": "connected",
-  "redis": "connected",
-  "timestamp": "2024-01-15T10:30:00Z"
-}
-```
-
-## Authentication
-
-### POST /api/v1/auth/register
-Register a new user
-
-**Body:**
-```json
-{
-  "email": "user@example.com",
-  "name": "John Doe",
-  "password": "password123"
-}
-```
-
-**Response:**
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "name": "John Doe",
-  "created_at": "2024-01-15T10:30:00Z",
-  "is_active": true
-}
-```
-
-### POST /api/v1/auth/login
-OAuth2 form login (username=email, password)
-
-**Response:**
-```json
-{
-  "token": {
-    "access_token": "jwt_token_here",
-    "refresh_token": "refresh_token_here",
-    "token_type": "bearer"
-  },
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "name": "John Doe",
-    "created_at": "2024-01-15T10:30:00Z",
-    "is_active": true
-  }
-}
-```
-
-## Documents
-
-### POST /api/v1/documents/upload
-Upload document (multipart form, field: file)
-Validates type (.txt,.pdf,.docx,.pptx) and size (max 50MB)
-
-**Example:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/documents/upload" \
-  -H "Authorization: Bearer <token>" \
-  -F "file=@document.pdf"
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "document_id": "uuid",
-  "task_id": "task_uuid",
-  "message": "Document uploaded successfully"
-}
-### GET /api/v1/documents/
-List documents with pagination
-
-**Query params:** skip (default 0), limit (default 100)
-
-**Response:**
-```json
-{
-  "documents": [
-    {
-      "id": "uuid",
-      "filename": "document.pdf",
-      "file_type": "pdf",
-      "file_size": 1024000,
-      "status": "completed",
-      "is_scanned": false,
-      "ocr_confidence": null,
-      "created_at": "2024-01-15T10:30:00Z",
-      "processed_at": "2024-01-15T10:35:00Z"
-    }
-  ],
-  "total": 1
-}
-```
-
-### GET /api/v1/documents/{document_id}
-Get full document details
-
-**Response:**
-```json
-{
-  "id": "uuid",
-  "filename": "document.pdf",
-  "file_type": "pdf",
-  "file_size": 1024000,
-  "status": "completed",
-  "is_scanned": true,
-  "ocr_confidence": 0.92,
-  "content_preview": "Document content preview...",
-  "chunk_count": 25,
-  "created_at": "2024-01-15T10:30:00Z",
-  "processed_at": "2024-01-15T10:35:00Z"
-}
-```
-
-### GET /api/v1/documents/{document_id}/file-url
-Get a short-lived presigned URL for the original document file (user must
-own it). Used by the frontend document viewer to render the source PDF for
-citation highlighting.
-
-**Response:**
-```json
-{
-  "document_id": "uuid",
-  "url": "https://storage.example.com/documents/....pdf?X-Amz-Signature=...",
-  "expires_in": 600
-}
-```
-
-Returns `404` if the document does not exist or is not owned by the
-authenticated user, and `409` if the document has not finished uploading
-to object storage yet.
-
-### DELETE /api/v1/documents/{document_id}
-...
-      {
-        "source": "1",
-        "target": "2",
-        "label": "relates to"
-      }
-    ]
-  }
-}
-```
-
-## Ask Your PDF (RAG Chat)
-
-### POST /api/v1/documents/{document_id}/summarize
-Generate document summary (requires document status=completed)
-
-**Example:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/documents/uuid/summarize" \
-  -H "Authorization: Bearer <token>"
-```
-
-**Response:**
-```json
-{
-  "document_id": "uuid",
-  "summary": "This document discusses key findings about..."
-}
-```
-
-### POST /api/v1/documents/{document_id}/quiz
-Generate quiz from document (requires document status=completed)
-
-**Example:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/documents/uuid/quiz" \
-  -H "Authorization: Bearer <token>"
-```
-
-**Response:**
-```json
-{
-  "document_id": "uuid",
-  "quiz": [
-    {
-      "question": "What is the main topic?",
-      "options": ["A", "B", "C", "D"],
-      "correct_answer": "A",
-      "explanation": "The correct answer is A because..."
-    }
-  ]
-}
-```
-
-### POST /api/v1/documents/{document_id}/mindmap
-Generate mindmap from document (requires document status=completed)
-
-**Example:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/documents/uuid/mindmap" \
-  -H "Authorization: Bearer <token>"
-```
-
-**Response:**
-```json
-{
-  "document_id": "uuid",
-  "mindmap": {
-    "central_topic": "Main Topic",
-    "nodes": [
-      {
-        "id": "1",
-        "label": "Subtopic 1",
-        "group": "category1"
-      }
-    ],
-    "edges": [
-      {
-        "source": "1",
-        "target": "2",
-        "label": "relates to"
-      }
-    ]
-  }
-}
-```
-
-## Ask Your PDF (RAG Chat)
-
-### POST /api/v1/query/
-Ask follow-up questions about your uploaded documents using RAG
-
-**Body:**
-```json
-{
-  "query": "What are the key findings?",
-  "top_k": 5,
-  "conversation_id": "conv_uuid_optional",
-  "document_id": "doc_uuid_optional"
-}
-```
-
-`document_id` is optional. When provided, retrieval is restricted to that
-single document (e.g. the document workspace view). The document must be
-owned by the authenticated user; otherwise the scope is silently ignored
-and the query falls back to searching all of the user's documents.
-
-**Example:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/query/" \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What are the key findings?", "top_k": 5}'
-```
-
-**Response:**
-```json
-{
-  "answer": "Based on the document, the key findings are... [1]",
-  "conversation_id": "conv_uuid",
-  "turn_index": 1,
-  "sources": [
-    {
-      "source_number": 1,
-      "document_id": "uuid",
-      "document_name": "document.pdf",
-      "chunk_id": "chunk_uuid",
-      "chunk_index": 5,
-      "page_number": 12,
-      "bbox": {
-        "x1": 10.5,
-        "y1": 20.5,
-        "x2": 220.1,
-        "y2": 180.3
-      },
-      "section_title": "Revenue Analysis",
-      "chunk_type": "text",
-      "citation_label": "document.pdf · Page 12 · Chunk 5",
-      "content_preview": "Relevant content snippet...",
-      "similarity_score": 0.85
-    }
-  ],
-  "query_id": "query_uuid",
-  "query": "What are the key findings?",
-  "response_time": 1.23,
-  "confidence_score": 0.92
-}
-```
-
-The numbered answer citations map directly to the `sources` array. The frontend can use `page_number`, `chunk_index`, and `bbox` to jump to the exact passage or highlight it in the document view.
-
-Pass the `conversation_id` from one turn to the next to keep the same threaded chat session alive.
-
-### GET /api/v1/query/history
-Get query history with pagination. Pass `conversation_id` to load one chat thread.
-
-**Query params:** skip, limit, conversation_id
-
-**Response:**
-```json
-{
-  "queries": [
-    {
-      "id": "uuid",
-      "conversation_id": "conv_uuid",
-      "turn_index": 1,
-      "query": "What are the key findings?",
-      "response": "The key findings are...",
-      "response_time": 1.23,
-      "created_at": "2024-01-15T10:30:00Z"
-    }
-  ],
-  "total": 1
-}
-```
-
-## Tasks
-
-### GET /api/v1/tasks/{task_id}
-Get task status
-
-**Response:**
-```json
-{
-  "task_id": "uuid",
-  "status": "completed",
-  "progress": 100,
-  "result": {
-    "document_id": "uuid",
-    "chunks_processed": 25
-  },
-  "error": null
-}
-```
-
-### GET /api/v1/tasks/
-List tasks with pagination
-
-**Query params:** skip, limit
-
-**Response:**
-```json
-{
-  "tasks": [
-    {
-      "id": "uuid",
-      "task_type": "document_processing",
-      "status": "completed",
-      "progress": 100,
-      "created_at": "2024-01-15T10:30:00Z"
-    }
-  ],
-  "total": 1
-}
-```
-
-## Error Handling
-
-All errors return JSON in this format:
-```json
-{
-  "detail": "error message"
-}
-```
-
-**HTTP Status Codes:**
-- 400 Bad Request - Invalid input or request
-- 404 Not Found - Resource not found
-- 500 Internal Server Error - Server error
-
-## File Upload Constraints
-
-**Supported file types:** .txt, .pdf, .docx, .pptx
-**Maximum file size:** 50MB
-
-
-## Evidence Gate Reviews
-
-The following endpoints require authentication and are owner-scoped. A caller cannot
-read or decide another user's review item; cross-tenant identifiers return `404`.
-
-### GET /api/v1/evidence-gate/reviews
-
-List reviewable Evidence Gate runs. Query parameters:
-
-```text
-review_status=pending|accepted|rejected  (default: pending)
-skip=0
-limit=50  (maximum: 100)
-```
-
-Each queue item contains its run ID, query ID/text, automated run status, claim counts,
-current review status/version, and creation timestamp.
-
-### GET /api/v1/evidence-gate/reviews/{run_id}
-
-Return the owner-scoped review detail: question, delivered response, automated audit
-status, claim verdicts, source snapshot metadata, and append-only decision history.
-Source items are re-filtered through current document ownership before being returned;
-deleted or no-longer-owned source documents are omitted.
-
-### POST /api/v1/evidence-gate/reviews/{run_id}/decisions
-
-Append a human decision using optimistic concurrency.
-
-```json
-{
-  "decision": "accepted",
-  "expected_version": 0,
-  "note": "Evidence confirmed against page 2."
-}
-```
-
-`decision` is `accepted` or `rejected`; `note` is optional. A successful decision
-advances the review version and appends an immutable event. If another decision has
-already advanced the version, the endpoint returns `409`; refetch the detail and retry
-with its current `review_version`.
-
-## Evidence Gate Query Metadata
-
-`POST /api/v1/query/` retains its existing request/response fields and may include an
-optional `evidence_gate` summary. The summary reports a shadow audit run and does not
-block the answer. If audit persistence is unavailable, the query still succeeds and
-`evidence_gate` is `null`; no successful audit is fabricated.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/` | Process status response; no API prefix. |
+| `GET` | `/api/v1/live` | Lightweight liveness probe. |
+| `GET` | `/api/v1/health` | Health check for API, PostgreSQL, and Redis. |
+
+## Authentication and user configuration
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/auth/register` | Register a user. The first registered user becomes an administrator. |
+| `POST` | `/auth/login` | OAuth2-form login with `username` set to the user's email. |
+| `POST` | `/auth/google` | Sign in with a Google identity token when Google sign-in is configured. |
+| `PUT` | `/users/me/api-key` | Store an encrypted BYOK Gemini key. |
+| `DELETE` | `/users/me/api-key` | Remove the current user's stored BYOK key. |
+| `PATCH` | `/users/me/byok-settings` | Enable or disable BYOK use. |
+| `GET` | `/users/me/byok-status` | Read BYOK configuration status without returning the key. |
+
+## Documents and processing
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/documents/upload` | Upload a supported PDF, DOCX, PPTX, or text file up to 50 MB and queue processing. |
+| `GET` | `/documents/` | List the authenticated user's documents. |
+| `GET` | `/documents/{document_id}` | Read one owned document's state and metadata. |
+| `GET` | `/documents/{document_id}/file-url` | Get an owner-checked, short-lived URL for the original file. |
+| `DELETE` | `/documents/{document_id}` | Delete one owned document and its indexed content. |
+| `POST` | `/documents/{document_id}/summarize` | Generate a document summary for a processed document. |
+| `POST` | `/documents/{document_id}/quiz` | Generate a document quiz for a processed document. |
+| `POST` | `/documents/{document_id}/mindmap` | Generate a document mind map for a processed document. |
+| `GET` | `/tasks/` | List processing tasks. |
+| `GET` | `/tasks/{task_id}` | Read one processing task state. |
+
+## Evidence queries and history
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/query/` | Ask against exactly one ready document or an explicit Evidence Workspace. `document_id` and `workspace_id` are mutually exclusive. |
+| `GET` | `/query/history` | Read the authenticated user's persisted query history. |
+
+Query responses include answer text, citations, and Evidence Gate summary data. Citations include document and page context; new PDF ingestions can provide multiple precise bounding regions.
+
+## Evidence Workspaces
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/workspaces` | List the authenticated user's private workspaces. |
+| `POST` | `/workspaces` | Create a workspace with owned documents. |
+| `GET` | `/workspaces/{workspace_id}` | Read one owned workspace and its members. |
+| `PATCH` | `/workspaces/{workspace_id}` | Update a workspace name or description. |
+| `DELETE` | `/workspaces/{workspace_id}` | Delete a workspace. |
+| `PUT` | `/workspaces/{workspace_id}/documents/{document_id}` | Add an owned document to a workspace. |
+| `DELETE` | `/workspaces/{workspace_id}/documents/{document_id}` | Remove a document from a workspace. |
+
+A workspace query only retrieves the ready documents currently in that workspace. It never falls back to the full library.
+
+## Evidence Gate review
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/evidence-gate/reviews` | List the current user's review queue. |
+| `GET` | `/evidence-gate/reviews/{run_id}` | Read one owner-scoped audit and review record. |
+| `POST` | `/evidence-gate/reviews/{run_id}/decisions` | Append an accept or reject decision using the record's review version. |
+
+Evidence Gate is a shadow-mode assessment. Its records support human review but do not represent an automated truth determination.
+
+## Administration
+
+These endpoints require the administrator role.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/admin/users` | List users. |
+| `PATCH` | `/admin/users/{user_id}/role` | Update a user's role. |
+| `PATCH` | `/admin/users/{user_id}/deactivate` | Change a user's active state. |
+
+## Error behavior
+
+The API uses standard HTTP status codes. Important behavior includes:
+
+- `401`: missing or invalid authentication.
+- `403`: authenticated user lacks an administrative permission.
+- `404`: the resource is absent or not owned by the caller.
+- `409`: a document is not yet available for the requested action, or a review decision used a stale version.
+- `422`: request validation failed, including attempting to send both `document_id` and `workspace_id` in one query.
+- `499`: the server observed that the client disconnected during a query and did not persist the cancelled result.

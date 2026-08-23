@@ -1,106 +1,37 @@
-# pgAdmin4 Quick Reference Guide
+# pgAdmin4 Reference
 
-## 🔌 Connection Details
+Use pgAdmin4 for read-only inspection and operational troubleshooting. Make schema changes through Alembic migrations, not through the pgAdmin query tool.
 
-```
-Host:     localhost (or your database host)
-Port:     5432
-Database: insightdocs
-Username: insightdocs
-Password: (check your .env file: POSTGRES_PASSWORD)
-```
+## Connection details
 
-## 📊 What You'll Find
+Use the PostgreSQL host, port, database, user, and password from your deployment environment or local `.env` file. Do not copy credentials into this document or commit them to Git.
 
-### Tables (6 total)
-
-1. **alembic_version** - Tracks which migrations are applied
-2. **users** - User accounts with BYOK encryption keys
-3. **documents** - Uploaded files with OCR and processing metadata
-4. **document_chunks** - Text chunks with bounding boxes
-5. **tasks** - Background job tracking
-6. **queries** - RAG query history
-
-## ✅ Verify Migrations
+## Safe checks
 
 ```sql
--- Check current schema version
-SELECT * FROM alembic_version;
+-- Applied Alembic revision
+SELECT version_num FROM alembic_version;
 
--- Expected: 962463129f99 (latest)
-```
+-- Tables in the public schema
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+ORDER BY table_name;
 
-## 🔍 Useful Queries
-
-### View all tables
-```sql
-SELECT table_name 
-FROM information_schema.tables 
-WHERE table_schema = 'public';
-```
-
-### Check document_chunks schema
-```sql
+-- Stored document-chunk columns, including citation geometry where migrated
 SELECT column_name, data_type, is_nullable
-FROM information_schema.columns 
-WHERE table_name = 'document_chunks'
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'document_chunks'
 ORDER BY ordinal_position;
 ```
 
-### See BYOK-enabled users
-```sql
-SELECT email, byok_enabled, created_at 
-FROM users 
-WHERE byok_enabled = TRUE;
-```
+The current repository migration head is `d8e4f1a2b903`. Confirm the deployed source includes that migration before applying it.
 
-### Documents with bounding boxes
-```sql
-SELECT d.filename, COUNT(dc.id) as chunks_with_bbox
-FROM documents d
-JOIN document_chunks dc ON d.id = dc.document_id
-WHERE dc.page_number IS NOT NULL
-GROUP BY d.id, d.filename;
-```
+## Operational rules
 
-## ❌ DO NOT
+- Use `alembic upgrade head` to apply migrations.
+- Do not manually alter application tables or modify `alembic_version` to bypass a mismatch.
+- Do not reset, downgrade, or delete production data as a troubleshooting shortcut.
+- Use read-only queries first when investigating an issue.
 
-- **Don't manually ALTER tables** (breaks Alembic tracking)
-- **Don't DROP tables** (data loss + sync issues)
-- **Don't run legacy SQL files** (already applied via Alembic)
-
-## ✅ DO
-
-- **View data** (read-only queries are safe)
-- **Export data** (for backup/analysis)
-- **Test queries** (before adding to API)
-- **Monitor performance** (check slow queries)
-
-## 🆘 Troubleshooting
-
-### Can't connect?
-```bash
-# Check if PostgreSQL is running
-docker ps | grep postgres
-
-# Check connection settings in .env
-cat .env | grep POSTGRES
-```
-
-### Missing tables?
-```bash
-# Apply migrations
-cd /home/harshil/insightdocs
-alembic upgrade head
-```
-
-### Want to reset database?
-```bash
-# WARNING: Destroys all data!
-alembic downgrade base
-alembic upgrade head
-```
-
----
-
-**Remember**: pgAdmin4 is for viewing and querying. Schema changes go through Alembic!
+See [DEPLOYMENT.md](../DEPLOYMENT.md) for the release sequence and migration failure procedure.

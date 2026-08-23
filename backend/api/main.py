@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # --- Use settings for FastAPI app initialization ---
 app = FastAPI(
     title=settings.app_name,
-    description="AI-Driven Agent Architecture System for Document Intelligence",
+    description="Evidence-first document intelligence with bounded retrieval, citations, and human review records.",
     version="1.0.0",
     # Add API prefix to docs URLs
     openapi_url=f"{settings.api_prefix}/openapi.json",

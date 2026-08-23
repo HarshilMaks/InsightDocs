@@ -1,4 +1,6 @@
 # BYOK Implementation Audit Report
+
+> **Historical record.** This completed audit is retained for prior-change context only. It is not current security or configuration guidance. Use [PROJECT_STATUS.md](../PROJECT_STATUS.md) and [DEPLOYMENT.md](../DEPLOYMENT.md).
 **Date:** 2026-03-20  
 **Status:** ✅ Core Complete, ⚠️ Minor Issues Found
 

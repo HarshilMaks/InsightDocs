@@ -1,247 +1,88 @@
 # Development Guide
 
+## Scope
+
+InsightDocs is a React/Vite frontend with a FastAPI API, Celery worker, PostgreSQL, Redis, Milvus or Zilliz, S3-compatible storage, and Gemini-backed generation. The API handles authenticated requests; the worker performs asynchronous document parsing, chunking, and indexing.
+
+For product behavior and production boundaries, read [README.md](../README.md) and [ARCHITECTURE.md](../ARCHITECTURE.md) first.
+
 ## Prerequisites
 
 - Python 3.11+
-- Docker and Docker Compose
-- Git
-- uv package manager
+- Node.js 20+
+- Docker Engine and Docker Compose for the local service stack
+- `uv` for the Makefile-managed Python installation commands
 
 ## Setup
 
 ```bash
 git clone https://github.com/HarshilMaks/InsightDocs.git
 cd InsightDocs
-source .venv/bin/activate
-uv pip install -r requirements.txt
+cp .env.example .env
+make venv
+make install-dev
 ```
 
-## Running the Application
+Set the required service configuration in `.env`. The file is intentionally ignored by Git; do not place credentials in source files, tests, Markdown, or commits.
 
-### Docker (Recommended)
+## Run locally
+
+Start infrastructure and the service containers:
 
 ```bash
-make docker-up
-# or
-docker-compose up -d
+docker compose up -d --build
 ```
 
-### Local Development
+Or use local API and worker processes with reachable infrastructure:
 
 ```bash
-# Terminal 1: Backend API
 make run-backend
-# or
-uvicorn backend.api.main:app --reload
-
-# Terminal 2: Celery Worker
+# In a separate terminal:
 make run-worker
 ```
 
-## Project Structure
-
-```
-backend/
-├── agents/          # Multi-agent system
-├── api/             # FastAPI endpoints
-├── core/            # Core framework
-├── config/          # Configuration
-├── models/          # Database models
-├── utils/           # Utilities
-├── workers/         # Celery workers
-└── storage/         # Storage layer
-```
-
-## Development Patterns
-
-### Adding New Agents
-
-1. Create agent in `backend/agents/`:
-
-```python
-from backend.core.agent import BaseAgent
-
-class MyAgent(BaseAgent):
-    async def process(self, message: dict) -> dict:
-        # Implementation
-        return {"status": "completed"}
-```
-
-2. Register in `backend/agents/__init__.py`:
-
-```python
-from .my_agent import MyAgent
-```
-
-### Adding New Endpoints
-
-1. Create/modify router in `backend/api/`:
-
-```python
-from fastapi import APIRouter
-from backend.api.schemas import MyRequest, MyResponse
-
-router = APIRouter()
-
-@router.post("/my-endpoint", response_model=MyResponse)
-async def my_endpoint(request: MyRequest):
-    return MyResponse(result="success")
-```
-
-2. Define schemas in `backend/api/schemas.py`:
-
-```python
-from pydantic import BaseModel
-
-class MyRequest(BaseModel):
-    data: str
-
-class MyResponse(BaseModel):
-    result: str
-```
-
-3. Include in `backend/api/main.py`:
-
-```python
-from backend.api.my_router import router as my_router
-app.include_router(my_router, prefix="/api")
-```
-
-### Adding LLM Features
-
-Add method to `backend/utils/llm_client.py`:
-
-```python
-async def my_llm_feature(self, prompt: str) -> str:
-    response = await self.client.generate_content_async(prompt)
-    return response.text
-```
-
-## Testing
+Start the frontend in another terminal:
 
 ```bash
-# Run all tests (13 tests currently)
-pytest tests/ -v
-
-# Run with coverage
-pytest --cov=backend
-
-# Run specific test
-pytest tests/test_agents.py -v
+cd frontend
+npm ci
+npm run dev
 ```
 
-## Code Style
+The API documentation is served at `http://localhost:8000/api/v1/docs` and the Vite frontend is served at `http://localhost:3000`.
 
-- Follow PEP 8
-- Use type hints
-- Google-style docstrings
-- async/await for I/O operations
+## Validation
 
-### Import Order
-
-```python
-# Standard library
-import os
-from typing import Dict
-
-# Third-party
-from fastapi import FastAPI
-import pytest
-
-# Local
-from backend.core.agent import BaseAgent
-from backend.utils.llm_client import LLMClient
-```
-
-## Make Commands
+Run the full backend suite and frontend production build before submitting a change:
 
 ```bash
-make help           # Show available commands
-make install        # Install production dependencies
-make install-dev    # Install development dependencies
-make test           # Run test suite
-make test-cov       # Run tests with coverage
-make clean          # Clean cache and temp files
-make run-backend    # Start backend API
-make run-worker     # Start Celery worker
-make docker-up      # Start with Docker
-make docker-down    # Stop Docker services
-make docker-logs    # View Docker logs
+.venv/bin/python -m pytest -q tests/
+(cd frontend && npm run build)
 ```
 
-## Debugging
-
-### Enable Debug Logging
+Validate migration generation without connecting to a database server:
 
 ```bash
-LOG_LEVEL=DEBUG make run-backend
+DATABASE_URL='postgresql://user:password@localhost:5432/insightdocs' \
+  .venv/bin/alembic upgrade head --sql
 ```
 
-### Debug Celery Worker
+`make lint` runs Python syntax compilation and the frontend TypeScript check. It is a fast code check, not a substitute for the full backend test suite and frontend production build above.
 
-```bash
-celery -A backend.workers.celery_app worker --pool=solo --loglevel=debug
-```
+## Database changes
 
-### Database Access
+1. Update the SQLAlchemy models in `backend/models/schemas.py`.
+2. Generate an Alembic revision with `make migrate-generate`.
+3. Review the migration file and generated SQL.
+4. Apply it locally with `make migrate-up`.
+5. Include the migration in the same change as the model update.
 
-```bash
-docker-compose exec postgres psql -U insightdocs -d insightdocs
-```
+Production migrations are a release gate: `scripts/start_api.sh` exits instead of starting the API when `alembic upgrade head` fails. Do not use `alembic stamp` or delete `alembic_version` to bypass a migration/source mismatch.
 
-## Common Tasks
+## Contribution boundaries
 
-### View Logs
-
-```bash
-make docker-logs
-# or
-docker-compose logs -f api worker
-```
-
-### Reset Database
-
-```bash
-make docker-down
-docker volume rm insightdocs_postgres_data
-make docker-up
-```
-
-### Check Service Health
-
-```bash
-curl http://localhost:8000/health
-```
-## Database Migrations
-
-This project uses Alembic for database migrations.
-
-### Commands
-
-- **Generate a new migration:**
-  ```bash
-  uv run alembic revision --autogenerate -m "Description of changes"
-  ```
-
-- **Apply migrations:**
-  ```bash
-  uv run alembic upgrade head
-  ```
-
-- **Rollback one revision:**
-  ```bash
-  uv run alembic downgrade -1
-  ```
-
-- **Check current status:**
-  ```bash
-  uv run alembic current
-  ```
-
-### Workflow
-
-1. Modify SQLAlchemy models in `backend/models/schemas.py`.
-2. Generate a migration script.
-3. Review the generated script in `alembic/versions/`.
-4. Apply the migration locally to verify.
-5. Commit the migration script.
+- Keep workspace retrieval restricted to its explicit ready-document membership.
+- Preserve tenant and owner checks in relational, vector, history, audit, and review operations.
+- Preserve the API/worker retrieval configuration match, especially `EMBEDDING_MODE`.
+- Treat Evidence Gate as a retained assessment for human review, not an automated truth decision.
+- Add targeted regressions for behavior changes; do not modify tests merely to hide a regression.

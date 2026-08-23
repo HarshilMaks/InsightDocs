@@ -1,4 +1,6 @@
-# Database Migrations & SQL Files - Complete Explanation
+# Historical Database Migration Explanation
+
+> **Historical record.** This explainer reflects an earlier schema state. It is retained for context only; use [PROJECT_STATUS.md](../PROJECT_STATUS.md), `alembic heads`, and [DEPLOYMENT.md](../DEPLOYMENT.md) for current migration guidance.
 
 ## Overview
 

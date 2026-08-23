@@ -1,4 +1,4 @@
-# InsightDocs — Deployment Guide
+# InsightDocs Deployment Guide
 
 ## Prerequisites
 

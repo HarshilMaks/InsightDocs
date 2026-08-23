@@ -3,7 +3,7 @@
 SHELL := /bin/bash
 VENV := .venv
 PYTHON := $(VENV)/bin/python
-PIP := $(VENV)/bin/uv pip
+PIP := $(VENV)/bin/python -m pip
 ACTIVATE := . $(VENV)/bin/activate
 
 help:
@@ -14,7 +14,7 @@ help:
 	@echo "install-dev      - Install development dependencies"
 	@echo "test             - Run tests"
 	@echo "test-cov         - Run tests with coverage"
-	@echo "lint             - Run code linters"
+	@echo "lint             - Run Python and frontend code checks"
 	@echo "clean            - Clean up cache and temporary files"
 	@echo "run-backend      - Run the API server"
 	@echo "run-worker       - Run Celery worker"
@@ -60,7 +60,9 @@ test-cov:
 	$(ACTIVATE) && pytest tests/ --cov=backend --cov-report=html --cov-report=term
 
 lint:
-	@echo "Linting would go here (flake8, black, mypy, etc.)"
+	@if [ ! -d "$(VENV)" ]; then echo "Error: Virtual environment not found. Run 'make venv' first."; exit 1; fi
+	$(PYTHON) -m compileall -q backend
+	cd frontend && npm run lint
 
 clean:
 	find . -type d -name "__pycache__" -prune -exec rm -rf {} +

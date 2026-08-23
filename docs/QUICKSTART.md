@@ -1,165 +1,74 @@
-# Quick Start Guide
+# Quick Start
+
+This guide starts the current InsightDocs web application. It does not require or provide a command-line client.
 
 ## Prerequisites
 
-- Python 3.11+
-- Docker and Docker Compose
-- **Gemini API Key**:
-  1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey).
-  2. Click **Create API Key**.
-  3. Copy the key (starts with `AIza...`).
-- **Tesseract OCR**: (Optional, for OCR support)
-  - Ubuntu: `sudo apt-get install tesseract-ocr`
-  - macOS: `brew install tesseract`
-  - Windows: [Installation Guide](https://github.com/UB-Mannheim/tesseract/wiki)
+- Docker Engine and Docker Compose
+- Python 3.11+ and Node.js 20+ for local API, worker, or frontend development
+- A Gemini API key for system-level generation, or a user-supplied key through Bring Your Own Key (BYOK)
 
-## Installation
+Optional OCR support requires Tesseract plus the worker image or environment to provide its Python dependencies. The production API image deliberately omits the heavyweight OCR and local-model packages.
 
-### 1. Clone Repository
+## Start the service stack
 
 ```bash
 git clone https://github.com/HarshilMaks/InsightDocs.git
 cd InsightDocs
-```
-
-### 2. Configure Environment
-
-```bash
 cp .env.example .env
-# Edit .env and add your GEMINI_API_KEY
+# Set the required database, Redis, Milvus/Zilliz, storage, and security values.
+
+docker compose up -d --build
 ```
 
-### 3. Start with Docker (Recommended)
+The Compose stack starts PostgreSQL, Redis, MinIO, the FastAPI API, and the Celery worker. The API documentation is available at `http://localhost:8000/api/v1/docs`.
+
+## Start the frontend locally
+
+In a separate terminal:
 
 ```bash
-docker-compose up -d
+cd frontend
+npm ci
+npm run dev
 ```
 
-This starts:
-- PostgreSQL database
-- Redis message broker
-- MinIO object storage
-- FastAPI application (port 8000)
-- Celery worker
+Vite serves the frontend at `http://localhost:3000`. Configure `VITE_API_BASE_URL` for the API it should use; see [`.env.example`](../.env.example).
 
-## Access Points
+## Use the application
 
-- **API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/api/v1/docs
-- **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
+1. Register or sign in.
+2. Upload a supported PDF, DOCX, PPTX, or text file (maximum 50 MB).
+3. Wait until it is **Ready**. Queued, processing, and failed files cannot be selected as evidence.
+4. Open a document for focused evidence chat, or create an Evidence Workspace from explicitly chosen ready documents.
+5. Ask a question and inspect its answer, citations, and source highlights.
+6. Use the Evidence Gate review record when a human decision or audit trail is required.
 
-## Manual Setup (Alternative)
+## Local development without Compose
+
+Create and install the Python environment, then run the API and worker separately:
 
 ```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# Install dependencies
-uv pip install -r requirements.txt
-
-# Terminal 1: Start API
-uvicorn backend.api.main:app --reload
-
-# Terminal 2: Start worker
-celery -A backend.workers.celery_app worker --loglevel=info
+make venv
+make install-dev
+make run-backend
+# In another terminal:
+make run-worker
 ```
 
-## Usage
-
-### CLI Commands
-
-> **Note**: Run `python cli.py login` first to authenticate.
+The local services still require reachable PostgreSQL, Redis, Milvus/Zilliz, and S3-compatible object storage. Apply migrations before using a new schema:
 
 ```bash
-# Login
-python cli.py login --email user@example.com --password secret
-
-# Check system health
-python cli.py health
-
-# Upload document
-python cli.py upload document.pdf
-
-# Query documents
-python cli.py query "What is this about?"
-
-# List documents
-python cli.py list-documents
-
-# Check task status
-python cli.py status <task-id>
+make migrate-up
 ```
 
-### REST API Examples
+## Production notes
 
-> **Note**: All endpoints require authentication. First, obtain a token via `/api/v1/auth/login`.
+For a memory-constrained deployment, set `EMBEDDING_MODE=sparse` consistently for both API and worker. Follow [DEPLOYMENT.md](../DEPLOYMENT.md) for the production sequence and migration gate.
 
-**Login & Get Token:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/auth/login" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "username=user@example.com&password=yourpassword"
-```
+## Further reading
 
-**Upload Document:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/documents/upload" \
-  -H "Authorization: Bearer <your_token>" \
-  -F "file=@document.pdf"
-```
-
-**Query Documents:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/query/" \
-  -H "Authorization: Bearer <your_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is this about?", "top_k": 5}'
-```
-
-**Summarize Document:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/summarize" \
-  -H "Authorization: Bearer <your_token>"
-```
-
-**Generate Quiz:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/quiz" \
-  -H "Authorization: Bearer <your_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"num_questions": 5}'
-```
-
-**Create Mind Map:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/documents/{document_id}/mindmap" \
-  -H "Authorization: Bearer <your_token>"
-```
-
-## Supported Formats
-
-- Text files (.txt)
-- PDF documents (.pdf)
-- Word documents (.docx)
-- PowerPoint presentations (.pptx)
-- Maximum file size: 50MB
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Port conflicts**: Ensure ports 8000, 5432, 6379, 9000 are available
-2. **Service startup**: Check logs with `docker-compose logs`
-3. **Environment**: Verify `.env` file contains valid `GEMINI_API_KEY`
-
-### Check Service Status
-
-```bash
-# View all service logs
-docker-compose logs
-
-# Check specific service
-docker-compose logs api
-docker-compose logs worker
-```
+- [Project overview](../README.md)
+- [Architecture](../ARCHITECTURE.md)
+- [Deployment](../DEPLOYMENT.md)
+- [API reference](API.md)

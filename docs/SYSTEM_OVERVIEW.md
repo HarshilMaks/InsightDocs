@@ -1,268 +1,51 @@
-# InsightDocs System Overview
+# System Overview
 
-## What is InsightDocs?
+## Purpose
 
-InsightDocs is a production-ready AI-driven agent architecture system that transforms unstructured documents into operational intelligence through multi-agent collaboration. Built on modern microservices patterns, it demonstrates best practices for building scalable, maintainable AI applications.
+InsightDocs is an evidence-first document intelligence application. It helps a user work from an explicitly bounded document corpus, inspect the source behind an answer, and retain a reviewable evidence record. It is not an automated truth or approval system.
 
-## Key Features
+## Runtime components
 
-### Multi-Agent Architecture
-- **Orchestrator Agent**: Coordinates workflows across all agents
-- **Data Agent**: Handles document ingestion, storage, and transformation
-- **Analysis Agent**: Generates embeddings, summaries, and entity extraction
-- **Planning Agent**: Provides workflow planning and decision support
-
-### RAG (Retrieval-Augmented Generation)
-- Document chunking and embedding generation
-- Vector similarity search with Milvus
-- Context-aware response generation with Gemini
-- Source citation and attribution
-
-### Async Task Processing
-- Celery workers for background processing
-- Real-time task status tracking
-- Progress monitoring and error handling
-
-### Production-Ready Infrastructure
-- FastAPI for high-performance APIs
-- PostgreSQL for reliable data storage
-- Redis for message queuing and caching
-- S3/MinIO for scalable file storage
-- Docker Compose for easy deployment
-
-## System Statistics
-
-- **35 Python modules** implementing the complete system
-- **5 documentation files** covering all aspects
-- **4 specialized agents** working in coordination
-- **3 API routers** (documents, query, tasks)
-- **Full test coverage** with pytest
-
-## Architecture Layers
-
-### 1. Presentation Layer
-```
-CLI Tool → FastAPI REST API → API Documentation (Swagger/ReDoc)
+```text
+React + TypeScript (Vite)
+  -> FastAPI API
+  -> PostgreSQL: users, documents, chunks, history, audits, reviews
+  -> Milvus/Zilliz: tenant-scoped vector retrieval
+  -> Redis + Celery worker: asynchronous processing
+  -> S3-compatible storage: original documents
+  -> Gemini: answer generation and evidence checks
 ```
 
-### 2. Business Logic Layer
-```
-Agent Orchestration → Specialized Agents → Message Queue
-```
+The API owns authentication, authorization, queries, history, Evidence Workspaces, and Evidence Gate review APIs. The worker owns the expensive parsing, OCR where configured, chunking, embedding, and indexing work.
 
-### 3. Data Layer
-```
-PostgreSQL (Metadata) ← → Milvus (Vectors) ← → Redis (Queue)
-```
+## Document lifecycle
 
-### 4. Storage Layer
-```
-S3/MinIO (Files) ← → Local Storage (Temp)
-```
+1. An authenticated user uploads a supported PDF, DOCX, PPTX, or text file.
+2. The API stores the original object and queues a Celery task.
+3. The worker extracts text, preserves available PDF spatial information, chunks the content, and indexes it.
+4. The document becomes ready only after processing succeeds.
+5. Only ready documents can be queried directly or added as usable evidence in a workspace.
 
-## Data Flow Example
+The product UI may present the completed processing state as **Ready**. Pending, processing, and failed documents remain unavailable for evidence queries.
 
-### Document Processing Flow
-```
-1. User uploads PDF via API
-2. API creates Document record in PostgreSQL
-3. Celery task triggers Orchestrator Agent
-4. Orchestrator coordinates:
-   a. Data Agent: Store file in S3, parse content
-   b. Data Agent: Chunk text into segments
-   c. Analysis Agent: Generate embeddings
-   d. Data Agent: Store embeddings in Milvus
-5. Task marked as completed
-6. Document ready for querying
-```
+## Evidence workflow
 
-### Query Flow (RAG)
-```
-1. User submits query via API
-2. Analysis Agent generates query embedding
-3. Milvus retrieves top-k similar chunks
-4. LLM Client constructs context from chunks
-5. Gemini generates contextual answer
-6. Response includes answer + sources with citations
-7. Query saved to history
-```
+A user can ask against one ready document or an Evidence Workspace. A workspace is a private, explicit corpus: the query service resolves only its selected ready documents and does not silently search the broader library.
 
-## Quick Start
+Answers include source references. For PDFs, new ingestions retain multiple precise source regions; documents ingested before that capability retain their original single-region geometry until re-ingested.
 
-### Using Docker Compose (Recommended)
-```bash
-# Clone and setup
-git clone https://github.com/HarshilMaks/InsightDocs.git
-cd InsightDocs
-cp .env.example .env
-# Add your GEMINI_API_KEY to .env
+Evidence Gate runs after answer generation in shadow mode. It stores an audit and claim-support assessment but does not block the answer. Users can review owner-scoped records and append accept/reject decisions with optimistic concurrency protection.
 
-# Start all services
-docker compose up -d
+## Security and ownership
 
-# Access
-# - API: http://localhost:8000
-# - Docs: http://localhost:8000/docs
-# - MinIO: http://localhost:9001
-```
+- Routes require authenticated users except health and registration/login flows.
+- Documents, workspaces, query history, audits, and reviews are scoped to their owner.
+- Retrieval carries tenant constraints and workspace document allow-lists.
+- Uploaded originals remain in S3-compatible storage; the API issues a short-lived owner-checked file URL for viewing.
+- BYOK Gemini credentials are stored encrypted and are never returned in API responses.
 
-### Using CLI
-```bash
-# Install CLI
-pip install click requests
+## Deployment boundary
 
-# Upload document
-python cli.py upload document.pdf
+The API and worker must use compatible configuration. On constrained hosts, `EMBEDDING_MODE=sparse` avoids loading local dense embedding and reranking models. Startup runs Alembic migrations as a fail-closed release gate; an API process does not serve if its schema upgrade fails.
 
-# Query
-python cli.py query "What is the main topic?"
-
-# Check status
-python cli.py status <task-id>
-```
-
-## Component Details
-
-### Agents (`insightdocs/agents/`)
-- `orchestrator.py`: Central workflow coordinator
-- `data_agent.py`: Data ingestion and transformation
-- `analysis_agent.py`: Embeddings and content analysis
-- `planning_agent.py`: Workflow planning and tracking
-
-### API (`insightdocs/api/`)
-- `main.py`: FastAPI application setup
-- `documents.py`: Document management endpoints
-- `query.py`: RAG query endpoints
-- `tasks.py`: Task monitoring endpoints
-- `schemas.py`: Pydantic request/response models
-
-### Core (`insightdocs/core/`)
-- `agent.py`: Base agent framework
-- `message_queue.py`: Redis-based message passing
-
-### Models (`insightdocs/models/`)
-- `schemas.py`: SQLAlchemy database models
-- `database.py`: Database connection management
-
-### Utils (`insightdocs/utils/`)
-- `document_processor.py`: Document parsing and chunking
-- `embeddings.py`: Embedding generation and vector search
-- `llm_client.py`: Gemini integration
-
-### Workers (`insightdocs/workers/`)
-- `celery_app.py`: Celery configuration
-- `tasks.py`: Async background tasks
-
-### Storage (`insightdocs/storage/`)
-- `file_storage.py`: S3/MinIO integration
-
-## 🔧 Configuration
-
-Environment variables (`.env`):
-```bash
-DATABASE_URL=postgresql://...
-REDIS_URL=redis://...
-GEMINI_API_KEY=sk-...
-S3_ENDPOINT=http://...
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-```
-
-## Testing
-
-```bash
-# Run all tests
-pytest tests/
-
-# Run with coverage
-pytest --cov=insightdocs --cov-report=html
-
-# Run specific test
-pytest tests/test_core_agent.py -v
-```
-
-## Documentation
-
-- `../README.md`: Project overview and features
-- `QUICKSTART.md`: Getting started guide
-- `../ARCHITECTURE.md`: Detailed system architecture
-- `API.md`: API endpoint reference
-- `DEVELOPMENT.md`: Development guide
-
-## Development Tools
-
-- `Makefile`: Common development tasks
-- `cli.py`: Command-line interface
-- `pytest.ini`: Test configuration
-- `docker-compose.yml`: Local development environment
-- `Dockerfile`: Container image definition
-
-## 🎯 Use Cases
-
-1. **Document Intelligence**: Upload PDFs, Word docs, text files for Q&A
-2. **Knowledge Base**: Build searchable knowledge repositories
-3. **Content Analysis**: Extract entities, generate summaries
-4. **Workflow Automation**: Coordinate multi-step AI workflows
-5. **Research Assistant**: Query across multiple documents
-
-## Security Features
-
-- Environment-based configuration
-- Secrets management via environment variables
-- Input validation with Pydantic
-- SQL injection prevention via ORM
-- File upload validation
-
-## Scalability
-
-- Horizontal scaling of API servers
-- Independent worker scaling
-- Database connection pooling
-- Redis clustering support
-- S3 for unlimited storage
-
-## Performance
-
-- Async I/O throughout
-- Batch embedding generation
-- Connection pooling
-- Caching strategies
-- Optimized vector search
-
-## Integration Points
-
-- **REST API**: JSON-based HTTP API
-- **Message Queue**: Redis pub/sub and queues
-- **Storage**: S3-compatible object storage
-- **Database**: PostgreSQL with SQLAlchemy
-- **LLM**: Gemini API (extensible to other providers)
-
-## Learning Resources
-
-The codebase demonstrates:
-- Async Python programming
-- Agent-based architectures
-- Microservices patterns
-- RESTful API design
-- Vector embeddings and RAG
-- Celery task queues
-- Docker containerization
-- Test-driven development
-
-## Contributing
-
-See `DEVELOPMENT.md` for:
-- Development workflow
-- Code style guide
-- Testing guidelines
-- Best practices
-
-## Support
-
-- GitHub Issues: Bug reports and feature requests
-- Documentation: Comprehensive guides in this directory
-- Code Examples: See `cli.py` and tests
-
----
-
-**Built with**: Python 3.11, FastAPI, Celery, PostgreSQL, Redis, Milvus, Gemini, Docker
+See [ARCHITECTURE.md](../ARCHITECTURE.md) for the complete design and [DEPLOYMENT.md](../DEPLOYMENT.md) for the release procedure.
