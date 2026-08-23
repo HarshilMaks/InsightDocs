@@ -99,10 +99,6 @@ class EvidenceWorkspaceUpdate(BaseSchema):
     description: Optional[str] = Field(None, max_length=2000)
 
 
-class EvidenceWorkspaceDocumentAdd(BaseSchema):
-    document_id: str = Field(..., min_length=1, max_length=100)
-
-
 class EvidenceWorkspaceListItem(BaseSchema):
     id: str
     name: str
