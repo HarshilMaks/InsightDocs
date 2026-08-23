@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -28,6 +28,7 @@ import {
   createWorkspace,
   deleteWorkspace,
   getApiErrorMessage,
+  getQueryHistory,
   isRequestCancelled,
   getWorkspace,
   listDocuments,
@@ -167,16 +168,30 @@ export function EvidenceWorkspaceListView() {
   )
 }
 
-type ChatTurn = { id: string; query: string; result: QueryResponse }
+type ChatTurn = { id: string; query: string; result: Pick<QueryResponse, 'answer' | 'sources'> }
 
-function WorkspaceChat({ workspace }: { workspace: EvidenceWorkspace }) {
+function WorkspaceChat({ workspace, conversationId }: { workspace: EvidenceWorkspace; conversationId: string }) {
   const queryClient = useQueryClient()
   const [question, setQuestion] = useState('')
   const queryAbortControllerRef = useRef<AbortController | null>(null)
-  const [conversationId] = useState(() => crypto.randomUUID())
   const [turns, setTurns] = useState<ChatTurn[]>([])
   const [pendingQuestion, setPendingQuestion] = useState<{ text: string; failed: boolean } | null>(null)
   const readyCount = workspace.documents.filter((document) => document.status === 'completed').length
+  const historyQuery = useQuery({
+    queryKey: ['conversation-history', 'workspace', conversationId],
+    queryFn: () => getQueryHistory(conversationId),
+  })
+  useEffect(() => {
+    if (!historyQuery.data) return
+    const restored = historyQuery.data.queries
+      .filter((item) => item.response)
+      .map((item) => ({
+        id: item.id,
+        query: item.query,
+        result: { answer: item.response ?? '', sources: [] },
+      }))
+    setTurns((current) => current.length === 0 ? restored : current)
+  }, [historyQuery.data])
   const queryMutation = useMutation({
     mutationFn: (query: string) => {
       const controller = new AbortController()
@@ -220,6 +235,9 @@ function WorkspaceChat({ workspace }: { workspace: EvidenceWorkspace }) {
 
 export function EvidenceWorkspaceDetailView() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const [searchParams] = useSearchParams()
+  const [newConversationId] = useState(() => crypto.randomUUID())
+  const conversationId = searchParams.get('conversation') ?? newConversationId
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const workspaceQuery = useQuery({ queryKey: workspaceKeys.detail(workspaceId ?? ''), queryFn: () => getWorkspace(workspaceId ?? ''), enabled: Boolean(workspaceId) })
@@ -239,5 +257,5 @@ export function EvidenceWorkspaceDetailView() {
   if (workspaceQuery.isError || !workspaceQuery.data) return <div className="p-4 md:p-6"><Card><CardContent className="space-y-3 p-6"><p className="text-sm text-destructive">Could not load this Evidence Workspace. {workspaceQuery.isError ? getApiErrorMessage(workspaceQuery.error) : ''}</p><Button variant="outline" onClick={() => navigate('/workspaces')}><ArrowLeft className="size-4" /> Back to workspaces</Button></CardContent></Card></div>
   const workspace = workspaceQuery.data
 
-  return <div className="mx-auto w-full max-w-7xl space-y-5 p-4 md:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><Button variant="ghost" size="sm" className="-ml-2 mb-2" onClick={() => navigate('/workspaces')}><ArrowLeft className="size-4" /> Workspaces</Button><h1 className="text-2xl font-semibold tracking-tight">{workspace.name}</h1>{workspace.description && <p className="mt-1 text-sm text-muted-foreground">{workspace.description}</p>}</div><Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}><Trash2 className="size-4" /> Delete</Button></div><div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]"><WorkspaceChat workspace={workspace} /><Card><CardHeader><CardTitle className="text-base">Selected documents</CardTitle><CardDescription>Only ready documents are eligible for workspace retrieval.</CardDescription></CardHeader><CardContent className="space-y-3">{workspace.documents.length === 0 ? <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">No documents selected. Add at least one completed document to ask questions.</p> : workspace.documents.map((document) => <div key={document.id} className="rounded-md border p-3"><div className="flex items-start justify-between gap-2"><WorkspaceDocumentName document={document} /><Button size="icon" variant="ghost" className="size-7 text-muted-foreground hover:text-destructive" onClick={() => removeMutation.mutate(document.id)} disabled={removeMutation.isPending} aria-label={`Remove ${document.filename}`}><X className="size-4" /></Button></div><div className="mt-2">{documentStatus(document)}</div></div>)}{availableDocuments.length > 0 && <div className="space-y-2 border-t pt-3"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Add from library</p>{availableDocuments.map((document) => <button type="button" key={document.id} onClick={() => addMutation.mutate(document.id)} disabled={addMutation.isPending} className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"><span className="truncate">{document.filename}</span><Plus className="size-4 shrink-0 text-primary" /></button>)}</div>}</CardContent></Card></div></div>
+  return <div className="mx-auto w-full max-w-7xl space-y-5 p-4 md:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><Button variant="ghost" size="sm" className="-ml-2 mb-2" onClick={() => navigate('/workspaces')}><ArrowLeft className="size-4" /> Workspaces</Button><h1 className="text-2xl font-semibold tracking-tight">{workspace.name}</h1>{workspace.description && <p className="mt-1 text-sm text-muted-foreground">{workspace.description}</p>}</div><Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}><Trash2 className="size-4" /> Delete</Button></div><div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]"><WorkspaceChat workspace={workspace} conversationId={conversationId} /><Card><CardHeader><CardTitle className="text-base">Selected documents</CardTitle><CardDescription>Only ready documents are eligible for workspace retrieval.</CardDescription></CardHeader><CardContent className="space-y-3">{workspace.documents.length === 0 ? <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">No documents selected. Add at least one completed document to ask questions.</p> : workspace.documents.map((document) => <div key={document.id} className="rounded-md border p-3"><div className="flex items-start justify-between gap-2"><WorkspaceDocumentName document={document} /><Button size="icon" variant="ghost" className="size-7 text-muted-foreground hover:text-destructive" onClick={() => removeMutation.mutate(document.id)} disabled={removeMutation.isPending} aria-label={`Remove ${document.filename}`}><X className="size-4" /></Button></div><div className="mt-2">{documentStatus(document)}</div></div>)}{availableDocuments.length > 0 && <div className="space-y-2 border-t pt-3"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Add from library</p>{availableDocuments.map((document) => <button type="button" key={document.id} onClick={() => addMutation.mutate(document.id)} disabled={addMutation.isPending} className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"><span className="truncate">{document.filename}</span><Plus className="size-4 shrink-0 text-primary" /></button>)}</div>}</CardContent></Card></div></div>
 }

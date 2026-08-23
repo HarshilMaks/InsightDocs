@@ -142,6 +142,7 @@ class DocumentChunk(Base, TimestampMixin):
     bbox_y1 = Column(Float, nullable=True)  # Top coordinate
     bbox_x2 = Column(Float, nullable=True)  # Right coordinate
     bbox_y2 = Column(Float, nullable=True)  # Bottom coordinate
+    bbox_regions = Column(JSON, nullable=True)  # Exact line/block regions; legacy chunks use bbox_*
 
     # Structural metadata (section-aware, table-atomic chunking)
     section_title = Column(String(500), nullable=True)

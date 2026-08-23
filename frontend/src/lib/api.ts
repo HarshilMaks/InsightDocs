@@ -250,6 +250,7 @@ export interface SourceReference {
   chunk_index: number
   page_number?: number | null
   bbox?: BoundingBox | null
+  bboxes?: BoundingBox[]
   section_title?: string | null
   chunk_type: string
   content_preview: string
@@ -313,6 +314,8 @@ export interface QueryHistoryItem {
   id: string
   conversation_id?: string | null
   turn_index?: number | null
+  document_id?: string | null
+  workspace_id?: string | null
   query: string
   response?: string | null
   response_time?: number | null

@@ -218,6 +218,13 @@ async def query_documents(
                 bbox_data.setdefault("page_number", citation.get("page_number"))
                 bbox = BoundingBox(**bbox_data)
 
+            bboxes = []
+            for region_payload in citation.get("bboxes") or []:
+                if isinstance(region_payload, dict) and all(k in region_payload for k in ("x1", "y1", "x2", "y2")):
+                    region_data = dict(region_payload)
+                    region_data.setdefault("page_number", citation.get("page_number"))
+                    bboxes.append(BoundingBox(**region_data))
+
             source_number = citation.get("source_number") or (len(sources) + 1)
             sources.append(SourceReference(
                 source_number=source_number,
@@ -227,6 +234,7 @@ async def query_documents(
                 chunk_index=int(citation.get("chunk_index") or source_number),
                 page_number=citation.get("page_number"),
                 bbox=bbox,
+                bboxes=bboxes,
                 section_title=citation.get("section_title"),
                 chunk_type=citation.get("chunk_type", "text"),
                 content_preview=s.get("content", "")[:200],
@@ -318,6 +326,18 @@ async def query_documents(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _history_document_id(query: QueryModel) -> Optional[str]:
+    """Return a direct-document provenance ID from retained source metadata."""
+    for source in query.sources or []:
+        metadata = source.get("metadata") if isinstance(source, dict) else None
+        metadata = metadata if isinstance(metadata, dict) else {}
+        citation = metadata.get("citation") if isinstance(metadata.get("citation"), dict) else {}
+        document_id = citation.get("document_id") or metadata.get("document_id")
+        if isinstance(document_id, str) and document_id:
+            return document_id
+    return None
+
+
 @router.get("/history", response_model=QueryHistoryResponse)
 async def get_query_history(
     skip: int = 0,
@@ -348,6 +368,8 @@ async def get_query_history(
                     "id": q.id,
                     "conversation_id": q.conversation_id,
                     "turn_index": q.turn_index,
+                    "document_id": _history_document_id(q),
+                    "workspace_id": q.workspace_id,
                     "query": q.query_text,
                     "response": q.response_text,
                     "response_time": q.response_time,

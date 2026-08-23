@@ -158,7 +158,7 @@ export function AuditAssistantView() {
   const [draft, setDraft] = useState('')
   const [turns, setTurns] = useState<ChatTurn[]>([])
   const [conversationId, setConversationId] = useState<string | null>(
-    () => window.localStorage.getItem(`${THREAD_KEY}${documentId}`) ?? null,
+    () => searchParams.get('conversation') ?? window.localStorage.getItem(`${THREAD_KEY}${documentId}`) ?? null,
   )
   const [selectedSource, setSelectedSource] = useState<SourceReference | null>(null)
   const [page, setPage] = useState(1)
@@ -351,18 +351,12 @@ export function AuditAssistantView() {
   }
 
   // Scale the stored bbox into rendered pixel space.
-  const highlight = useMemo(() => {
-    const bbox = selectedSource?.bbox
-    if (!bbox || !nativeSize || !renderedSize) return null
-    if (selectedSource?.page_number && selectedSource.page_number !== page) return null
+  const highlights = useMemo(() => {
+    const bboxes = selectedSource?.bboxes?.length ? selectedSource.bboxes : selectedSource?.bbox ? [selectedSource.bbox] : []
+    if (!nativeSize || !renderedSize || (selectedSource?.page_number && selectedSource.page_number !== page)) return []
     const sx = renderedSize.w / nativeSize.w
     const sy = renderedSize.h / nativeSize.h
-    return {
-      left: bbox.x1 * sx,
-      top: bbox.y1 * sy,
-      width: Math.max(2, (bbox.x2 - bbox.x1) * sx),
-      height: Math.max(2, (bbox.y2 - bbox.y1) * sy),
-    }
+    return bboxes.map((bbox) => ({ left: bbox.x1 * sx, top: bbox.y1 * sy, width: Math.max(2, (bbox.x2 - bbox.x1) * sx), height: Math.max(2, (bbox.y2 - bbox.y1) * sy) }))
   }, [selectedSource, nativeSize, renderedSize, page])
 
   const allSources = useMemo(
@@ -743,17 +737,13 @@ export function AuditAssistantView() {
                       setRenderedSize({ w: p.width, h: p.height })
                     }}
                   />
-                  {highlight && (
+                  {highlights.map((highlight, index) => (
                     <div
+                      key={index}
                       className="evidence-highlight pointer-events-none absolute z-20 rounded-sm transition-all"
-                      style={{
-                        left: `${highlight.left}px`,
-                        top: `${highlight.top}px`,
-                        width: `${highlight.width}px`,
-                        height: `${highlight.height}px`,
-                      }}
+                      style={{ left: `${highlight.left}px`, top: `${highlight.top}px`, width: `${highlight.width}px`, height: `${highlight.height}px` }}
                     />
-                  )}
+                  ))}
                 </div>
               </Document>
 

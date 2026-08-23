@@ -25,12 +25,14 @@ class PDFBlock:
         bbox: Tuple[float, float, float, float],
         block_type: str = "text",
         avg_font_size: Optional[float] = None,
+        bboxes: Optional[List[Dict[str, float]]] = None,
     ):
         self.text = text
         self.page_number = page_number
         self.bbox = bbox  # (x0, y0, x1, y1)
         self.block_type = block_type
         self.avg_font_size = avg_font_size
+        self.bboxes = bboxes or []
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -45,6 +47,7 @@ class PDFBlock:
             },
             "type": self.block_type,
             "avg_font_size": self.avg_font_size,
+            "bboxes": self.bboxes,
         }
 
 
@@ -134,6 +137,7 @@ class EnhancedPDFParser:
             # Type 0 = text block, Type 1 = image block
             if block.get("type") == 0:  # Text block
                 block_text_parts = []
+                line_bboxes: List[Dict[str, float]] = []
                 bbox = block.get("bbox")  # (x0, y0, x1, y1)
                 span_sizes: List[float] = []
                 
@@ -147,6 +151,9 @@ class EnhancedPDFParser:
                             span_sizes.append(float(size))
                     if line_text.strip():
                         block_text_parts.append(line_text.strip())
+                        line_bbox = line.get("bbox")
+                        if line_bbox and len(line_bbox) == 4:
+                            line_bboxes.append({"x1": line_bbox[0], "y1": line_bbox[1], "x2": line_bbox[2], "y2": line_bbox[3]})
                 
                 block_text = " ".join(block_text_parts)
                 avg_font_size = sum(span_sizes) / len(span_sizes) if span_sizes else None
@@ -159,6 +166,7 @@ class EnhancedPDFParser:
                         bbox=bbox,
                         block_type="text",
                         avg_font_size=avg_font_size,
+                        bboxes=line_bboxes,
                     ))
         
         return blocks
@@ -361,6 +369,15 @@ class EnhancedPDFParser:
                 "y2": max(float(bbox["y2"]) for bbox in valid),
             }
 
+        def _chunk_regions(chunk_blocks: List[Dict[str, Any]]) -> List[Dict[str, float]]:
+            regions: List[Dict[str, float]] = []
+            for block in chunk_blocks:
+                candidates = block.get("bboxes") or [block.get("bbox") or {}]
+                for bbox in candidates:
+                    if all(key in bbox for key in ("x1", "y1", "x2", "y2")):
+                        regions.append({key: float(bbox[key]) for key in ("x1", "y1", "x2", "y2")})
+            return regions
+
         def _finalize_prose_chunk():
             nonlocal current_chunk_text, current_chunk_blocks
             if not current_chunk_blocks:
@@ -371,6 +388,7 @@ class EnhancedPDFParser:
                 "text": current_chunk_text.strip(),
                 "page_number": first_block["page_number"],
                 "bbox": _union_chunk_bbox(current_chunk_blocks),
+                "bboxes": _chunk_regions(current_chunk_blocks),
                 "chunk_type": "text",
                 "section_title": current_section_title,
                 "parent_chunk_index": parent_idx,

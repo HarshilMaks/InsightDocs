@@ -1,4 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { MessageSquareText, AlertCircle, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -8,6 +9,17 @@ import { getQueryHistory, getApiErrorMessage } from '@/lib/api'
 const HISTORY_PAGE_SIZE = 100
 
 export function ChatHistoryView() {
+  const navigate = useNavigate()
+  const openConversation = (item: { conversation_id?: string | null; workspace_id?: string | null; document_id?: string | null }) => {
+    if (!item.conversation_id) return
+    if (item.workspace_id) {
+      navigate(`/workspaces/${encodeURIComponent(item.workspace_id)}?conversation=${encodeURIComponent(item.conversation_id)}`)
+      return
+    }
+    if (item.document_id) {
+      navigate(`/documents/${encodeURIComponent(item.document_id)}?conversation=${encodeURIComponent(item.conversation_id)}`)
+    }
+  }
   const historyQuery = useInfiniteQuery({
     queryKey: ['query-history'],
     queryFn: ({ pageParam }) => getQueryHistory(undefined, pageParam, HISTORY_PAGE_SIZE),
@@ -76,6 +88,11 @@ export function ChatHistoryView() {
                   <p className="text-[11px] text-muted-foreground tabular-nums">
                     {item.response_time.toFixed(1)}s
                   </p>
+                )}
+                {item.conversation_id && (item.workspace_id || item.document_id) && (
+                  <Button variant="outline" size="sm" className="mt-2 h-7 text-xs" onClick={() => openConversation(item)}>
+                    Open conversation
+                  </Button>
                 )}
               </CardContent>
             </Card>

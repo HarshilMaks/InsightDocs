@@ -174,6 +174,7 @@ class OrchestratorAgent(BaseAgent):
                     return {
                         "text": chunk_data,
                         "bbox": None,
+                        "bboxes": [],
                         "page_number": None,
                         "section_title": None,
                         "chunk_type": None,
@@ -183,6 +184,7 @@ class OrchestratorAgent(BaseAgent):
                 return {
                     "text": chunk_data.get("text", ""),
                     "bbox": chunk_data.get("bbox"),
+                    "bboxes": chunk_data.get("bboxes") or [],
                     "page_number": chunk_data.get("page_number"),
                     "section_title": chunk_data.get("section_title"),
                     "chunk_type": chunk_data.get("chunk_type"),
@@ -209,6 +211,7 @@ class OrchestratorAgent(BaseAgent):
                     bbox_y1=bbox["y1"] if bbox else None,
                     bbox_x2=bbox["x2"] if bbox else None,
                     bbox_y2=bbox["y2"] if bbox else None,
+                    bbox_regions=fields["bboxes"],
                     section_title=fields["section_title"],
                     chunk_type=fields["chunk_type"] or "text",
                     parent_chunk_id=None,
@@ -237,6 +240,7 @@ class OrchestratorAgent(BaseAgent):
                     bbox_y1=bbox["y1"] if bbox else None,
                     bbox_x2=bbox["x2"] if bbox else None,
                     bbox_y2=bbox["y2"] if bbox else None,
+                    bbox_regions=fields["bboxes"],
                     section_title=fields["section_title"],
                     chunk_type=fields["chunk_type"] or "text",
                     parent_chunk_id=parent_db_id,
@@ -285,6 +289,15 @@ class OrchestratorAgent(BaseAgent):
             "x2": float(chunk.bbox_x2),
             "y2": float(chunk.bbox_y2),
         }
+
+    @staticmethod
+    def _build_bbox_regions_payload(chunk: DocumentChunk) -> List[Dict[str, float]]:
+        regions = chunk.bbox_regions or []
+        return [
+            {key: float(region[key]) for key in ("x1", "y1", "x2", "y2")}
+            for region in regions
+            if isinstance(region, dict) and all(key in region for key in ("x1", "y1", "x2", "y2"))
+        ]
 
     @staticmethod
     def _build_citation_label(document_name: str, page_number: Optional[int], chunk_index: Optional[int]) -> str:
@@ -394,6 +407,7 @@ class OrchestratorAgent(BaseAgent):
                     chunk_index = chunk.chunk_index + 1
                     chunk_id = chunk.id
                     bbox = self._build_bbox_payload(chunk)
+                    bboxes = self._build_bbox_regions_payload(chunk)
                     document_id = chunk.document_id
                     section_title = chunk.section_title
                     chunk_type = chunk.chunk_type or "text"
@@ -404,6 +418,7 @@ class OrchestratorAgent(BaseAgent):
                     chunk_index = raw_chunk_index + 1 if isinstance(raw_chunk_index, int) else source_number
                     chunk_id = str(result.get("id", ""))
                     bbox = metadata.get("bbox")
+                    bboxes = metadata.get("bboxes") or []
                     document_id = metadata.get("document_id", "")
                     section_title = metadata.get("section_title")
                     chunk_type = metadata.get("chunk_type", "text")
@@ -416,6 +431,7 @@ class OrchestratorAgent(BaseAgent):
                     "chunk_index": chunk_index,
                     "page_number": page_number,
                     "bbox": bbox,
+                    "bboxes": bboxes,
                     "section_title": section_title,
                     "chunk_type": chunk_type,
                     "citation_label": self._build_citation_label(document_name, page_number, chunk_index),

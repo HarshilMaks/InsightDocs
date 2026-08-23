@@ -137,7 +137,8 @@ class SourceReference(BaseSchema):
     chunk_id: str
     chunk_index: int
     page_number: Optional[int] = None
-    bbox: Optional[BoundingBox] = Field(None, description="Bounding box for precise citation")
+    bbox: Optional[BoundingBox] = Field(None, description="Legacy bounding box for precise citation")
+    bboxes: List[BoundingBox] = Field(default_factory=list, description="Exact separated text regions for this citation")
     section_title: Optional[str] = Field(None, description="Section heading this chunk belongs to")
     chunk_type: str = Field("text", description="Type of chunk: 'text' or 'table'")
     content_preview: str
@@ -215,6 +216,8 @@ class QueryHistoryItem(BaseSchema):
     id: str
     conversation_id: Optional[str] = None
     turn_index: Optional[int] = None
+    document_id: Optional[str] = None
+    workspace_id: Optional[str] = None
     query: str
     response: Optional[str] = None
     response_time: Optional[float] = None
