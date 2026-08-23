@@ -43,16 +43,16 @@ You need accounts/instances for these services:
 1. Create a **Web Service** on Render
 2. Connect your GitHub repo
 3. Settings:
-   - **Build Command:** `pip install -r requirements.txt`
+   - **Build Command:** `bash scripts/render_build.sh`
    - **Start Command:** `bash scripts/start_api.sh`
    - **Environment:** Python 3.11
-   - **Plan:** Starter or higher (needs 512MB+ RAM for embeddings)
+   - **Plan:** Starter or higher (512 MB deployments must use sparse retrieval)
 
 ### Worker Service
 1. Create a **Background Worker** on Render
 2. Connect the same repo
 3. Settings:
-   - **Build Command:** `pip install -r requirements.txt`
+   - **Build Command:** `bash scripts/render_build.sh`
    - **Start Command:** `bash scripts/start_worker.sh`
    - **Environment:** Python 3.11
 
@@ -60,6 +60,8 @@ You need accounts/instances for these services:
 ```
 APP_ENV=production
 DEBUG=false
+# Required for a 512 MB Render API/worker. This disables local PyTorch models.
+EMBEDDING_MODE=sparse
 SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_urlsafe(64))">
 # One variable, with every permitted browser origin separated by commas.
 ALLOWED_ORIGINS=https://insightdocs.vercel.app,http://localhost:3000,http://127.0.0.1:3000

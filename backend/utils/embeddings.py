@@ -24,12 +24,19 @@ except ImportError as e:
     PYMILVUS_AVAILABLE = False
     logger.warning(f"pymilvus not available: {e}. Vector database will be disabled.")
 
-try:
-    from sentence_transformers import SentenceTransformer
-    SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    SENTENCE_TRANSFORMERS_AVAILABLE = False
-    logger.warning("sentence-transformers unavailable; hybrid dense embeddings are disabled, but sparse mode remains available.")
+SENTENCE_TRANSFORMERS_AVAILABLE = False
+
+# Importing sentence_transformers can initialize the PyTorch/Transformers stack.
+# Sparse mode must avoid even that import so 512 MB deployments stay below their
+# memory limit before the first query is processed.
+if settings.embedding_mode == "hybrid":
+    try:
+        from sentence_transformers import SentenceTransformer
+        SENTENCE_TRANSFORMERS_AVAILABLE = True
+    except ImportError:
+        logger.warning("sentence-transformers unavailable; hybrid dense embeddings are disabled.")
+else:
+    logger.info("Sparse-only embedding mode: sentence-transformers import is disabled.")
 
 
 class EmbeddingEngine:

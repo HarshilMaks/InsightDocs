@@ -21,7 +21,8 @@ setuptools==80.9.0  # pymilvus 2.4.x imports pkg_resources, removed in setuptool
 google-generativeai==0.8.0
 
 # Embeddings & ML
-sentence-transformers==3.0.1
+# Sparse-only production build: local SentenceTransformers and reranker models
+# are intentionally omitted. Set EMBEDDING_MODE=sparse on API and worker.
 
 # Storage
 boto3==1.34.7

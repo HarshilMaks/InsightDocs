@@ -22,6 +22,7 @@ jobs:
     env:
       APP_ENV: production
       DEBUG: "false"
+      EMBEDDING_MODE: sparse
       LOG_LEVEL: INFO
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
