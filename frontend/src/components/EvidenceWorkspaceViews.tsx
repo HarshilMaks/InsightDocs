@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -11,6 +11,7 @@ import {
   MessageSquareText,
   Plus,
   Send,
+  Square,
   Trash2,
   X,
 } from 'lucide-react'
@@ -27,6 +28,7 @@ import {
   createWorkspace,
   deleteWorkspace,
   getApiErrorMessage,
+  isRequestCancelled,
   getWorkspace,
   listDocuments,
   listWorkspaces,
@@ -170,19 +172,33 @@ type ChatTurn = { id: string; query: string; result: QueryResponse }
 function WorkspaceChat({ workspace }: { workspace: EvidenceWorkspace }) {
   const queryClient = useQueryClient()
   const [question, setQuestion] = useState('')
+  const queryAbortControllerRef = useRef<AbortController | null>(null)
   const [conversationId] = useState(() => crypto.randomUUID())
   const [turns, setTurns] = useState<ChatTurn[]>([])
   const [pendingQuestion, setPendingQuestion] = useState<{ text: string; failed: boolean } | null>(null)
   const readyCount = workspace.documents.filter((document) => document.status === 'completed').length
   const queryMutation = useMutation({
-    mutationFn: (query: string) => sendQuery({ query, workspace_id: workspace.id, conversation_id: conversationId, top_k: 5 }),
+    mutationFn: (query: string) => {
+      const controller = new AbortController()
+      queryAbortControllerRef.current = controller
+      return sendQuery({
+        query,
+        workspace_id: workspace.id,
+        conversation_id: conversationId,
+        top_k: 5,
+        signal: controller.signal,
+      })
+    },
     onSuccess: (result, query) => {
+      queryAbortControllerRef.current = null
       setTurns((current) => [...current, { id: result.query_id, query, result }])
       setPendingQuestion(null)
       void queryClient.invalidateQueries({ queryKey: ['query-history'] })
     },
     onError: (error) => {
+      queryAbortControllerRef.current = null
       setPendingQuestion((current) => current ? { ...current, failed: true } : current)
+      if (isRequestCancelled(error)) return
       toast.error('Workspace query failed', { description: getApiErrorMessage(error) })
     },
   })
@@ -194,7 +210,12 @@ function WorkspaceChat({ workspace }: { workspace: EvidenceWorkspace }) {
     queryMutation.mutate(query)
   }
 
-  return <Card className="min-h-[32rem]"><CardHeader className="border-b pb-4"><CardTitle className="flex items-center gap-2 text-base"><MessageSquareText className="size-4 text-primary" /> Ask this selected corpus</CardTitle><CardDescription>{readyCount > 0 ? `${readyCount} ready document${readyCount === 1 ? '' : 's'} will be searched. Documents outside this workspace are excluded.` : 'Add at least one ready document before querying.'}</CardDescription></CardHeader><CardContent className="flex min-h-[27rem] flex-col p-0"><div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">{pendingQuestion && <div className="space-y-3"><div className="ml-auto max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{pendingQuestion.text}</div><div className="flex items-center gap-2 text-sm text-muted-foreground">{pendingQuestion.failed ? 'No response was saved. You can submit the question again.' : <><Loader2 className="size-4 animate-spin" /> Answering from the selected corpus…</>}</div></div>}{turns.length === 0 && !pendingQuestion ? <div className="flex h-full min-h-48 items-center justify-center text-center text-sm text-muted-foreground">Ask a question across the selected evidence. Every source remains linked to its original document.</div> : turns.map((turn) => <div key={turn.id} className="space-y-3"><div className="ml-auto max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{turn.query}</div><div className="max-w-[92%] rounded-lg border bg-muted/25 p-3"><p className="whitespace-pre-wrap text-sm leading-relaxed">{turn.result.answer}</p>{turn.result.sources.length > 0 && <div className="mt-4 space-y-2 border-t pt-3"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Evidence sources</p>{turn.result.sources.map((source) => <Link key={`${turn.id}-${source.source_number}`} to={`/documents/${source.document_id}`} className="block rounded-md border bg-card p-2 text-xs transition-colors hover:border-primary/50"><div className="flex items-center justify-between gap-2"><span className="truncate font-medium">{source.document_name}</span><span className="shrink-0 text-muted-foreground">{source.page_number ? `Page ${source.page_number}` : 'Source'}</span></div><p className="mt-1 line-clamp-2 text-muted-foreground">{source.content_preview}</p></Link>)}</div>}</div></div>)}</div><div className="border-t p-3"><div className="flex gap-2"><Textarea value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask() } }} disabled={readyCount === 0 || queryMutation.isPending} placeholder={readyCount === 0 ? 'This workspace has no ready documents.' : 'Ask a question about the selected evidence…'} className="min-h-11 resize-none" /><Button size="icon" onClick={ask} disabled={!question.trim() || readyCount === 0 || queryMutation.isPending} aria-label="Send workspace question"><Send className="size-4" /></Button></div></div></CardContent></Card>
+  const stop = () => {
+    queryAbortControllerRef.current?.abort()
+    queryAbortControllerRef.current = null
+  }
+
+  return <Card className="min-h-[32rem]"><CardHeader className="border-b pb-4"><CardTitle className="flex items-center gap-2 text-base"><MessageSquareText className="size-4 text-primary" /> Ask this selected corpus</CardTitle><CardDescription>{readyCount > 0 ? `${readyCount} ready document${readyCount === 1 ? '' : 's'} will be searched. Documents outside this workspace are excluded.` : 'Add at least one ready document before querying.'}</CardDescription></CardHeader><CardContent className="flex min-h-[27rem] flex-col p-0"><div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">{pendingQuestion && <div className="space-y-3"><div className="ml-auto max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{pendingQuestion.text}</div><div className="flex items-center gap-2 text-sm text-muted-foreground">{pendingQuestion.failed ? 'No response was saved. You can submit the question again.' : <><Loader2 className="size-4 animate-spin" /> Answering from the selected corpus…</>}</div></div>}{turns.length === 0 && !pendingQuestion ? <div className="flex h-full min-h-48 items-center justify-center text-center text-sm text-muted-foreground">Ask a question across the selected evidence. Every source remains linked to its original document.</div> : turns.map((turn) => <div key={turn.id} className="space-y-3"><div className="ml-auto max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{turn.query}</div><div className="max-w-[92%] rounded-lg border bg-muted/25 p-3"><p className="whitespace-pre-wrap text-sm leading-relaxed">{turn.result.answer}</p>{turn.result.sources.length > 0 && <div className="mt-4 space-y-2 border-t pt-3"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Evidence sources</p>{turn.result.sources.map((source) => <Link key={`${turn.id}-${source.source_number}`} to={`/documents/${source.document_id}`} className="block rounded-md border bg-card p-2 text-xs transition-colors hover:border-primary/50"><div className="flex items-center justify-between gap-2"><span className="truncate font-medium">{source.document_name}</span><span className="shrink-0 text-muted-foreground">{source.page_number ? `Page ${source.page_number}` : 'Source'}</span></div><p className="mt-1 line-clamp-2 text-muted-foreground">{source.content_preview}</p></Link>)}</div>}</div></div>)}</div><div className="border-t p-3"><div className="flex gap-2"><Textarea value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); ask() } }} disabled={readyCount === 0 || queryMutation.isPending} placeholder={readyCount === 0 ? 'This workspace has no ready documents.' : 'Ask a question about the selected evidence…'} className="min-h-11 resize-none" />{queryMutation.isPending ? <Button size="icon" variant="destructive" onClick={stop} aria-label="Stop generating" title="Stop generating"><Square className="size-3.5 fill-current" /></Button> : <Button size="icon" onClick={ask} disabled={!question.trim() || readyCount === 0} aria-label="Send workspace question"><Send className="size-4" /></Button>}</div></div></CardContent></Card>
 }
 
 export function EvidenceWorkspaceDetailView() {

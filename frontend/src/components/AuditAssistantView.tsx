@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import {
   ArrowLeft,
   Send,
+  Square,
   CheckCircle2,
   AlertTriangle,
   HelpCircle,
@@ -41,6 +42,7 @@ import {
   generateQuiz,
   generateMindmap,
   getApiErrorMessage,
+  isRequestCancelled,
   type SourceReference,
   type ClaimVerification,
   type EvidenceGateSummary,
@@ -172,6 +174,7 @@ export function AuditAssistantView() {
 
   const endRef = useRef<HTMLDivElement>(null)
   const pdfPaneRef = useRef<HTMLDivElement>(null)
+  const queryAbortControllerRef = useRef<AbortController | null>(null)
 
   const docQuery = useQuery({
     queryKey: ['document', documentId],
@@ -270,14 +273,19 @@ export function AuditAssistantView() {
   }, [])
 
   const askMutation = useMutation({
-    mutationFn: (text: string) =>
-      sendQuery({
+    mutationFn: (text: string) => {
+      const controller = new AbortController()
+      queryAbortControllerRef.current = controller
+      return sendQuery({
         query: text,
         top_k: 5,
         conversation_id: conversationId ?? undefined,
         document_id: documentId,
-      }),
+        signal: controller.signal,
+      })
+    },
     onSuccess: (response) => {
+      queryAbortControllerRef.current = null
       setConversationId(response.conversation_id)
       setTurns((current) => [
         ...current,
@@ -299,6 +307,8 @@ export function AuditAssistantView() {
       void queryClient.invalidateQueries({ queryKey: ['query-history'] })
     },
     onError: (error) => {
+      queryAbortControllerRef.current = null
+      if (isRequestCancelled(error)) return
       if (isMissingGeminiApiKeyError(error)) {
         toast.error('Gemini API key required', { description: 'Configure an API key to ask questions about this document.' })
         return
@@ -319,6 +329,11 @@ export function AuditAssistantView() {
     setTurns((current) => [...current, { id: `u-${Date.now()}`, role: 'user', content: text }])
     setDraft('')
     askMutation.mutate(text)
+  }
+
+  const stop = () => {
+    queryAbortControllerRef.current?.abort()
+    queryAbortControllerRef.current = null
   }
 
   const selectSource = (source: SourceReference) => {
@@ -643,14 +658,20 @@ export function AuditAssistantView() {
                 placeholder={isReady ? 'Ask a question to inspect its evidence…' : 'Available once processing finishes'}
                 className="max-h-32 min-h-10 resize-none"
               />
-              <Button
-                size="icon"
-                aria-label="Send question"
-                disabled={!draft.trim() || askMutation.isPending || !isReady}
-                onClick={submit}
-              >
-                {askMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-              </Button>
+              {askMutation.isPending ? (
+                <Button size="icon" variant="destructive" aria-label="Stop generating" title="Stop generating" onClick={stop}>
+                  <Square className="size-3.5 fill-current" />
+                </Button>
+              ) : (
+                <Button
+                  size="icon"
+                  aria-label="Send question"
+                  disabled={!draft.trim() || !isReady}
+                  onClick={submit}
+                >
+                  <Send className="size-4" />
+                </Button>
+              )}
             </div>
             <p className="mt-1.5 text-[11px] text-muted-foreground">
               Enter to send · Eligible answers are audited when the Evidence Gate is available

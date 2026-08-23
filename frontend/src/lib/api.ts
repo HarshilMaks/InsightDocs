@@ -298,9 +298,15 @@ export async function sendQuery(payload: {
   conversation_id?: string
   document_id?: string
   workspace_id?: string
+  signal?: AbortSignal
 }): Promise<QueryResponse> {
-  const { data } = await api.post('/query/', payload)
+  const { signal, ...requestPayload } = payload
+  const { data } = await api.post('/query/', requestPayload, { signal })
   return data
+}
+
+export function isRequestCancelled(error: unknown): boolean {
+  return axios.isCancel(error) || (axios.isAxiosError(error) && error.code === 'ERR_CANCELED')
 }
 
 export interface QueryHistoryItem {

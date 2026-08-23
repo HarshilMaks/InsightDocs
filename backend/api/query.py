@@ -76,6 +76,13 @@ def _resolve_workspace_document_ids(
     return ready_document_ids
 
 
+async def _abort_if_client_disconnected(request: Request) -> None:
+    """Stop post-processing/persistence when the caller has cancelled its request."""
+    if await request.is_disconnected():
+        logger.info("Query client disconnected; abandoning response before persistence")
+        raise HTTPException(status_code=499, detail="Query request was cancelled by the client.")
+
+
 @router.post("/", response_model=QueryResponse, dependencies=[Depends(check_input_guardrail)])
 @limiter.limit("10/minute")
 async def query_documents(
@@ -162,6 +169,8 @@ async def query_documents(
                 status_code=int(result.get("status_code") or 500),
                 detail=error_msg,
             )
+
+        await _abort_if_client_disconnected(request)
         
         candidate_answer = result.get("answer", "")
         answer = candidate_answer
@@ -226,6 +235,7 @@ async def query_documents(
             ))
 
         # Persist query record
+        await _abort_if_client_disconnected(request)
         query_record = QueryModel(
             query_text=query_request.query,
             response_text=answer,
