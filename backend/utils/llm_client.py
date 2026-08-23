@@ -235,7 +235,42 @@ def _probe_accessible_models(api_key: str) -> List[str]:
 
         accessible.append(model_name)
 
-    return accessible
+    return _dedupe_models(accessible)
+
+
+def _is_text_generation_model(model_name: str) -> bool:
+    """Exclude non-text Gemini endpoints that can expose generateContent."""
+    normalized = _normalize_model_name(model_name)
+    if not normalized.startswith("gemini-"):
+        return False
+    return not any(token in normalized for token in ("embedding", "image", "audio", "tts", "live"))
+
+
+def _discovered_model_sort_key(model_name: str) -> Tuple[int, str]:
+    """Prefer fast text models before pro variants when no configured match exists."""
+    normalized = _normalize_model_name(model_name)
+    if "flash" in normalized:
+        return (0, normalized)
+    if "pro" in normalized:
+        return (1, normalized)
+    return (2, normalized)
+
+
+def _resolve_discovered_generation_models(
+    candidates: Sequence[str],
+    accessible_models: Sequence[str],
+) -> List[str]:
+    """Return exact accessible text model names in configured preference order."""
+    text_models = [model for model in accessible_models if _is_text_generation_model(model)]
+    ordered: List[str] = []
+
+    for candidate in candidates:
+        matches = [model for model in text_models if _model_matches(candidate, model)]
+        ordered.extend(sorted(matches, key=_discovered_model_sort_key))
+
+    remaining = [model for model in text_models if model not in ordered]
+    ordered.extend(sorted(remaining, key=_discovered_model_sort_key))
+    return _dedupe_models(ordered)
 
 
 def _generate_content_with_model(
@@ -293,22 +328,22 @@ def probe_gemini_status(
             available_models=[],
         ).to_dict()
 
-    matched_models = [
-        candidate
-        for candidate in candidates
-        if any(_model_matches(candidate, discovered) for discovered in accessible_models)
-    ]
+    resolved_models = _resolve_discovered_generation_models(candidates, accessible_models)
 
-    if matched_models:
-        active_model = matched_models[0]
-        if active_model == candidates[0]:
+    if resolved_models:
+        active_model = resolved_models[0]
+        primary_matches = bool(
+            _is_text_generation_model(candidates[0])
+            and _model_matches(candidates[0], active_model)
+        )
+        if primary_matches:
             return GeminiStatus(
                 status="healthy",
                 model_status="primary",
                 message=f"Gemini key is valid. Using {active_model}.",
                 active_model=active_model,
-                fallback_models=fallback_models,
-                available_models=matched_models,
+                fallback_models=resolved_models[1:],
+                available_models=resolved_models,
             ).to_dict()
 
         return GeminiStatus(
@@ -316,16 +351,16 @@ def probe_gemini_status(
             model_status="fallback",
             message=(
                 f"Preferred model {candidates[0]} is unavailable for this key. "
-                f"Using {active_model} instead."
+                f"Using discovered model {active_model} instead."
             ),
             active_model=active_model,
-            fallback_models=fallback_models,
-            available_models=matched_models,
+            fallback_models=resolved_models[1:],
+            available_models=resolved_models,
         ).to_dict()
 
     if accessible_models:
         message = (
-            "The Gemini key is valid, but none of the configured models are available. "
+            "The Gemini key is valid, but no text-generation Gemini models are available. "
             f"Configured priority: {', '.join(candidates)}."
         )
     else:
@@ -396,6 +431,40 @@ class LLMClient:
                 logger.warning("Gemini model %s failed: %s", model_name, message)
                 if code in {"invalid_api_key", "expired_api_key"}:
                     raise _exception_to_error(code, message, attempts=attempts, active_model=model_name) from exc
+
+        # A key can have access to a newly named or versioned Gemini model that
+        # is absent from the static settings chain. Only discover dynamically
+        # after every configured candidate is unavailable, so normal generation
+        # does not add an extra models.list request.
+        if attempts and all(attempt["error_code"] == "model_unavailable" for attempt in attempts):
+            try:
+                discovered_models = _resolve_discovered_generation_models(
+                    self.model_candidates,
+                    _probe_accessible_models(effective_key),
+                )
+            except Exception as exc:
+                logger.warning("Gemini model discovery failed after configured models were unavailable: %s", exc)
+                discovered_models = []
+
+            attempted_names = {_normalize_model_name(attempt["model"]) for attempt in attempts}
+            for model_name in discovered_models:
+                if _normalize_model_name(model_name) in attempted_names:
+                    continue
+                try:
+                    text = _generate_content_with_model(
+                        effective_key,
+                        model_name,
+                        prompt,
+                        generation_config,
+                    )
+                    logger.info("Gemini discovered-model fallback succeeded; active model=%s", model_name)
+                    return text
+                except Exception as exc:
+                    code, message, _ = _classify_gemini_exception(exc)
+                    attempts.append({"model": model_name, "error_code": code, "message": message})
+                    logger.warning("Discovered Gemini model %s failed: %s", model_name, message)
+                    if code in {"invalid_api_key", "expired_api_key"}:
+                        raise _exception_to_error(code, message, attempts=attempts, active_model=model_name) from exc
 
         if not attempts:
             raise GeminiConfigurationError("No Gemini models were configured.")

@@ -40,21 +40,26 @@ You need accounts/instances for these services:
 ## Step 2: Deploy Backend (Render)
 
 ### API Service
-1. Create a **Web Service** on Render
-2. Connect your GitHub repo
+1. Create a **Web Service** on Render and connect your GitHub repo.
+2. Choose the **Docker** runtime.
 3. Settings:
-   - **Build Command:** `bash scripts/render_build.sh`
-   - **Start Command:** `bash scripts/start_api.sh`
-   - **Environment:** Python 3.11
-   - **Plan:** Starter or higher (512 MB deployments must use sparse retrieval)
+   - **Dockerfile Path:** `Dockerfile`
+   - **Build Command:** leave empty. The Dockerfile installs `requirements-prod.txt` into `/opt/venv` during the image build.
+   - **Start Command / Docker Command:** leave empty. The image `CMD` runs `bash scripts/start_api.sh`.
+   - **Plan:** Starter or higher (512 MB deployments must use sparse retrieval).
 
 ### Worker Service
-1. Create a **Background Worker** on Render
-2. Connect the same repo
+1. Create a **Background Worker** on Render and connect the same repo.
+2. Choose the **Docker** runtime.
 3. Settings:
-   - **Build Command:** `bash scripts/render_build.sh`
-   - **Start Command:** `bash scripts/start_worker.sh`
-   - **Environment:** Python 3.11
+   - **Dockerfile Path:** `Dockerfile.worker`
+   - **Build Command:** leave empty. Its Dockerfile installs dependencies during the image build.
+   - **Start Command / Docker Command:** leave empty. The image `CMD` runs `bash scripts/start_worker.sh`.
+
+> Do not set `bash scripts/render_build.sh` as a Build, Start, Docker, or
+> Pre-Deploy command for either Docker service. It is only for native Python
+> deployments; the Docker runtime intentionally executes as an unprivileged
+> user after `/opt/venv` has already been built.
 
 ### Environment Variables (set on BOTH services)
 ```

@@ -1,6 +1,6 @@
-# Local Docker Compose Celery worker only.
-# Production uses the GitHub Actions worker; do not configure this image as the
-# Render web service, which must remain the lightweight API Dockerfile.
+# Celery worker image for local Compose or a Render Background Worker. Do not
+# configure this image as the Render web service; that service must use the
+# lightweight API Dockerfile.
 FROM python:3.11-slim
 
 WORKDIR /app

@@ -91,3 +91,48 @@ async def test_summary_requests_structured_resume_aware_output():
     assert 'Candidate has Python and FastAPI experience.' in prompt
     assert run_prompt.call_args.kwargs['max_output_tokens'] == 2048
     assert run_prompt.call_args.kwargs['temperature'] <= 0.3
+
+
+@pytest.mark.asyncio
+async def test_llm_client_retries_an_exact_discovered_model_after_static_models_are_unavailable():
+    def model_factory(model_name):
+        model = MagicMock()
+        if model_name in {'gemini-2.5-flash', 'gemini-2.0-flash'}:
+            model.generate_content.side_effect = gexc.NotFound('model not found')
+        elif model_name == 'gemini-3.0-flash':
+            model.generate_content.return_value = MagicMock(text='discovered-model answer')
+        else:
+            model.generate_content.side_effect = AssertionError(f'unexpected model {model_name}')
+        return model
+
+    models = [
+        SimpleNamespace(name='models/gemini-3.0-flash', supported_generation_methods=['generateContent']),
+    ]
+    with patch('backend.utils.llm_client.genai.GenerativeModel', side_effect=model_factory) as mock_model_cls, patch(
+        'backend.utils.llm_client.genai.list_models', return_value=models
+    ):
+        llm = LLMClient(
+            api_key='AIzaSyC_valid_key_for_testing_1234567890',
+            model_candidates=['gemini-2.5-flash', 'gemini-2.0-flash'],
+        )
+        result = await llm.summarize('This is a test document.')
+
+    assert result == 'discovered-model answer'
+    assert [call.args[0] for call in mock_model_cls.call_args_list] == [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-3.0-flash',
+    ]
+
+
+def test_probe_gemini_status_uses_an_exact_discovered_model_name():
+    models = [
+        SimpleNamespace(name='models/gemini-3.0-flash', supported_generation_methods=['generateContent']),
+    ]
+
+    with patch('backend.utils.llm_client.genai.list_models', return_value=models):
+        status = probe_gemini_status('AIzaSyC_valid_key_for_testing_1234567890')
+
+    assert status['status'] == 'degraded'
+    assert status['active_model'] == 'gemini-3.0-flash'
+    assert status['available_models'] == ['gemini-3.0-flash']
