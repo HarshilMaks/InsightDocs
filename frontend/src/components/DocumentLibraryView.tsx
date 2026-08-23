@@ -11,7 +11,6 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
-  ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -182,36 +181,12 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 p-4 md:p-6">
       <section className="overflow-hidden rounded-2xl border bg-card">
-        <div className="grid gap-0 md:grid-cols-[minmax(0,0.82fr)_minmax(20rem,1.18fr)]">
-          <div className="flex flex-col justify-between gap-7 p-6 md:p-8">
-            <div className="space-y-3">
-              <Badge variant="outline" className="w-fit gap-1.5 border-primary/35 bg-primary/5 text-primary">
-                <ShieldCheck className="size-3.5" />
-                Evidence workspace
-              </Badge>
-              <div className="space-y-2">
-                <h2 className="max-w-md text-3xl font-semibold tracking-tight md:text-4xl">Start with a source.</h2>
-                <p className="max-w-md text-sm leading-relaxed text-muted-foreground md:text-base">
-                  Add one document, let it become ready, then work from evidence you can inspect.
-                </p>
-              </div>
-            </div>
-            <div className="rounded-xl border bg-muted/25 p-3.5">
-              <div className="flex items-start gap-2.5">
-                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  <span className="font-medium text-foreground">Evidence Gate.</span> Eligible answers are checked against their retained source snapshot. Human review stays separate and traceable.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div
+        <div
             {...getRootProps()}
             role="button"
             tabIndex={0}
             aria-label="Upload a document"
-            className={`group relative isolate flex min-h-[22rem] cursor-pointer flex-col items-center justify-center overflow-hidden border-t border-dashed px-6 py-10 text-center outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 md:border-l md:border-t-0 ${
+            className={`group relative isolate flex min-h-[22rem] cursor-pointer flex-col items-center justify-center overflow-hidden border border-dashed px-6 py-10 text-center outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 ${
               isDragActive ? 'border-primary bg-primary/10' : 'hover:border-primary/55 hover:bg-accent/25'
             } ${uploadMutation.isPending ? 'pointer-events-none opacity-70' : ''}`}
           >
@@ -247,7 +222,6 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
               <span className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 font-medium text-primary">Up to 50 MB</span>
             </div>
           </div>
-        </div>
       </section>
 
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -255,34 +229,6 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
           <h3 className="text-lg font-semibold tracking-tight">Evidence library</h3>
           <p className="text-sm text-muted-foreground">Source documents available for evidence-grounded analysis.</p>
         </div>
-      </div>
-
-      {/* Upload */}
-      <div
-        {...getRootProps()}
-        role="button"
-        tabIndex={0}
-        aria-label="Upload a document"
-        className={`grid-surface flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-6 py-10 text-center transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${
-          isDragActive ? 'border-primary bg-primary/5' : 'hover:border-primary/50 hover:bg-accent/30'
-        } ${uploadMutation.isPending ? 'pointer-events-none opacity-60' : ''}`}
-      >
-        <input {...getInputProps()} />
-        <div className="mb-3 flex size-11 items-center justify-center rounded-lg border bg-card">
-          {uploadMutation.isPending ? (
-            <Loader2 className="size-5 animate-spin text-primary" />
-          ) : (
-            <Upload className="size-5 text-muted-foreground" />
-          )}
-        </div>
-        <p className="text-sm font-medium">
-          {uploadMutation.isPending
-            ? 'Uploading…'
-            : isDragActive
-              ? 'Drop the file to upload'
-              : 'Drop a file here, or click to browse'}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">PDF, DOCX, PPTX or TXT · up to 50 MB</p>
       </div>
 
       {/* Table / states */}

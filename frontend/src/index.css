@@ -155,13 +155,53 @@
     background-position: center center;
   }
 
-  /* Static page backdrop. Replaces the old WebGL shader canvas, which
-     ran a requestAnimationFrame loop for the lifetime of the app.
-     Tinted with the logo's two gradient stops. */
-  .app-backdrop {
-    background-image:
-      radial-gradient(60rem 60rem at 12% -10%, rgb(167 139 250 / 5%), transparent 60%),
-      radial-gradient(50rem 50rem at 100% 0%, rgb(240 0 140 / 4%), transparent 60%);
+  /* Global ambient background. It is intentionally non-interactive and sits
+     beneath the app shell; its violet/pink motion echoes the brand mark without
+     competing with document content or evidence highlights. */
+  .app-animated-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background: #09090b;
+  }
+
+  .app-animated-backdrop::before,
+  .app-animated-backdrop::after {
+    position: absolute;
+    width: 52rem;
+    height: 52rem;
+    border-radius: 9999px;
+    content: '';
+    filter: blur(84px);
+    opacity: 0.16;
+    will-change: transform;
+  }
+
+  .app-animated-backdrop::before {
+    top: -31rem;
+    left: -24rem;
+    background: #a78bfa;
+    animation: backdrop-drift-violet 26s ease-in-out infinite alternate;
+  }
+
+  .app-animated-backdrop::after {
+    right: -30rem;
+    bottom: -34rem;
+    background: #f0008c;
+    opacity: 0.1;
+    animation: backdrop-drift-pink 32s ease-in-out infinite alternate;
+  }
+
+  @keyframes backdrop-drift-violet {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(16rem, 11rem, 0) scale(1.12); }
+  }
+
+  @keyframes backdrop-drift-pink {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(-18rem, -12rem, 0) scale(1.14); }
   }
 
   /* Citation highlight drawn over the rendered PDF page. Amber on purpose:

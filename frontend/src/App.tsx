@@ -66,10 +66,11 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <SidebarProvider className="app-backdrop h-svh overflow-hidden">
+      <div aria-hidden="true" className="app-animated-backdrop" />
+      <SidebarProvider className="relative z-10 h-svh overflow-hidden bg-transparent">
         <AppSidebar onRequireAuth={openAuth} />
 
-        <SidebarInset className="min-w-0 overflow-hidden">
+        <SidebarInset className="min-w-0 overflow-hidden bg-background/88 backdrop-blur-sm">
           <TopBar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
