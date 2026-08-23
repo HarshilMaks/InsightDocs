@@ -1,21 +1,40 @@
-# InsightDocs
+<p align="center">
+  <img src="frontend/brand/insightdocs-logo.png" alt="InsightDocs logo" width="132" />
+</p>
 
-InsightDocs is an evidence-first document intelligence application for work that must remain traceable to selected source material. It is built for analysts, reviewers, operators, researchers, and teams working with PDFs and business documents where a plausible answer is not enough.
+<h1 align="center">InsightDocs</h1>
 
-## Not a generic document chat
+<p align="center"><strong>Controlled evidence review for documents.</strong></p>
 
-Broad notebook-style research tools and general-purpose chat assistants are useful for open-ended exploration, drafting, and asking questions across a library. InsightDocs is for a different moment in the workflow: when a user must define the evidence set, inspect where an answer came from, and retain a reviewable record of the result.
+<p align="center">
+  <a href="#a-different-job-from-notebook-and-chat-tools">Why InsightDocs</a> ·
+  <a href="#what-it-does">Capabilities</a> ·
+  <a href="ARCHITECTURE.md">Architecture</a> ·
+  <a href="DEPLOYMENT.md">Deployment</a> ·
+  <a href="PROJECT_STATUS.md">Project status</a>
+</p>
 
-| Broad notebook or chat workflow | InsightDocs workflow |
+InsightDocs is for work that must remain traceable to selected source material. It gives an analyst, reviewer, or operator a bounded evidence set, an answer grounded in that set, and a way to inspect the source before relying on the answer.
+
+## A different job from notebook and chat tools
+
+NotebookLM, ChatGPT, and similar tools are useful for exploration: read across a library, develop an understanding, draft, and continue a conversation. InsightDocs is for the point after exploration, when a person needs to answer a question from a controlled corpus and show the source behind that answer.
+
+| When the work looks like this | A broad notebook or chat workflow | InsightDocs |
+| --- | --- | --- |
+| I am learning what is in a collection | Keep the library open and explore it conversationally | Build a named Evidence Workspace for one investigation and choose the documents that may be used. |
+| I want the model to use what I uploaded | The available notebook or library is the working context | The selected ready-document set is enforced at retrieval time. A workspace query cannot expand to the rest of the library. |
+| I need to check the answer myself | Read a citation or search the document again | Open the original PDF from the response and inspect its document, page, chunk, and stored source regions. |
+| I need to return to the work later | Continue a general conversation | Reopen a saved document or workspace conversation with its original evidence scope. |
+| Someone must sign off on the result | Hand over the generated answer for informal review | Retain an Evidence Gate claim-support record and owner-scoped review decisions alongside the answer. |
+
+InsightDocs does not try to be a better general chat window. It is a controlled review environment for the cases where scope, source inspection, and a durable evidence record matter.
+
+### Choose the right tool for the job
+
+| Use a notebook or general chat tool when you need | Use InsightDocs when you need |
 | --- | --- |
-| Put material in a broad notebook or library, then explore it conversationally | Select one ready document or create a named private Evidence Workspace for a specific investigation. |
-| Treat the available library as conversational context | Enforce the selected ready-document set as a retrieval boundary. A workspace query never expands to the full library. |
-| Receive a useful answer, summary, or synthesis | Receive an answer with document, page, chunk, and spatial source references that can be inspected in the original PDF. |
-| Use citations as helpful reading references | Preserve exact PDF regions for new ingestions so evidence highlights can point to separated source passages rather than only a broad page area. |
-| Continue an open chat thread | Reopen saved document or workspace conversations with their original evidence scope. |
-| Hand the generated answer to a person for informal review | Retain a shadow-mode Evidence Gate claim-support record and owner-scoped review decisions for human accountability. |
-
-Use a general notebook or chat tool when the goal is broad exploration or drafting. Use InsightDocs when the answer must stay tied to a controlled corpus and a reviewer needs to inspect the evidence behind it.
+| Open-ended reading, idea development, drafting, or broad research across a changing collection | A bounded evidence set, inspectable PDF source regions, saved scope-aware conversations, and a reviewable record for a human decision |
 
 ## Who it is for
 
