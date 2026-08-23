@@ -181,12 +181,33 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 p-4 md:p-6">
       <section className="overflow-hidden rounded-2xl border bg-card">
-        <div
+        <div className="grid md:grid-cols-[minmax(0,0.78fr)_minmax(22rem,1.22fr)]">
+          <div className="flex flex-col justify-between gap-7 border-b p-6 md:border-r md:border-b-0 md:p-8">
+            <div className="space-y-3">
+              <Badge variant="outline" className="w-fit border-primary/30 bg-primary/5 text-primary">Evidence workflow</Badge>
+              <div className="space-y-2">
+                <h2 className="max-w-sm text-3xl font-semibold tracking-tight">Start with the record.</h2>
+                <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+                  Add a source. It becomes available for review after it is ready.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[['01', 'Add'], ['02', 'Ready'], ['03', 'Inspect']].map(([number, label]) => (
+                <div key={number} className="rounded-lg border bg-muted/20 px-3 py-2.5">
+                  <p className="text-[10px] font-medium tracking-[0.16em] text-primary">{number}</p>
+                  <p className="mt-1 text-xs font-medium text-foreground">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div
             {...getRootProps()}
             role="button"
             tabIndex={0}
             aria-label="Upload a document"
-            className={`group relative isolate flex min-h-[22rem] cursor-pointer flex-col items-center justify-center overflow-hidden border border-dashed px-6 py-10 text-center outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 ${
+            className={`group relative isolate flex min-h-[22rem] cursor-pointer flex-col items-center justify-center overflow-hidden border-t border-dashed px-6 py-10 text-center outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 md:border-l md:border-t-0 ${
               isDragActive ? 'border-primary bg-primary/10' : 'hover:border-primary/55 hover:bg-accent/25'
             } ${uploadMutation.isPending ? 'pointer-events-none opacity-70' : ''}`}
           >
@@ -222,6 +243,7 @@ export function DocumentLibraryView({ searchQuery, onRequireAuth }: DocumentLibr
               <span className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 font-medium text-primary">Up to 50 MB</span>
             </div>
           </div>
+        </div>
       </section>
 
       <div className="flex flex-wrap items-end justify-between gap-2">

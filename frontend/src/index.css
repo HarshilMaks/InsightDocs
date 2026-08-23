@@ -175,7 +175,7 @@
     border-radius: 9999px;
     content: '';
     filter: blur(84px);
-    opacity: 0.16;
+    opacity: 0.3;
     will-change: transform;
   }
 
@@ -190,7 +190,7 @@
     right: -30rem;
     bottom: -34rem;
     background: #f0008c;
-    opacity: 0.1;
+    opacity: 0.18;
     animation: backdrop-drift-pink 32s ease-in-out infinite alternate;
   }
 

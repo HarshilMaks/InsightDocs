@@ -70,7 +70,7 @@ export default function App() {
       <SidebarProvider className="relative z-10 h-svh overflow-hidden bg-transparent">
         <AppSidebar onRequireAuth={openAuth} />
 
-        <SidebarInset className="min-w-0 overflow-hidden bg-background/88 backdrop-blur-sm">
+        <SidebarInset className="min-w-0 overflow-hidden bg-background/80 backdrop-blur-sm">
           <TopBar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}

@@ -78,6 +78,13 @@ flowchart TB
 
 The API handles authentication, ownership checks, workspaces, queries, history, audits, and reviews. The worker handles asynchronous parsing, OCR where configured, chunking, and indexing. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full ingestion and query flows.
 
+## Research context
+
+InsightDocs is informed by work on retrieval-grounded generation and citation quality. These papers motivate design choices; they do not validate, certify, or prove the correctness of this product.
+
+- Lewis et al., [*Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks*](https://arxiv.org/abs/2005.11401), 2020: retrieval can ground generation in an explicit external knowledge source.
+- Gao et al., [*Enabling Large Language Models to Generate Text with Citations*](https://arxiv.org/abs/2305.14627), 2023: citation quality is a distinct property that needs to be evaluated alongside answer quality.
+
 ## Who uses it
 
 | User | Typical use |
