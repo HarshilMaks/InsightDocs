@@ -483,6 +483,7 @@ class OrchestratorAgent(BaseAgent):
         top_k: int = 5,
         history_limit: int = 4,
         document_id: Optional[str] = None,
+        document_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Process a query using RAG pipeline (Hybrid Search + Reranker + LLM).
         
@@ -492,8 +493,11 @@ class OrchestratorAgent(BaseAgent):
             user_id: Required user ID for strict tenant isolation
             document_id: Optional document ID to scope retrieval to a single
                 document (e.g. the document workspace view). The document
-                must be owned by user_id; otherwise the scope is ignored and
-                retrieval falls back to searching all of the user's documents.
+                must be owned by user_id; otherwise the legacy single-document
+                path falls back to searching all of the user's documents.
+            document_ids: Explicit owner-validated document allow-list for an
+                Evidence Workspace. Unlike document_id, an invalid or empty
+                list is rejected and never falls back to the full library.
         Returns: {"answer": str, "sources": [{"content": str, "metadata": dict, "score": float}]}
         """
         db_gen = None
@@ -507,7 +511,22 @@ class OrchestratorAgent(BaseAgent):
                 raise ValueError("user_id is required for tenant-isolated queries")
 
             scoped_document_id = None
-            if document_id:
+            scoped_document_ids: Optional[List[str]] = None
+            if document_ids is not None:
+                scoped_document_ids = list(dict.fromkeys(value for value in document_ids if value))
+                if not scoped_document_ids:
+                    raise ValueError("Evidence Workspace has no selected documents")
+                owned_document_ids = {
+                    document.id
+                    for document in (
+                        db.query(Document)
+                        .filter(Document.user_id == user_id, Document.id.in_(scoped_document_ids))
+                        .all()
+                    )
+                }
+                if owned_document_ids != set(scoped_document_ids):
+                    raise ValueError("Evidence Workspace contains a document you do not own")
+            elif document_id:
                 owns_document = (
                     db.query(Document)
                     .filter(Document.id == document_id, Document.user_id == user_id)
@@ -521,7 +540,15 @@ class OrchestratorAgent(BaseAgent):
                         "they do not own; ignoring scope."
                     )
 
-            self.log_event("query_start", {"query": query_text, "user_id": user_id, "document_id": scoped_document_id})
+            self.log_event(
+                "query_start",
+                {
+                    "query": query_text,
+                    "user_id": user_id,
+                    "document_id": scoped_document_id,
+                    "document_count": len(scoped_document_ids) if scoped_document_ids is not None else None,
+                },
+            )
             
             # Step 1: tenant-filtered vector search. Sparse mode uses the
             # dependency-free hashed sparse index; hybrid keeps dense+sparse.
@@ -534,6 +561,7 @@ class OrchestratorAgent(BaseAgent):
                 top_k=search_top_k,
                 user_id=user_id,
                 document_id=scoped_document_id,
+                document_ids=scoped_document_ids,
             )
             
             # Step 2: Cross-encoder reranking is another local
@@ -638,4 +666,5 @@ class OrchestratorAgent(BaseAgent):
             conversation_id=message.get("conversation_id"),
             top_k=message.get("top_k", 5),
             document_id=message.get("document_id"),
+            document_ids=message.get("document_ids"),
         )

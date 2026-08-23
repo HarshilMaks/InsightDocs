@@ -15,6 +15,8 @@ from backend.models.database import Base
 from backend.models.schemas import (
     Document,
     DocumentChunk,
+    EvidenceWorkspace,
+    EvidenceWorkspaceDocument,
     EvidenceGateClaim,
     EvidenceGateReviewDecision,
     EvidenceGateRun,

@@ -173,6 +173,64 @@ export async function generateMindmap(documentId: string): Promise<{ document_id
 }
 
 // ──────────────────────────────────────────────
+// Evidence Workspaces
+// ──────────────────────────────────────────────
+
+export interface EvidenceWorkspaceListItem {
+  id: string
+  name: string
+  description?: string | null
+  document_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface EvidenceWorkspace extends EvidenceWorkspaceListItem {
+  documents: DocumentResponse[]
+}
+
+export async function listWorkspaces(): Promise<{ workspaces: EvidenceWorkspaceListItem[]; total: number }> {
+  const { data } = await api.get('/workspaces')
+  return data
+}
+
+export async function getWorkspace(workspaceId: string): Promise<EvidenceWorkspace> {
+  const { data } = await api.get(`/workspaces/${workspaceId}`)
+  return data
+}
+
+export async function createWorkspace(payload: {
+  name: string
+  description?: string
+  document_ids?: string[]
+}): Promise<EvidenceWorkspace> {
+  const { data } = await api.post('/workspaces', payload)
+  return data
+}
+
+export async function updateWorkspace(
+  workspaceId: string,
+  payload: { name?: string; description?: string | null },
+): Promise<EvidenceWorkspace> {
+  const { data } = await api.patch(`/workspaces/${workspaceId}`, payload)
+  return data
+}
+
+export async function deleteWorkspace(workspaceId: string): Promise<void> {
+  await api.delete(`/workspaces/${workspaceId}`)
+}
+
+export async function addWorkspaceDocument(workspaceId: string, documentId: string): Promise<EvidenceWorkspace> {
+  const { data } = await api.put(`/workspaces/${workspaceId}/documents/${documentId}`)
+  return data
+}
+
+export async function removeWorkspaceDocument(workspaceId: string, documentId: string): Promise<EvidenceWorkspace> {
+  const { data } = await api.delete(`/workspaces/${workspaceId}/documents/${documentId}`)
+  return data
+}
+
+// ──────────────────────────────────────────────
 // Query (Ask AI)
 // ──────────────────────────────────────────────
 
@@ -239,6 +297,7 @@ export async function sendQuery(payload: {
   top_k?: number
   conversation_id?: string
   document_id?: string
+  workspace_id?: string
 }): Promise<QueryResponse> {
   const { data } = await api.post('/query/', payload)
   return data

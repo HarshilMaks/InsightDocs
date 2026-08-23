@@ -204,3 +204,34 @@ async def test_sparse_mode_search_never_issues_a_dense_request():
     )
     engine.collection.hybrid_search.assert_not_called()
     assert results[0]["metadata"]["user_id"] == "user-1"
+
+
+@pytest.mark.asyncio
+@patch.object(EmbeddingEngine, "_connect_milvus", lambda self: None)
+@patch.object(EmbeddingEngine, "_init_collection", lambda self: None)
+async def test_sparse_workspace_search_scopes_to_tenant_and_selected_documents():
+    missing_sparse_module = types.ModuleType("milvus_model.hybrid")
+
+    with patch.object(settings, "embedding_mode", "sparse"), patch.dict(
+        sys.modules, {"milvus_model.hybrid": missing_sparse_module}
+    ):
+        engine = EmbeddingEngine()
+
+    engine.collection = MagicMock()
+    engine.collection.search.return_value = [[]]
+    engine.embed_texts = AsyncMock(
+        return_value={"dense": [[0.0] * engine.dimension], "sparse": [{123: 0.5}]}
+    )
+
+    await engine.search(
+        "evidence query",
+        user_id="user-1",
+        document_ids=["doc-a", "doc-b", "doc-a"],
+    )
+
+    assert engine.collection.search.call_args.kwargs["expr"] == (
+        'user_id == "user-1" and document_id in ["doc-a", "doc-b"]'
+    )
+
+    with pytest.raises(ValueError, match="does not contain searchable documents"):
+        await engine.search("evidence query", user_id="user-1", document_ids=[])

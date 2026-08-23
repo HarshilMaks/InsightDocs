@@ -4,6 +4,7 @@ import {
   FileText,
   History,
   ClipboardCheck,
+  FolderKanban,
   KeyRound,
   Settings,
   HelpCircle,
@@ -37,6 +38,7 @@ interface AppSidebarProps {
 
 const navItems = [
   { label: 'Evidence Gate', to: '/', icon: ClipboardCheck, requiresAuth: false },
+  { label: 'Workspaces', to: '/workspaces', icon: FolderKanban, requiresAuth: true },
   { label: 'Review queue', to: '/review', icon: FileText, requiresAuth: true },
   { label: 'History', to: '/history', icon: History, requiresAuth: true },
   { label: 'API key', to: '/byok', icon: KeyRound, requiresAuth: true },

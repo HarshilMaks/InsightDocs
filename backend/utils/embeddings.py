@@ -8,6 +8,12 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+def _escape_milvus_expression_value(value: str) -> str:
+    """Escape a string literal used inside a Milvus boolean expression."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 SentenceTransformer = None
 
 try:
@@ -388,7 +394,8 @@ class EmbeddingEngine:
         query_text: str,
         top_k: int = 5,
         user_id: str = None,
-        document_id: str = None
+        document_id: str = None,
+        document_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """Search for similar vectors in Milvus using Hybrid Search.
         
@@ -398,6 +405,9 @@ class EmbeddingEngine:
             user_id: Optional user ID to filter results (for multi-tenant isolation)
             document_id: Optional document ID to restrict results to a single
                 document (e.g. when querying from a document workspace view)
+            document_ids: Optional explicit document allow-list for an
+                Evidence Workspace. An empty list is never treated as an
+                unscoped search.
             
         Returns:
             List of search results with text, score, and metadata
@@ -410,12 +420,22 @@ class EmbeddingEngine:
             query_embeds = await self.embed_texts([query_text])
 
             # Build filter expression for tenant isolation, optionally scoped
-            # to a single document (e.g. when querying from a workspace view).
+            # to one document or an explicit Evidence Workspace allow-list.
             expr_clauses = []
             if user_id:
-                expr_clauses.append(f'user_id == "{user_id}"')
-            if document_id:
-                expr_clauses.append(f'document_id == "{document_id}"')
+                expr_clauses.append(f'user_id == "{_escape_milvus_expression_value(user_id)}"')
+            if document_ids is not None:
+                scoped_ids = list(dict.fromkeys(document_ids))
+                if not scoped_ids:
+                    raise ValueError("Workspace does not contain searchable documents")
+                serialized_ids = ", ".join(
+                    f'"{_escape_milvus_expression_value(value)}"' for value in scoped_ids
+                )
+                expr_clauses.append(f"document_id in [{serialized_ids}]")
+            elif document_id:
+                expr_clauses.append(
+                    f'document_id == "{_escape_milvus_expression_value(document_id)}"'
+                )
             expr = " and ".join(expr_clauses) if expr_clauses else None
 
             sparse_query_set = query_embeds.get('sparse')

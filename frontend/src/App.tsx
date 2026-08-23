@@ -21,6 +21,12 @@ const ByokConfigView = lazy(() =>
 const ChatHistoryView = lazy(() =>
   import('./components/ChatHistoryView').then((m) => ({ default: m.ChatHistoryView })),
 )
+const EvidenceWorkspaceListView = lazy(() =>
+  import('./components/EvidenceWorkspaceViews').then((m) => ({ default: m.EvidenceWorkspaceListView })),
+)
+const EvidenceWorkspaceDetailView = lazy(() =>
+  import('./components/EvidenceWorkspaceViews').then((m) => ({ default: m.EvidenceWorkspaceDetailView })),
+)
 const ReviewerQueueView = lazy(() =>
   import('./components/ReviewerViews').then((m) => ({ default: m.ReviewerQueueView })),
 )
@@ -90,6 +96,15 @@ export default function App() {
                     </Scrollable>,
                   )}
                 />
+                <Route
+                  path="/workspaces"
+                  element={guarded(
+                    <Scrollable>
+                      <EvidenceWorkspaceListView />
+                    </Scrollable>,
+                  )}
+                />
+                <Route path="/workspaces/:workspaceId" element={guarded(<EvidenceWorkspaceDetailView />)} />
                 <Route
                   path="/history"
                   element={guarded(

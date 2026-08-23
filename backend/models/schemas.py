@@ -61,6 +61,9 @@ class User(Base, TimestampMixin):
 
     # Relationships
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
+    evidence_workspaces = relationship(
+        "EvidenceWorkspace", back_populates="user", cascade="all, delete-orphan"
+    )
     queries = relationship("Query", back_populates="user", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="user", cascade="all, delete-orphan")
     evidence_gate_review_decisions = relationship(
@@ -105,6 +108,9 @@ class Document(Base, TimestampMixin):
     
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="document")
+    workspace_memberships = relationship(
+        "EvidenceWorkspaceDocument", back_populates="document", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_documents_user_status", "user_id", "status"),
@@ -183,6 +189,50 @@ class Task(Base, TimestampMixin):
         return f"<Task(id='{self.id}', type='{self.task_type}', status='{self.status}')>"
 
 
+class EvidenceWorkspace(Base, TimestampMixin):
+    """A private, owner-scoped set of documents used as one evidence corpus."""
+    __tablename__ = "evidence_workspaces"
+
+    id = Column(String, primary_key=True, default=_generate_uuid)
+    name = Column(String(120), nullable=False)
+    description = Column(Text, nullable=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    user = relationship("User", back_populates="evidence_workspaces")
+    document_memberships = relationship(
+        "EvidenceWorkspaceDocument",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        order_by="EvidenceWorkspaceDocument.created_at",
+    )
+    queries = relationship("Query", back_populates="workspace")
+
+    __table_args__ = (
+        Index("ix_evidence_workspaces_user_updated", "user_id", "updated_at"),
+    )
+
+
+class EvidenceWorkspaceDocument(Base, TimestampMixin):
+    """Membership of an owner-owned document in an Evidence Workspace."""
+    __tablename__ = "evidence_workspace_documents"
+
+    id = Column(String, primary_key=True, default=_generate_uuid)
+    workspace_id = Column(
+        String, ForeignKey("evidence_workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    document_id = Column(String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+
+    workspace = relationship("EvidenceWorkspace", back_populates="document_memberships")
+    document = relationship("Document", back_populates="workspace_memberships")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "document_id", name="uq_evidence_workspace_documents_workspace_document"
+        ),
+        Index("ix_evidence_workspace_documents_document", "document_id"),
+    )
+
+
 class Query(Base, TimestampMixin):
     """
     Query history model (Merged Model)
@@ -206,7 +256,11 @@ class Query(Base, TimestampMixin):
 
     # Relationships
     user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    workspace_id = Column(
+        String, ForeignKey("evidence_workspaces.id", ondelete="SET NULL"), nullable=True
+    )
     user = relationship("User", back_populates="queries")
+    workspace = relationship("EvidenceWorkspace", back_populates="queries")
     evidence_gate_runs = relationship(
         "EvidenceGateRun", back_populates="query", cascade="all, delete-orphan"
     )
@@ -214,6 +268,7 @@ class Query(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_queries_user_created", "user_id", "created_at"),
         Index("ix_queries_user_conversation_turn", "user_id", "conversation_id", "turn_index"),
+        Index("ix_queries_workspace_created", "workspace_id", "created_at"),
     )
 
     def __repr__(self):

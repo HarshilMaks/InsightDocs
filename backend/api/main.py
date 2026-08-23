@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 # --- Updated Imports ---
-from backend.api import documents, evidence_gate_reviews, query, tasks, auth, users, admin
+from backend.api import documents, evidence_gate_reviews, query, tasks, auth, users, admin, workspaces
 from backend.api.schemas import HealthResponse
 from backend.models.schemas import Base
 from backend.models.database import engine, get_db
@@ -55,6 +55,7 @@ if settings.allowed_origins:
 # --- Include all routers with the API prefix ---
 app.include_router(auth.router, prefix=settings.api_prefix)
 app.include_router(documents.router, prefix=settings.api_prefix)
+app.include_router(workspaces.router, prefix=settings.api_prefix)
 app.include_router(query.router, prefix=settings.api_prefix)
 app.include_router(evidence_gate_reviews.router, prefix=settings.api_prefix)
 app.include_router(tasks.router, prefix=settings.api_prefix)

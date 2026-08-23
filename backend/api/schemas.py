@@ -83,8 +83,47 @@ class DocumentUploadResponse(BaseSchema):
     task_id: str
     message: str
 
+
+# ---------------------------------------------------------
+# Evidence Workspace schemas
+# ---------------------------------------------------------
+
+class EvidenceWorkspaceCreate(BaseSchema):
+    name: str = Field(..., min_length=1, max_length=120)
+    description: Optional[str] = Field(None, max_length=2000)
+    document_ids: List[str] = Field(default_factory=list, max_length=100)
+
+
+class EvidenceWorkspaceUpdate(BaseSchema):
+    name: Optional[str] = Field(None, min_length=1, max_length=120)
+    description: Optional[str] = Field(None, max_length=2000)
+
+
+class EvidenceWorkspaceDocumentAdd(BaseSchema):
+    document_id: str = Field(..., min_length=1, max_length=100)
+
+
+class EvidenceWorkspaceListItem(BaseSchema):
+    id: str
+    name: str
+    description: Optional[str] = None
+    document_count: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class EvidenceWorkspaceResponse(EvidenceWorkspaceListItem):
+    documents: List[DocumentResponse] = Field(default_factory=list)
+
+
+class EvidenceWorkspaceListResponse(BaseSchema):
+    workspaces: List[EvidenceWorkspaceListItem]
+    total: int
+
+
 # ---------------------------------------------------------
 # Query Schemas (Updated)
+# ---------------------------------------------------------
 # ---------------------------------------------------------
 
 class BoundingBox(BaseSchema):
@@ -134,6 +173,11 @@ class QueryRequest(BaseSchema):
         None,
         description="Restrict retrieval to a single document (e.g. the document workspace view). "
                      "If omitted, retrieval searches across all of the user's documents.",
+    )
+    workspace_id: Optional[str] = Field(
+        None,
+        description="Restrict retrieval to the explicitly selected documents in an owner-scoped Evidence Workspace. "
+                    "Mutually exclusive with document_id.",
     )
 
 class EvidenceGateSummary(BaseSchema):

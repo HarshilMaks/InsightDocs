@@ -3,7 +3,7 @@ import time
 from typing import Optional
 from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 import logging
 from backend.api.schemas import (
     BoundingBox,
@@ -14,7 +14,14 @@ from backend.api.schemas import (
     QueryResponse,
     SourceReference,
 )
-from backend.models import get_db, Query as QueryModel, Document
+from backend.models import (
+    get_db,
+    Query as QueryModel,
+    Document,
+    EvidenceWorkspace,
+    EvidenceWorkspaceDocument,
+    TaskStatus,
+)
 from backend.models.schemas import User
 from backend.core.security import get_current_user, decrypt_api_key
 from backend.core.limiter import limiter
@@ -36,6 +43,39 @@ def _get_user_orchestrator(current_user: User) -> "OrchestratorAgent":
             pass
     return OrchestratorAgent(api_key=api_key)
 
+def _resolve_workspace_document_ids(
+    db: Session,
+    workspace_id: str,
+    user_id: str,
+) -> list[str]:
+    workspace = (
+        db.query(EvidenceWorkspace)
+        .options(
+            selectinload(EvidenceWorkspace.document_memberships).selectinload(
+                EvidenceWorkspaceDocument.document
+            )
+        )
+        .filter(EvidenceWorkspace.id == workspace_id, EvidenceWorkspace.user_id == user_id)
+        .one_or_none()
+    )
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Evidence Workspace not found.")
+
+    ready_document_ids = [
+        membership.document.id
+        for membership in workspace.document_memberships
+        if membership.document is not None
+        and membership.document.user_id == user_id
+        and membership.document.status == TaskStatus.COMPLETED
+    ]
+    if not ready_document_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Evidence Workspace has no ready documents. Add a completed document and try again.",
+        )
+    return ready_document_ids
+
+
 @router.post("/", response_model=QueryResponse, dependencies=[Depends(check_input_guardrail)])
 @limiter.limit("10/minute")
 async def query_documents(
@@ -47,8 +87,37 @@ async def query_documents(
     """Ask follow-up questions about the user's uploaded documents using RAG."""
     start = time.time()
     try:
+        if query_request.document_id and query_request.workspace_id:
+            raise HTTPException(
+                status_code=422,
+                detail="document_id and workspace_id cannot be used together.",
+            )
+
+        workspace_document_ids = None
+        if query_request.workspace_id:
+            workspace_document_ids = _resolve_workspace_document_ids(
+                db,
+                query_request.workspace_id,
+                current_user.id,
+            )
+
         logger.info(f"Query by user {current_user.id}: {query_request.query}")
         conversation_id = query_request.conversation_id or str(uuid4())
+        if query_request.workspace_id:
+            existing_workspace = (
+                db.query(QueryModel.workspace_id)
+                .filter(
+                    QueryModel.user_id == current_user.id,
+                    QueryModel.conversation_id == conversation_id,
+                    QueryModel.workspace_id.isnot(None),
+                )
+                .first()
+            )
+            if existing_workspace and existing_workspace.workspace_id != query_request.workspace_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="conversation_id is already scoped to a different Evidence Workspace.",
+                )
         turn_index = (
             db.query(QueryModel)
             .filter(
@@ -68,6 +137,7 @@ async def query_documents(
             db=db,
             top_k=max(1, query_request.top_k or 5),
             document_id=query_request.document_id,
+            document_ids=workspace_document_ids,
         )
         if not result.get("success"):
             error_msg = result.get("error", "Query processing failed")
@@ -146,6 +216,7 @@ async def query_documents(
             response_time=elapsed,
             sources=sources_data,
             user_id=current_user.id,
+            workspace_id=query_request.workspace_id,
             conversation_id=conversation_id,
             turn_index=turn_index,
         )
