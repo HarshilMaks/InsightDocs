@@ -115,7 +115,7 @@ async def test_llm_client_retries_an_exact_discovered_model_after_static_models_
             api_key='AIzaSyC_valid_key_for_testing_1234567890',
             model_candidates=['gemini-2.5-flash', 'gemini-2.0-flash'],
         )
-        result = await llm.summarize('This is a test document.')
+        result = llm.generate_text('This is a test document.', temperature=0.0)
 
     assert result == 'discovered-model answer'
     assert [call.args[0] for call in mock_model_cls.call_args_list] == [

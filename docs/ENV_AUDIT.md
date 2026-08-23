@@ -50,7 +50,7 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/1 # Used in celery_app.py ✅
 ### AI - Gemini (Required)
 ```bash
 GEMINI_API_KEY=<your-gemini-api-key>          # ⚠️ SECRET - Used by LLM client ✅
-GEMINI_MODEL=gemini-2.5-flash                 # Used in settings.py ✅
+GEMINI_MODEL=gemini-3.6-flash                 # Used in settings.py ✅
 GEMINI_TEMPERATURE=0.7                        # Used in settings.py ✅
 ```
 
@@ -217,7 +217,7 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/1
 # AI - Google Gemini
 # ---------------------------------
 GEMINI_API_KEY=your-gemini-api-key-here
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.6-flash
 GEMINI_TEMPERATURE=0.7
 
 # ---------------------------------

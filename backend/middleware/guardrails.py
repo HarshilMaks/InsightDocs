@@ -12,36 +12,11 @@ from typing import Optional
 
 from fastapi import Request, HTTPException, Depends
 
-from backend.config import settings
 from backend.models.schemas import User
 from backend.core.security import get_current_user, decrypt_api_key
+from backend.utils.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
-
-try:
-    import google.generativeai as genai
-    GENAI_AVAILABLE = True
-except ImportError:
-    GENAI_AVAILABLE = False
-    genai = None  # type: ignore[assignment]
-    logger.warning("google-generativeai not available. Guardrails will be disabled (fail-open).")
-
-_system_gemini = None
-
-def _get_system_gemini():
-    global _system_gemini
-    if _system_gemini is None:
-        try:
-            if not GENAI_AVAILABLE:
-                _system_gemini = None
-            else:
-                if settings.gemini_api_key:
-                    genai.configure(api_key=settings.gemini_api_key)
-                _system_gemini = genai.GenerativeModel(settings.gemini_model)
-        except Exception as e:
-            logger.warning("Gemini guardrail unavailable: %s", e)
-            _system_gemini = None
-    return _system_gemini
 
 
 # ---------------------------------------------------------------------------
@@ -129,30 +104,19 @@ return {{"claims": []}}.
 # Helper
 # ---------------------------------------------------------------------------
 
-def _get_gemini_client(api_key: str = None):
-    """Get a configured Gemini client. Uses user key if provided, else system key."""
-    if not GENAI_AVAILABLE:
-        return None
-    if api_key:
-        genai.configure(api_key=api_key)
-        return genai.GenerativeModel(settings.gemini_model)
-    return _get_system_gemini()
+def _generate_guardrail_text(prompt: str, api_key: str = None, max_output_tokens: int = 128) -> str:
+    """Generate a deterministic guardrail response via the shared Gemini fallback path."""
+    return LLMClient(api_key=api_key).generate_text(
+        prompt,
+        temperature=0.0,
+        max_output_tokens=max_output_tokens,
+    )
+
 
 def _call_gemini_guard(prompt: str, api_key: str = None) -> tuple[bool, str]:
     """Call Gemini and parse the JSON guard result."""
     try:
-        model = _get_gemini_client(api_key)
-        if model is None:
-            logger.warning("Guardrail unavailable: no Gemini client")
-            return True, ""
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.0,
-                max_output_tokens=128,
-            ),
-        )
-        raw = response.text.strip()
+        raw = _generate_guardrail_text(prompt, api_key=api_key, max_output_tokens=128)
         # Strip markdown code blocks if present
         raw = re.sub(r"^```[a-z]*\n?", "", raw)
         raw = re.sub(r"\n?```$", "", raw)
@@ -296,19 +260,13 @@ def verify_claims(
     )
 
     try:
-        model = _get_gemini_client(api_key)
-        if model is None:
-            logger.warning("Claim verification unavailable: no Gemini client")
-            return None
-
-        response = model.generate_content(
-            _CLAIM_VERIFICATION_PROMPT.format(sources=numbered_sources, answer=answer),
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.0,
+        raw = _strip_json_code_fences(
+            _generate_guardrail_text(
+                _CLAIM_VERIFICATION_PROMPT.format(sources=numbered_sources, answer=answer),
+                api_key=api_key,
                 max_output_tokens=1024,
-            ),
+            )
         )
-        raw = _strip_json_code_fences(response.text or "")
 
         try:
             data = json.loads(raw)

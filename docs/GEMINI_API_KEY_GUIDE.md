@@ -25,35 +25,27 @@ InsightDocs uses **Google Gemini** for AI analysis. You need a free API key to g
 
 ## Which model?
 
-The default primary model is `gemini-2.5-flash` — fast, capable, and free-tier friendly.
+The default primary model is `gemini-3.6-flash`. If a key cannot access that exact model, InsightDocs discovers an accessible text-generation model for that key.
 
-InsightDocs now probes your key and automatically falls back through the configured model chain if
-the preferred model is unavailable:
+InsightDocs first tries the configured chain, then discovers a text-generation model accessible to that specific key if needed:
 
 ```
-gemini-2.5-flash
-gemini-2.0-flash
-gemini-1.5-flash
-gemini-1.5-pro
-gemini-2.0-pro
+gemini-3.6-flash
+gemini-3-flash-preview
+then a compatible discovered model
 ```
 
-To customize the order, update `.env`:
+To customize the initial order, update `.env`:
 ```
-GEMINI_MODEL=gemini-2.5-flash
-GEMINI_MODEL_FALLBACKS=gemini-2.0-flash,gemini-1.5-flash,gemini-1.5-pro,gemini-2.0-pro
+GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL_FALLBACKS=gemini-3-flash-preview
 ```
 
 ---
 
-## Free Tier Limits
+## Limits
 
-| Model | Free Requests/min | Free Requests/day |
-|---|---|---|
-| gemini-2.5-flash | 15 | 1,500 |
-| gemini-2.0-pro | 2 | 50 |
-
-For most personal/demo use the free tier is sufficient.
+Gemini model availability and quotas vary by account, region, and current Google policy. The Settings page reports the model that is actually usable for the saved key; consult Google AI Studio for current limits.
 
 The Settings page now shows whether your key is healthy, degraded to a fallback model, invalid, or
 rate-limited, so you can see why BYOK is or is not enabled.

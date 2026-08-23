@@ -393,6 +393,20 @@ class LLMClient:
         """Probe the effective key and configured model chain."""
         return probe_gemini_status(self.api_key, self.model_candidates)
 
+    def generate_text(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.0,
+        max_output_tokens: Optional[int] = None,
+    ) -> str:
+        """Generate text using the configured chain and discovered-model fallback."""
+        return self._run_prompt(
+            prompt,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+        )
+
     def _run_prompt(
         self,
         prompt: str,
