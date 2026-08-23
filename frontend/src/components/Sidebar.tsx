@@ -59,15 +59,16 @@ export function AppSidebar({ onRequireAuth }: AppSidebarProps) {
   const location = useLocation()
   const { isAuthenticated, user, logout } = useAuth()
 
-  // Same query key as the library view, so React Query serves this from
-  // cache instead of issuing a second request.
+  // This response has a different shape from the library's infinite query,
+  // so it must have an independent cache key. Sharing ['documents'] made the
+  // library read this normal response as InfiniteData and crash after sign-in.
   const documentsQuery = useQuery({
-    queryKey: ['documents'],
-    queryFn: () => listDocuments(),
+    queryKey: ['documents', 'sidebar-count'],
+    queryFn: () => listDocuments(0, 1),
     enabled: isAuthenticated,
     staleTime: 30_000,
   })
-  const documentsCount = documentsQuery.data?.documents.length ?? 0
+  const documentsCount = documentsQuery.data?.total ?? 0
 
   const isActive = (to: string) => {
     if (to === '/') return location.pathname === '/' || location.pathname.startsWith('/documents/')
